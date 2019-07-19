@@ -17,11 +17,10 @@
   $: [rowTotals, colTotals] = generateTotals(currentSolution);
 
   const setLayerIndex = index => { layerIndex = index; };
-  const toggleDisabled = (row, col) => board[row][col] === -1 ? 0 : -1;
-  const toggleEnabled = (row, col) => {
-    if (board[row][col] === -1 ) { return; }
-    board[row][col] = board[row][col] === 1 ? 0 : 1;
-  }
+  const toggleDisabled = (row, col) => board[row][col] = board[row][col] === -1 ? 0 : -1;
+  const toggleEnabled = (row, col) => (
+    board[row][col] = board[row][col] === -1 ? 0 : (board[row][col] === 1 ? 0 : 1)
+  );
   
 </script>
 
@@ -49,11 +48,6 @@
     margin-bottom: 1rem;
   }
 
-  .col {
-    content: '';
-    flex: 1;
-  }
-
   .board {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
@@ -65,77 +59,74 @@
 <h1>{title}</h1>
 
 <div class="flex-row justify-center margin-bottom">
-  {#each colors as color}
+  {#each colors as color, index}
     <Block
       state={1}
       enabledColor={color}
-      onClick={() => { console.log(color); }}
+      onClick={() => { setLayerIndex(index); }}
     >
       {color}
     </Block>
   {/each}
 </div>
 
-<div class="flex-row">
-  <div class="col" />
-  <div class="col">
-    <div class="flex-row">
-      {#each rowTotals as total}
-        <Block
-          enabledColor={currentColor}
-          style="flex-grow: 0;"
-        >
-          {total}
-        </Block>
-      {/each}
-    </div>
-  </div>
-  <div class="col" />
+<div class="flex-row justify-center">
+  {#each colTotals as total}
+    <Block
+      enabledColor={currentColor}
+      state={1}
+    >
+      {total}
+    </Block>
+  {/each}
 </div>
 
-<div class="flex-row">
-  <div class="col" />
-    <div class="flex-col">
-      {#each rowTotals as total}
-        <Block
-          enabledColor={currentColor}
-          style="flex-grow: 0;"
-        >
-          {total}
-        </Block>
-      {/each}
-    </div>
+<div class="flex-row justify-center">
+  <div class="flex-col">
+    {#each rowTotals as total}
+      <Block
+        enabledColor={currentColor}
+        state={1}
+      >
+        {total}
+      </Block>
+    {/each}
   </div>
-  <div class="col">
-    <div class="flex-row">
-      <section class="board">
-        {#each board as row, rowIndex}
-          {#each row as item, colIndex}
-            <Block
-              row={rowIndex}
-              col={colIndex}
-              on:click={() => toggleEnabled(rowIndex, colIndex)}
-              on:contextmenu={(e) => {
-                e.preventDefault();
-                toggleDisabled(rowIndex, colIndex)
-              }}
-            >
-              {item}
-            </Block>
-          {/each}
+  <div class="flex-row">
+    <section class="board">
+      {#each board as row, rowIndex}
+        {#each row as item, colIndex}
+          <Block
+            state={item}
+            row={rowIndex}
+            col={colIndex}
+            onClick={toggleEnabled}
+            onRightClick={toggleDisabled}
+            enabledColor={currentColor}
+          />
         {/each}
-      </section>
-    </div>
-  </div>
-  <div class="col">
-    <div class="flex-col">
-      {#each rowTotals as total}
-        <Block
-          enabledColor={currentColor}
-          style="flex-grow: 0;"
-        >
-          {total}
-        </Block>
       {/each}
-    </div>
+    </section>
   </div>
+  <div class="flex-col">
+    {#each rowTotals as total}
+      <Block
+        enabledColor={currentColor}
+        state={1}
+      >
+        {total}
+      </Block>
+    {/each}
+  </div>
+</div>
+
+<div class="flex-row justify-center">
+  {#each colTotals as total}
+    <Block
+      enabledColor={currentColor}
+      state={1}
+    >
+      {total}
+    </Block>
+  {/each}
+</div>

@@ -4,6 +4,8 @@
   export let state = 0;
   export let enabledColor;
   export let onClick;
+  export let onRightClick;
+  console.log(state);
 
   const white = '#eee';
   const black = '#111';
@@ -27,15 +29,21 @@
     width: 48px;
 		transition: all 0.2s ease-in-out;
   }
-
-  div + div {
-    border-left: 0;
-  }
 </style>
 
 <div
   style="background-color: {bg}; color: {textColor}"
-  on:click={() => !!onClick && onClick()}
+  on:click={() => {
+    if (onClick) {
+      onClick(row, col);
+    }
+  }}
+  on:contextmenu={(e) => {
+    if (onRightClick) {
+      e.preventDefault();
+      onRightClick(row, col);
+    }
+  }}
 >
   <slot />
 </div>
