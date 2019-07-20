@@ -9,18 +9,48 @@
   $: layers = level.layers;
   $: colors = layers.map(layer => layer.color);
   $: solutions = layers.map(layer => layer.solution);
+  $: boards = layers.map(layer => layer.board);
   $: currentColor = colors[layerIndex];
   $: currentSolution = solutions[layerIndex];
-  $: rows = currentSolution.length;
-  $: cols = currentSolution[0].length;
-  $: board = Array(rows).fill().map(() => Array(cols).fill(0));
+  $: currentBoard = boards[layerIndex];
   $: [rowTotals, colTotals] = generateTotals(currentSolution);
+  $: same = checkLayers(layers);
 
   const setLayerIndex = index => { layerIndex = index; };
-  const toggleDisabled = (row, col) => board[row][col] = board[row][col] === -1 ? 0 : -1;
-  const toggleEnabled = (row, col) => (
-    board[row][col] = board[row][col] === -1 ? 0 : (board[row][col] === 1 ? 0 : 1)
+
+  const toggleDisabled = (row, col) => (
+    currentBoard[row][col] = currentBoard[row][col] === -1 ? 0 : -1
   );
+
+  const toggleEnabled = (row, col) => (
+    currentBoard[row][col] = currentBoard[row][col] === -1
+      ? 0
+      : (currentBoard[row][col] === 1 ? 0 : 1)
+  );
+
+  const checkLayers = (layers) => {
+    let same = true;
+
+    for (let i = 0; i < layers.length; i += 1) {
+      const solution = solutions[i];
+      const board = boards[i];
+
+      solution.forEach(
+        (solutionRow, rowIndex) => {
+          solutionRow.forEach(
+            (solutionColumn, columnIndex) => {
+              let guess = Math.max(board[rowIndex][columnIndex], 0);
+              if (solutionColumn !== guess) {
+                same = false;
+              }
+            }
+          )
+        }
+      )
+    }
+
+		return same;
+  }
   
 </script>
 
@@ -94,7 +124,7 @@
   </div>
   <div class="flex-row">
     <section class="board">
-      {#each board as row, rowIndex}
+      {#each currentBoard as row, rowIndex}
         {#each row as item, colIndex}
           <Block
             state={item}
@@ -129,4 +159,8 @@
       {total}
     </Block>
   {/each}
+</div>
+
+<div class="flex-row justify-center">
+  {same.toString()}
 </div>
