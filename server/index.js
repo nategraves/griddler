@@ -1,4 +1,5 @@
 const fs = require('fs');
+const cors = require('cors');
 const path = require('path');
 const express = require('express');
 const graphqlHTTP = require('express-graphql');
@@ -8,29 +9,20 @@ const LEVELS_PATH = 'levels.json';
 const ENC = 'utf8';
  
 const app = express();
+app.use(cors());
 
 const schema = buildSchema(`
-  type Layer {
-    color: String
-    solution: [[Int]]
-    board: [[Int]]
-  }
-
-  input LayerInput {
-    color: String!
-    solution: [[Int!]!]!
-    board: [[Int!]!]!
-  }
-
   input LevelInput {
     id: ID
     title: String!
-    layers: [LayerInput!]!
+    colors: [String!]!
+    solution: [[Int!]!]!
   }
 
   type Level {
     title: String
-    layers: [Layer]
+    colors: [String]
+    solution: [[Int]]
   }
 
   type Query {

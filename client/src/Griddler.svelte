@@ -1,64 +1,45 @@
 <script>
+  import { gql } from 'apollo-boost';
+  import { onMount } from 'svelte';
+  import { client } from './gql';
+  import { matrix, deepEqual } from 'mathjs';
+  import { generateTotals } from './utils.ts';
   import Block from './Block.svelte';
-  import { generateTotals } from './utils';
 
   export let level;
+  export let board;
 
   let layerIndex = 0;
+  let same = false;
+
   $: title = level.title;
-  $: layers = level.layers;
-  $: colors = layers.map(layer => layer.color);
-  $: solutions = layers.map(layer => layer.solution);
-  $: boards = layers.map(layer => layer.board);
-  $: currentColor = colors[layerIndex];
-  $: currentSolution = solutions[layerIndex];
-  $: currentBoard = boards[layerIndex];
-  $: [rowTotals, colTotals] = generateTotals(currentSolution);
-  $: same = checkLayers(layers);
+  $: colors = level.colors;
+  $: solution = level.solution;
+  $: color = colors[layerIndex];
+  $: [rowTotals, colTotals] = generateTotals(colors, solution)[layerIndex];
 
   const setLayerIndex = index => { layerIndex = index; };
 
   const toggleDisabled = (row, col) => (
-    currentBoard[row][col] = currentBoard[row][col] === -1 ? 0 : -1
+    board[row][col] = board[row][col] === -2
+      ? -1
+      : -2
   );
 
-  const toggleEnabled = (row, col) => (
-    currentBoard[row][col] = currentBoard[row][col] === -1
-      ? 0
-      : (currentBoard[row][col] === 1 ? 0 : 1)
-  );
-
-  const checkLayers = (layers) => {
-    let same = true;
-
-    for (let i = 0; i < layers.length; i += 1) {
-      const solution = solutions[i];
-      const board = boards[i];
-
-      solution.forEach(
-        (solutionRow, rowIndex) => {
-          solutionRow.forEach(
-            (solutionColumn, columnIndex) => {
-              let guess = Math.max(board[rowIndex][columnIndex], 0);
-              if (solutionColumn !== guess) {
-                same = false;
-              }
-            }
-          )
-        }
-      )
-    }
-
-		return same;
-  }
-  
+  const toggleEnabled = (row, col) => {
+    board[row][col] = board[row][col] === -1
+      ? layerIndex
+      : -1
+    same = deepEqual(matrix(solution), matrix(board));
+  };
 </script>
 
 <style>
   h1 {
-    font-size: 1.3rem;
-    text-transform: uppercase;
     color: #222;
+    font-size: 1.3rem;
+    text-align: center;
+    text-transform: uppercase;
   }
 
   .flex-row {
@@ -92,7 +73,7 @@
   {#each colors as color, index}
     <Block
       state={1}
-      enabledColor={color}
+      color={color}
       onClick={() => { setLayerIndex(index); }}
     >
       {color}
@@ -101,21 +82,29 @@
 </div>
 
 <div class="flex-row justify-center">
+  <Block
+    color={color}
+    state={1}
+  />
   {#each colTotals as total}
     <Block
-      enabledColor={currentColor}
+      color={color}
       state={1}
     >
       {total}
     </Block>
   {/each}
+  <Block
+    color={color}
+    state={1}
+  />
 </div>
 
 <div class="flex-row justify-center">
   <div class="flex-col">
     {#each rowTotals as total}
       <Block
-        enabledColor={currentColor}
+        color={color}
         state={1}
       >
         {total}
@@ -124,7 +113,7 @@
   </div>
   <div class="flex-row">
     <section class="board">
-      {#each currentBoard as row, rowIndex}
+      {#each board as row, rowIndex}
         {#each row as item, colIndex}
           <Block
             state={item}
@@ -132,7 +121,7 @@
             col={colIndex}
             onClick={toggleEnabled}
             onRightClick={toggleDisabled}
-            enabledColor={currentColor}
+            color={colors[item]}
           />
         {/each}
       {/each}
@@ -141,7 +130,7 @@
   <div class="flex-col">
     {#each rowTotals as total}
       <Block
-        enabledColor={currentColor}
+        color={color}
         state={1}
       >
         {total}
@@ -151,14 +140,22 @@
 </div>
 
 <div class="flex-row justify-center">
+  <Block
+    color={color}
+    state={1}
+  />
   {#each colTotals as total}
     <Block
-      enabledColor={currentColor}
+      color={color}
       state={1}
     >
       {total}
     </Block>
   {/each}
+  <Block
+    color={color}
+    state={1}
+  />
 </div>
 
 <div class="flex-row justify-center">

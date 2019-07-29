@@ -1,8 +1,8 @@
 <script>
   export let row;
   export let col;
-  export let state = 0;
-  export let enabledColor;
+  export let state = -1;
+  export let color;
   export let onClick;
   export let onRightClick;
   export let transitionTime = 0.2;
@@ -11,8 +11,7 @@
   const black = '#111';
   const red = '#d22';
 
-  console.log(enabledColor);
-  $: bg = state < 0 ? red : (state > 0 ? enabledColor : white);
+  $: bg = state === -2 ? red : (state === -1 ? white : color);
   $: textColor = bg === white ? black : white;
 
 </script>

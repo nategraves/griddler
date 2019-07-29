@@ -1,41 +1,26 @@
 <script>
-  import Block from './Block.svelte';
+  import { zeros } from 'mathjs';
   import { hexColors } from './colors';
+  import BuildlerBlock from './BuildlerBlock.svelte';
 
   const MIN_SIZE = 2;
   const MAX_SIZE = 8;
 
   let size = 4;
-  let colors = ['#111'];
-  let colorIndex = 0;
+  let colors = [];
+  let colorIndex = -1;
   let showColorPicker;
-  let colorToAdd;
-  let colorPicker;
-  let solutionState = Array(size).fill().map(() => Array(size).fill(0));
-  let solutionColor = Array(size).fill().map(() => Array(size).fill(null));
+  $: solution = Array(size).fill().map(() => Array(size).fill(-1));
 
-  const updateSolution = () => {
-    if (size < MIN_SIZE) {
-      size = MIN_SIZE;
-    }
-
-    if (size > MAX_SIZE) {
-      size = MAX_SIZE;
-    }
-
-    solutionState = Array(size).fill().map(() => Array(size).fill(0))
-    solutionColor = Array(size).fill().map(() => Array(size).fill(null))
-  };
-
+  const reset = (row, col) => solution[row][col] = -1;
   const toggleEnabled = (row, col) => {
-    solutionState[row][col] = !!solutionState[row][col] ? 0 : 1;
-    console.log(solutionState);
-    solutionColor[row][col] = !!solutionColor[row][col] ? null : colorIndex;
-    console.log(solutionColor);
-  };
+    console.log(row, col);
+    solution[row][col] = solution[row][col] === -1
+      ? colorIndex
+      : -1;
+  }
 
   const selectColor = index => colorIndex = index;
-  const updateColorToAdd = hex => colorToAdd = hex;
   const toggleShowColorPicker = () => showColorPicker = true;
 
   const valueToHex = (v, short = true) => {
@@ -45,7 +30,7 @@
   }
 
   const addColor = (hex) => {
-    colors.push(`#${hex}`);
+    colors = [...colors, `#${hex}`];
     colorIndex = colors.length - 1;
     showColorPicker = false;
   }
@@ -72,17 +57,33 @@
     grid-gap: 0px;
   } 
 
+  .color-selector-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(255, 255, 255, 0.6);
+    content: '';
+    z-index: 0;
+  }
+
   .color-selector {
     display: grid;
     grid-gap: 0px;
-    grid-template-columns: repeat(16, 1fr);
-    margin: 0 auto;
-    width: 80%;
+    grid-template-columns: repeat(auto-fill, minmax(32px, 1fr));
+    width: 80vw;
+    height: 80vh;
+    overflow-y: scroll;
+    z-index: 1;
   }
 
   .color-option {
-    width: 16px;
-    height: 16px;
+    width: 32px;
+    height: 32px;
     cursor: pointer;
     margin: 2px;
     border: 1px solid rgba(0, 0, 0, 0.5);
@@ -129,22 +130,23 @@
 <section>
   <input
     bind:value={size}
-    on:change={updateSolution}
     type="number"
     min="0"
   />
 </section>
 
 {#if showColorPicker}
-  <section class="color-selector">
-    {#each hexColors as color}
-      <div
-        on:click={() => addColor(color)}
-        class="color-option"
-        style="background: #{color};"
-      />
-    {/each}
-  </section>
+  <div class="color-selector-container">
+    <section class="color-selector">
+      {#each hexColors as color}
+        <div
+          on:click={() => addColor(color)}
+          class="color-option"
+          style="background: #{color};"
+        />
+      {/each}
+    </section>
+  </div>
 {/if}
 
 <section>
@@ -168,18 +170,19 @@
     class="board"
     style="grid-template-columns: repeat({size}, 1fr); grid-template-rows: repeat({size}, 1fr);"
   >
-    {#each solutionState as row, rowIndex}
+    {#each solution as row, rowIndex}
       {#each row as col, colIndex}
-        <Block
-          transitionTime={0.05}
-          state={col}
+        <BuildlerBlock
           row={rowIndex}
           col={colIndex}
+          state={col}
+          color={colors[col]}
           onClick={() => toggleEnabled(rowIndex, colIndex)}
-          enabledColor={solutionColor[rowIndex][colIndex]}
+          onRightClick={() => reset(rowIndex, colIndex)}
+          transitionTime={0.05}
         >
           {col}
-        </Block>
+        </BuildlerBlock>
       {/each}
     {/each}
   </div>

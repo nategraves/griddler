@@ -5,6 +5,7 @@
  */
 
 import _ from 'lodash';
+import Color from 'color';
 
 const cubicInt = (t, A, B) => A + (t*t*(3-2*t)) * (B-A);
 
@@ -71,7 +72,7 @@ const COLOR_RANGE = [
   'F'
 ];
 
-const hexColors = _.sortedUniq(
+const hexColors = _.sortedUniqBy(
   _.flattenDeep(
     COLOR_RANGE.map(
       c => COLOR_RANGE.map(
@@ -80,7 +81,8 @@ const hexColors = _.sortedUniq(
         )
       )
     )
-  )
+  ),
+  h => new Color(`#${h}`).luminosity()
 );
 
 export { ryb2rgb, hexColors };

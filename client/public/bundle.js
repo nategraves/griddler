@@ -10,6 +10,9 @@ var app = (function () {
             tar[k] = src[k];
         return tar;
     }
+    function is_promise(value) {
+        return value && typeof value === 'object' && typeof value.then === 'function';
+    }
     function add_location(element, file, line, column, char) {
         element.__svelte_meta = {
             loc: { file, line, column, char }
@@ -196,7 +199,58 @@ var app = (function () {
         }
     }
 
-    const globals = (typeof window !== 'undefined' ? window : global);
+    function handle_promise(promise, info) {
+        const token = info.token = {};
+        function update(type, index, key, value) {
+            if (info.token !== token)
+                return;
+            info.resolved = key && { [key]: value };
+            const child_ctx = assign(assign({}, info.ctx), info.resolved);
+            const block = type && (info.current = type)(child_ctx);
+            if (info.block) {
+                if (info.blocks) {
+                    info.blocks.forEach((block, i) => {
+                        if (i !== index && block) {
+                            group_outros();
+                            transition_out(block, 1, 1, () => {
+                                info.blocks[i] = null;
+                            });
+                            check_outros();
+                        }
+                    });
+                }
+                else {
+                    info.block.d(1);
+                }
+                block.c();
+                transition_in(block, 1);
+                block.m(info.mount(), info.anchor);
+                flush();
+            }
+            info.block = block;
+            if (info.blocks)
+                info.blocks[index] = block;
+        }
+        if (is_promise(promise)) {
+            promise.then(value => {
+                update(info.then, 1, info.value, value);
+            }, error => {
+                update(info.catch, 2, info.error, error);
+            });
+            // if we previously had a then/catch block, destroy it
+            if (info.current !== info.pending) {
+                update(info.pending, 0);
+                return true;
+            }
+        }
+        else {
+            if (info.current !== info.then) {
+                update(info.then, 1, info.value, promise);
+                return true;
+            }
+            info.resolved = { [info.value]: promise };
+        }
+    }
     function mount_component(component, target, anchor) {
         const { fragment, on_mount, on_destroy, after_update } = component.$$;
         fragment.m(target, anchor);
@@ -321,8 +375,16 @@ var app = (function () {
 
     var commonjsGlobal = typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : typeof global !== 'undefined' ? global : typeof self !== 'undefined' ? self : {};
 
+    function unwrapExports (x) {
+    	return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, 'default') ? x['default'] : x;
+    }
+
     function createCommonjsModule(fn, module) {
     	return module = { exports: {} }, fn(module, module.exports), module.exports;
+    }
+
+    function getCjsExportFromNamespace (n) {
+    	return n && n['default'] || n;
     }
 
     var lodash = createCommonjsModule(function (module, exports) {
@@ -332,7 +394,7 @@ var app = (function () {
       var undefined$1;
 
       /** Used as the semantic version number. */
-      var VERSION = '4.17.15';
+      var VERSION = '4.17.14';
 
       /** Used as the size to enable large array optimizations. */
       var LARGE_ARRAY_SIZE = 200;
@@ -17418,8 +17480,24173 @@ var app = (function () {
     }.call(commonjsGlobal));
     });
 
+    /*! *****************************************************************************
+    Copyright (c) Microsoft Corporation. All rights reserved.
+    Licensed under the Apache License, Version 2.0 (the "License"); you may not use
+    this file except in compliance with the License. You may obtain a copy of the
+    License at http://www.apache.org/licenses/LICENSE-2.0
+
+    THIS CODE IS PROVIDED ON AN *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+    KIND, EITHER EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION ANY IMPLIED
+    WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
+    MERCHANTABLITY OR NON-INFRINGEMENT.
+
+    See the Apache Version 2.0 License for specific language governing permissions
+    and limitations under the License.
+    ***************************************************************************** */
+    /* global Reflect, Promise */
+
+    var extendStatics = function(d, b) {
+        extendStatics = Object.setPrototypeOf ||
+            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+        return extendStatics(d, b);
+    };
+
+    function __extends(d, b) {
+        extendStatics(d, b);
+        function __() { this.constructor = d; }
+        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+    }
+
+    var __assign = function() {
+        __assign = Object.assign || function __assign(t) {
+            for (var s, i = 1, n = arguments.length; i < n; i++) {
+                s = arguments[i];
+                for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p)) t[p] = s[p];
+            }
+            return t;
+        };
+        return __assign.apply(this, arguments);
+    };
+
+    function __rest(s, e) {
+        var t = {};
+        for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+            t[p] = s[p];
+        if (s != null && typeof Object.getOwnPropertySymbols === "function")
+            for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+                if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                    t[p[i]] = s[p[i]];
+            }
+        return t;
+    }
+
+    function __awaiter(thisArg, _arguments, P, generator) {
+        return new (P || (P = Promise))(function (resolve, reject) {
+            function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+            function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+            function step(result) { result.done ? resolve(result.value) : new P(function (resolve) { resolve(result.value); }).then(fulfilled, rejected); }
+            step((generator = generator.apply(thisArg, _arguments || [])).next());
+        });
+    }
+
+    function __generator(thisArg, body) {
+        var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g;
+        return g = { next: verb(0), "throw": verb(1), "return": verb(2) }, typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
+        function verb(n) { return function (v) { return step([n, v]); }; }
+        function step(op) {
+            if (f) throw new TypeError("Generator is already executing.");
+            while (_) try {
+                if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
+                if (y = 0, t) op = [op[0] & 2, t.value];
+                switch (op[0]) {
+                    case 0: case 1: t = op; break;
+                    case 4: _.label++; return { value: op[1], done: false };
+                    case 5: _.label++; y = op[1]; op = [0]; continue;
+                    case 7: op = _.ops.pop(); _.trys.pop(); continue;
+                    default:
+                        if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
+                        if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
+                        if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
+                        if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
+                        if (t[2]) _.ops.pop();
+                        _.trys.pop(); continue;
+                }
+                op = body.call(thisArg, _);
+            } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
+            if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
+        }
+    }
+
+    var nodejsCustomInspectSymbol = typeof Symbol === 'function' && typeof Symbol.for === 'function' ? Symbol.for('nodejs.util.inspect.custom') : undefined;
+
+    function _typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
+    var MAX_ARRAY_LENGTH = 10;
+    var MAX_RECURSIVE_DEPTH = 2;
+    /**
+     * Used to print values in error messages.
+     */
+
+    function inspect(value) {
+      return formatValue(value, []);
+    }
+
+    function formatValue(value, seenValues) {
+      switch (_typeof(value)) {
+        case 'string':
+          return JSON.stringify(value);
+
+        case 'function':
+          return value.name ? "[function ".concat(value.name, "]") : '[function]';
+
+        case 'object':
+          if (value === null) {
+            return 'null';
+          }
+
+          return formatObjectValue(value, seenValues);
+
+        default:
+          return String(value);
+      }
+    }
+
+    function formatObjectValue(value, previouslySeenValues) {
+      if (previouslySeenValues.indexOf(value) !== -1) {
+        return '[Circular]';
+      }
+
+      var seenValues = [].concat(previouslySeenValues, [value]);
+      var customInspectFn = getCustomFn(value);
+
+      if (customInspectFn !== undefined) {
+        // $FlowFixMe(>=0.90.0)
+        var customValue = customInspectFn.call(value); // check for infinite recursion
+
+        if (customValue !== value) {
+          return typeof customValue === 'string' ? customValue : formatValue(customValue, seenValues);
+        }
+      } else if (Array.isArray(value)) {
+        return formatArray(value, seenValues);
+      }
+
+      return formatObject(value, seenValues);
+    }
+
+    function formatObject(object, seenValues) {
+      var keys = Object.keys(object);
+
+      if (keys.length === 0) {
+        return '{}';
+      }
+
+      if (seenValues.length > MAX_RECURSIVE_DEPTH) {
+        return '[' + getObjectTag(object) + ']';
+      }
+
+      var properties = keys.map(function (key) {
+        var value = formatValue(object[key], seenValues);
+        return key + ': ' + value;
+      });
+      return '{ ' + properties.join(', ') + ' }';
+    }
+
+    function formatArray(array, seenValues) {
+      if (array.length === 0) {
+        return '[]';
+      }
+
+      if (seenValues.length > MAX_RECURSIVE_DEPTH) {
+        return '[Array]';
+      }
+
+      var len = Math.min(MAX_ARRAY_LENGTH, array.length);
+      var remaining = array.length - len;
+      var items = [];
+
+      for (var i = 0; i < len; ++i) {
+        items.push(formatValue(array[i], seenValues));
+      }
+
+      if (remaining === 1) {
+        items.push('... 1 more item');
+      } else if (remaining > 1) {
+        items.push("... ".concat(remaining, " more items"));
+      }
+
+      return '[' + items.join(', ') + ']';
+    }
+
+    function getCustomFn(object) {
+      var customInspectFn = object[String(nodejsCustomInspectSymbol)];
+
+      if (typeof customInspectFn === 'function') {
+        return customInspectFn;
+      }
+
+      if (typeof object.inspect === 'function') {
+        return object.inspect;
+      }
+    }
+
+    function getObjectTag(object) {
+      var tag = Object.prototype.toString.call(object).replace(/^\[object /, '').replace(/]$/, '');
+
+      if (tag === 'Object' && typeof object.constructor === 'function') {
+        var name = object.constructor.name;
+
+        if (typeof name === 'string') {
+          return name;
+        }
+      }
+
+      return tag;
+    }
+
+    var QueryDocumentKeys = {
+      Name: [],
+      Document: ['definitions'],
+      OperationDefinition: ['name', 'variableDefinitions', 'directives', 'selectionSet'],
+      VariableDefinition: ['variable', 'type', 'defaultValue', 'directives'],
+      Variable: ['name'],
+      SelectionSet: ['selections'],
+      Field: ['alias', 'name', 'arguments', 'directives', 'selectionSet'],
+      Argument: ['name', 'value'],
+      FragmentSpread: ['name', 'directives'],
+      InlineFragment: ['typeCondition', 'directives', 'selectionSet'],
+      FragmentDefinition: ['name', // Note: fragment variable definitions are experimental and may be changed
+      // or removed in the future.
+      'variableDefinitions', 'typeCondition', 'directives', 'selectionSet'],
+      IntValue: [],
+      FloatValue: [],
+      StringValue: [],
+      BooleanValue: [],
+      NullValue: [],
+      EnumValue: [],
+      ListValue: ['values'],
+      ObjectValue: ['fields'],
+      ObjectField: ['name', 'value'],
+      Directive: ['name', 'arguments'],
+      NamedType: ['name'],
+      ListType: ['type'],
+      NonNullType: ['type'],
+      SchemaDefinition: ['directives', 'operationTypes'],
+      OperationTypeDefinition: ['type'],
+      ScalarTypeDefinition: ['description', 'name', 'directives'],
+      ObjectTypeDefinition: ['description', 'name', 'interfaces', 'directives', 'fields'],
+      FieldDefinition: ['description', 'name', 'arguments', 'type', 'directives'],
+      InputValueDefinition: ['description', 'name', 'type', 'defaultValue', 'directives'],
+      InterfaceTypeDefinition: ['description', 'name', 'directives', 'fields'],
+      UnionTypeDefinition: ['description', 'name', 'directives', 'types'],
+      EnumTypeDefinition: ['description', 'name', 'directives', 'values'],
+      EnumValueDefinition: ['description', 'name', 'directives'],
+      InputObjectTypeDefinition: ['description', 'name', 'directives', 'fields'],
+      DirectiveDefinition: ['description', 'name', 'arguments', 'locations'],
+      SchemaExtension: ['directives', 'operationTypes'],
+      ScalarTypeExtension: ['name', 'directives'],
+      ObjectTypeExtension: ['name', 'interfaces', 'directives', 'fields'],
+      InterfaceTypeExtension: ['name', 'directives', 'fields'],
+      UnionTypeExtension: ['name', 'directives', 'types'],
+      EnumTypeExtension: ['name', 'directives', 'values'],
+      InputObjectTypeExtension: ['name', 'directives', 'fields']
+    };
+    var BREAK = Object.freeze({});
+    /**
+     * visit() will walk through an AST using a depth first traversal, calling
+     * the visitor's enter function at each node in the traversal, and calling the
+     * leave function after visiting that node and all of its child nodes.
+     *
+     * By returning different values from the enter and leave functions, the
+     * behavior of the visitor can be altered, including skipping over a sub-tree of
+     * the AST (by returning false), editing the AST by returning a value or null
+     * to remove the value, or to stop the whole traversal by returning BREAK.
+     *
+     * When using visit() to edit an AST, the original AST will not be modified, and
+     * a new version of the AST with the changes applied will be returned from the
+     * visit function.
+     *
+     *     const editedAST = visit(ast, {
+     *       enter(node, key, parent, path, ancestors) {
+     *         // @return
+     *         //   undefined: no action
+     *         //   false: skip visiting this node
+     *         //   visitor.BREAK: stop visiting altogether
+     *         //   null: delete this node
+     *         //   any value: replace this node with the returned value
+     *       },
+     *       leave(node, key, parent, path, ancestors) {
+     *         // @return
+     *         //   undefined: no action
+     *         //   false: no action
+     *         //   visitor.BREAK: stop visiting altogether
+     *         //   null: delete this node
+     *         //   any value: replace this node with the returned value
+     *       }
+     *     });
+     *
+     * Alternatively to providing enter() and leave() functions, a visitor can
+     * instead provide functions named the same as the kinds of AST nodes, or
+     * enter/leave visitors at a named key, leading to four permutations of
+     * visitor API:
+     *
+     * 1) Named visitors triggered when entering a node a specific kind.
+     *
+     *     visit(ast, {
+     *       Kind(node) {
+     *         // enter the "Kind" node
+     *       }
+     *     })
+     *
+     * 2) Named visitors that trigger upon entering and leaving a node of
+     *    a specific kind.
+     *
+     *     visit(ast, {
+     *       Kind: {
+     *         enter(node) {
+     *           // enter the "Kind" node
+     *         }
+     *         leave(node) {
+     *           // leave the "Kind" node
+     *         }
+     *       }
+     *     })
+     *
+     * 3) Generic visitors that trigger upon entering and leaving any node.
+     *
+     *     visit(ast, {
+     *       enter(node) {
+     *         // enter any node
+     *       },
+     *       leave(node) {
+     *         // leave any node
+     *       }
+     *     })
+     *
+     * 4) Parallel visitors for entering and leaving nodes of a specific kind.
+     *
+     *     visit(ast, {
+     *       enter: {
+     *         Kind(node) {
+     *           // enter the "Kind" node
+     *         }
+     *       },
+     *       leave: {
+     *         Kind(node) {
+     *           // leave the "Kind" node
+     *         }
+     *       }
+     *     })
+     */
+
+    function visit(root, visitor) {
+      var visitorKeys = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : QueryDocumentKeys;
+
+      /* eslint-disable no-undef-init */
+      var stack = undefined;
+      var inArray = Array.isArray(root);
+      var keys = [root];
+      var index = -1;
+      var edits = [];
+      var node = undefined;
+      var key = undefined;
+      var parent = undefined;
+      var path = [];
+      var ancestors = [];
+      var newRoot = root;
+      /* eslint-enable no-undef-init */
+
+      do {
+        index++;
+        var isLeaving = index === keys.length;
+        var isEdited = isLeaving && edits.length !== 0;
+
+        if (isLeaving) {
+          key = ancestors.length === 0 ? undefined : path[path.length - 1];
+          node = parent;
+          parent = ancestors.pop();
+
+          if (isEdited) {
+            if (inArray) {
+              node = node.slice();
+            } else {
+              var clone = {};
+
+              for (var _i = 0, _Object$keys = Object.keys(node); _i < _Object$keys.length; _i++) {
+                var k = _Object$keys[_i];
+                clone[k] = node[k];
+              }
+
+              node = clone;
+            }
+
+            var editOffset = 0;
+
+            for (var ii = 0; ii < edits.length; ii++) {
+              var editKey = edits[ii][0];
+              var editValue = edits[ii][1];
+
+              if (inArray) {
+                editKey -= editOffset;
+              }
+
+              if (inArray && editValue === null) {
+                node.splice(editKey, 1);
+                editOffset++;
+              } else {
+                node[editKey] = editValue;
+              }
+            }
+          }
+
+          index = stack.index;
+          keys = stack.keys;
+          edits = stack.edits;
+          inArray = stack.inArray;
+          stack = stack.prev;
+        } else {
+          key = parent ? inArray ? index : keys[index] : undefined;
+          node = parent ? parent[key] : newRoot;
+
+          if (node === null || node === undefined) {
+            continue;
+          }
+
+          if (parent) {
+            path.push(key);
+          }
+        }
+
+        var result = void 0;
+
+        if (!Array.isArray(node)) {
+          if (!isNode(node)) {
+            throw new Error('Invalid AST Node: ' + inspect(node));
+          }
+
+          var visitFn = getVisitFn(visitor, node.kind, isLeaving);
+
+          if (visitFn) {
+            result = visitFn.call(visitor, node, key, parent, path, ancestors);
+
+            if (result === BREAK) {
+              break;
+            }
+
+            if (result === false) {
+              if (!isLeaving) {
+                path.pop();
+                continue;
+              }
+            } else if (result !== undefined) {
+              edits.push([key, result]);
+
+              if (!isLeaving) {
+                if (isNode(result)) {
+                  node = result;
+                } else {
+                  path.pop();
+                  continue;
+                }
+              }
+            }
+          }
+        }
+
+        if (result === undefined && isEdited) {
+          edits.push([key, node]);
+        }
+
+        if (isLeaving) {
+          path.pop();
+        } else {
+          stack = {
+            inArray: inArray,
+            index: index,
+            keys: keys,
+            edits: edits,
+            prev: stack
+          };
+          inArray = Array.isArray(node);
+          keys = inArray ? node : visitorKeys[node.kind] || [];
+          index = -1;
+          edits = [];
+
+          if (parent) {
+            ancestors.push(parent);
+          }
+
+          parent = node;
+        }
+      } while (stack !== undefined);
+
+      if (edits.length !== 0) {
+        newRoot = edits[edits.length - 1][1];
+      }
+
+      return newRoot;
+    }
+
+    function isNode(maybeNode) {
+      return Boolean(maybeNode && typeof maybeNode.kind === 'string');
+    }
+    /**
+     * Given a visitor instance, if it is leaving or not, and a node kind, return
+     * the function the visitor runtime should call.
+     */
+
+    function getVisitFn(visitor, kind, isLeaving) {
+      var kindVisitor = visitor[kind];
+
+      if (kindVisitor) {
+        if (!isLeaving && typeof kindVisitor === 'function') {
+          // { Kind() {} }
+          return kindVisitor;
+        }
+
+        var kindSpecificVisitor = isLeaving ? kindVisitor.leave : kindVisitor.enter;
+
+        if (typeof kindSpecificVisitor === 'function') {
+          // { Kind: { enter() {}, leave() {} } }
+          return kindSpecificVisitor;
+        }
+      } else {
+        var specificVisitor = isLeaving ? visitor.leave : visitor.enter;
+
+        if (specificVisitor) {
+          if (typeof specificVisitor === 'function') {
+            // { enter() {}, leave() {} }
+            return specificVisitor;
+          }
+
+          var specificKindVisitor = specificVisitor[kind];
+
+          if (typeof specificKindVisitor === 'function') {
+            // { enter: { Kind() {} }, leave: { Kind() {} } }
+            return specificKindVisitor;
+          }
+        }
+      }
+    }
+
+    var genericMessage = "Invariant Violation";
+    var _a = Object.setPrototypeOf, setPrototypeOf = _a === void 0 ? function (obj, proto) {
+        obj.__proto__ = proto;
+        return obj;
+    } : _a;
+    var InvariantError = /** @class */ (function (_super) {
+        __extends(InvariantError, _super);
+        function InvariantError(message) {
+            if (message === void 0) { message = genericMessage; }
+            var _this = _super.call(this, typeof message === "number"
+                ? genericMessage + ": " + message + " (see https://github.com/apollographql/invariant-packages)"
+                : message) || this;
+            _this.framesToPop = 1;
+            _this.name = genericMessage;
+            setPrototypeOf(_this, InvariantError.prototype);
+            return _this;
+        }
+        return InvariantError;
+    }(Error));
+    function invariant(condition, message) {
+        if (!condition) {
+            throw new InvariantError(message);
+        }
+    }
+    function wrapConsoleMethod(method) {
+        return function () {
+            return console[method].apply(console, arguments);
+        };
+    }
+    (function (invariant) {
+        invariant.warn = wrapConsoleMethod("warn");
+        invariant.error = wrapConsoleMethod("error");
+    })(invariant || (invariant = {}));
+    // Code that uses ts-invariant with rollup-plugin-invariant may want to
+    // import this process stub to avoid errors evaluating process.env.NODE_ENV.
+    // However, because most ESM-to-CJS compilers will rewrite the process import
+    // as tsInvariant.process, which prevents proper replacement by minifiers, we
+    // also attempt to define the stub globally when it is not already defined.
+    var processStub = { env: {} };
+    if (typeof process === "object") {
+        processStub = process;
+    }
+    else
+        try {
+            // Using Function to evaluate this assignment in global scope also escapes
+            // the strict mode of the current module, thereby allowing the assignment.
+            // Inspired by https://github.com/facebook/regenerator/pull/369.
+            Function("stub", "process = stub")(processStub);
+        }
+        catch (atLeastWeTried) {
+            // The assignment can fail if a Content Security Policy heavy-handedly
+            // forbids Function usage. In those environments, developers should take
+            // extra care to replace process.env.NODE_ENV in their production builds,
+            // or define an appropriate global.process polyfill.
+        }
+    //# sourceMappingURL=invariant.esm.js.map
+
+    var fastJsonStableStringify = function (data, opts) {
+        if (!opts) opts = {};
+        if (typeof opts === 'function') opts = { cmp: opts };
+        var cycles = (typeof opts.cycles === 'boolean') ? opts.cycles : false;
+
+        var cmp = opts.cmp && (function (f) {
+            return function (node) {
+                return function (a, b) {
+                    var aobj = { key: a, value: node[a] };
+                    var bobj = { key: b, value: node[b] };
+                    return f(aobj, bobj);
+                };
+            };
+        })(opts.cmp);
+
+        var seen = [];
+        return (function stringify (node) {
+            if (node && node.toJSON && typeof node.toJSON === 'function') {
+                node = node.toJSON();
+            }
+
+            if (node === undefined) return;
+            if (typeof node == 'number') return isFinite(node) ? '' + node : 'null';
+            if (typeof node !== 'object') return JSON.stringify(node);
+
+            var i, out;
+            if (Array.isArray(node)) {
+                out = '[';
+                for (i = 0; i < node.length; i++) {
+                    if (i) out += ',';
+                    out += stringify(node[i]) || 'null';
+                }
+                return out + ']';
+            }
+
+            if (node === null) return 'null';
+
+            if (seen.indexOf(node) !== -1) {
+                if (cycles) return JSON.stringify('__cycle__');
+                throw new TypeError('Converting circular structure to JSON');
+            }
+
+            var seenIndex = seen.push(node) - 1;
+            var keys = Object.keys(node).sort(cmp && cmp(node));
+            out = '';
+            for (i = 0; i < keys.length; i++) {
+                var key = keys[i];
+                var value = stringify(node[key]);
+
+                if (!value) continue;
+                if (out) out += ',';
+                out += JSON.stringify(key) + ':' + value;
+            }
+            seen.splice(seenIndex, 1);
+            return '{' + out + '}';
+        })(data);
+    };
+
+    var _a$1 = Object.prototype, toString = _a$1.toString, hasOwnProperty = _a$1.hasOwnProperty;
+    var previousComparisons = new Map();
+    /**
+     * Performs a deep equality check on two JavaScript values, tolerating cycles.
+     */
+    function equal(a, b) {
+        try {
+            return check(a, b);
+        }
+        finally {
+            previousComparisons.clear();
+        }
+    }
+    function check(a, b) {
+        // If the two values are strictly equal, our job is easy.
+        if (a === b) {
+            return true;
+        }
+        // Object.prototype.toString returns a representation of the runtime type of
+        // the given value that is considerably more precise than typeof.
+        var aTag = toString.call(a);
+        var bTag = toString.call(b);
+        // If the runtime types of a and b are different, they could maybe be equal
+        // under some interpretation of equality, but for simplicity and performance
+        // we just return false instead.
+        if (aTag !== bTag) {
+            return false;
+        }
+        switch (aTag) {
+            case '[object Array]':
+                // Arrays are a lot like other objects, but we can cheaply compare their
+                // lengths as a short-cut before comparing their elements.
+                if (a.length !== b.length)
+                    return false;
+            // Fall through to object case...
+            case '[object Object]': {
+                if (previouslyCompared(a, b))
+                    return true;
+                var aKeys = Object.keys(a);
+                var bKeys = Object.keys(b);
+                // If `a` and `b` have a different number of enumerable keys, they
+                // must be different.
+                var keyCount = aKeys.length;
+                if (keyCount !== bKeys.length)
+                    return false;
+                // Now make sure they have the same keys.
+                for (var k = 0; k < keyCount; ++k) {
+                    if (!hasOwnProperty.call(b, aKeys[k])) {
+                        return false;
+                    }
+                }
+                // Finally, check deep equality of all child properties.
+                for (var k = 0; k < keyCount; ++k) {
+                    var key = aKeys[k];
+                    if (!check(a[key], b[key])) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            case '[object Error]':
+                return a.name === b.name && a.message === b.message;
+            case '[object Number]':
+                // Handle NaN, which is !== itself.
+                if (a !== a)
+                    return b !== b;
+            // Fall through to shared +a === +b case...
+            case '[object Boolean]':
+            case '[object Date]':
+                return +a === +b;
+            case '[object RegExp]':
+            case '[object String]':
+                return a == "" + b;
+            case '[object Map]':
+            case '[object Set]': {
+                if (a.size !== b.size)
+                    return false;
+                if (previouslyCompared(a, b))
+                    return true;
+                var aIterator = a.entries();
+                var isMap = aTag === '[object Map]';
+                while (true) {
+                    var info = aIterator.next();
+                    if (info.done)
+                        break;
+                    // If a instanceof Set, aValue === aKey.
+                    var _a = info.value, aKey = _a[0], aValue = _a[1];
+                    // So this works the same way for both Set and Map.
+                    if (!b.has(aKey)) {
+                        return false;
+                    }
+                    // However, we care about deep equality of values only when dealing
+                    // with Map structures.
+                    if (isMap && !check(aValue, b.get(aKey))) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }
+        // Otherwise the values are not equal.
+        return false;
+    }
+    function previouslyCompared(a, b) {
+        // Though cyclic references can make an object graph appear infinite from the
+        // perspective of a depth-first traversal, the graph still contains a finite
+        // number of distinct object references. We use the previousComparisons cache
+        // to avoid comparing the same pair of object references more than once, which
+        // guarantees termination (even if we end up comparing every object in one
+        // graph to every object in the other graph, which is extremely unlikely),
+        // while still allowing weird isomorphic structures (like rings with different
+        // lengths) a chance to pass the equality test.
+        var bSet = previousComparisons.get(a);
+        if (bSet) {
+            // Return true here because we can be sure false will be returned somewhere
+            // else if the objects are not equivalent.
+            if (bSet.has(b))
+                return true;
+        }
+        else {
+            previousComparisons.set(a, bSet = new Set);
+        }
+        bSet.add(b);
+        return false;
+    }
+    //# sourceMappingURL=equality.esm.js.map
+
+    function isStringValue(value) {
+        return value.kind === 'StringValue';
+    }
+    function isBooleanValue(value) {
+        return value.kind === 'BooleanValue';
+    }
+    function isIntValue(value) {
+        return value.kind === 'IntValue';
+    }
+    function isFloatValue(value) {
+        return value.kind === 'FloatValue';
+    }
+    function isVariable(value) {
+        return value.kind === 'Variable';
+    }
+    function isObjectValue(value) {
+        return value.kind === 'ObjectValue';
+    }
+    function isListValue(value) {
+        return value.kind === 'ListValue';
+    }
+    function isEnumValue(value) {
+        return value.kind === 'EnumValue';
+    }
+    function isNullValue(value) {
+        return value.kind === 'NullValue';
+    }
+    function valueToObjectRepresentation(argObj, name, value, variables) {
+        if (isIntValue(value) || isFloatValue(value)) {
+            argObj[name.value] = Number(value.value);
+        }
+        else if (isBooleanValue(value) || isStringValue(value)) {
+            argObj[name.value] = value.value;
+        }
+        else if (isObjectValue(value)) {
+            var nestedArgObj_1 = {};
+            value.fields.map(function (obj) {
+                return valueToObjectRepresentation(nestedArgObj_1, obj.name, obj.value, variables);
+            });
+            argObj[name.value] = nestedArgObj_1;
+        }
+        else if (isVariable(value)) {
+            var variableValue = (variables || {})[value.name.value];
+            argObj[name.value] = variableValue;
+        }
+        else if (isListValue(value)) {
+            argObj[name.value] = value.values.map(function (listValue) {
+                var nestedArgArrayObj = {};
+                valueToObjectRepresentation(nestedArgArrayObj, name, listValue, variables);
+                return nestedArgArrayObj[name.value];
+            });
+        }
+        else if (isEnumValue(value)) {
+            argObj[name.value] = value.value;
+        }
+        else if (isNullValue(value)) {
+            argObj[name.value] = null;
+        }
+        else {
+            throw process.env.NODE_ENV === "production" ? new InvariantError(17) : new InvariantError("The inline argument \"" + name.value + "\" of kind \"" + value.kind + "\"" +
+                'is not supported. Use variables instead of inline arguments to ' +
+                'overcome this limitation.');
+        }
+    }
+    function storeKeyNameFromField(field, variables) {
+        var directivesObj = null;
+        if (field.directives) {
+            directivesObj = {};
+            field.directives.forEach(function (directive) {
+                directivesObj[directive.name.value] = {};
+                if (directive.arguments) {
+                    directive.arguments.forEach(function (_a) {
+                        var name = _a.name, value = _a.value;
+                        return valueToObjectRepresentation(directivesObj[directive.name.value], name, value, variables);
+                    });
+                }
+            });
+        }
+        var argObj = null;
+        if (field.arguments && field.arguments.length) {
+            argObj = {};
+            field.arguments.forEach(function (_a) {
+                var name = _a.name, value = _a.value;
+                return valueToObjectRepresentation(argObj, name, value, variables);
+            });
+        }
+        return getStoreKeyName(field.name.value, argObj, directivesObj);
+    }
+    var KNOWN_DIRECTIVES = [
+        'connection',
+        'include',
+        'skip',
+        'client',
+        'rest',
+        'export',
+    ];
+    function getStoreKeyName(fieldName, args, directives) {
+        if (directives &&
+            directives['connection'] &&
+            directives['connection']['key']) {
+            if (directives['connection']['filter'] &&
+                directives['connection']['filter'].length > 0) {
+                var filterKeys = directives['connection']['filter']
+                    ? directives['connection']['filter']
+                    : [];
+                filterKeys.sort();
+                var queryArgs_1 = args;
+                var filteredArgs_1 = {};
+                filterKeys.forEach(function (key) {
+                    filteredArgs_1[key] = queryArgs_1[key];
+                });
+                return directives['connection']['key'] + "(" + JSON.stringify(filteredArgs_1) + ")";
+            }
+            else {
+                return directives['connection']['key'];
+            }
+        }
+        var completeFieldName = fieldName;
+        if (args) {
+            var stringifiedArgs = fastJsonStableStringify(args);
+            completeFieldName += "(" + stringifiedArgs + ")";
+        }
+        if (directives) {
+            Object.keys(directives).forEach(function (key) {
+                if (KNOWN_DIRECTIVES.indexOf(key) !== -1)
+                    return;
+                if (directives[key] && Object.keys(directives[key]).length) {
+                    completeFieldName += "@" + key + "(" + JSON.stringify(directives[key]) + ")";
+                }
+                else {
+                    completeFieldName += "@" + key;
+                }
+            });
+        }
+        return completeFieldName;
+    }
+    function argumentsObjectFromField(field, variables) {
+        if (field.arguments && field.arguments.length) {
+            var argObj_1 = {};
+            field.arguments.forEach(function (_a) {
+                var name = _a.name, value = _a.value;
+                return valueToObjectRepresentation(argObj_1, name, value, variables);
+            });
+            return argObj_1;
+        }
+        return null;
+    }
+    function resultKeyNameFromField(field) {
+        return field.alias ? field.alias.value : field.name.value;
+    }
+    function isField(selection) {
+        return selection.kind === 'Field';
+    }
+    function isInlineFragment(selection) {
+        return selection.kind === 'InlineFragment';
+    }
+    function isIdValue(idObject) {
+        return idObject &&
+            idObject.type === 'id' &&
+            typeof idObject.generated === 'boolean';
+    }
+    function toIdValue(idConfig, generated) {
+        if (generated === void 0) { generated = false; }
+        return __assign({ type: 'id', generated: generated }, (typeof idConfig === 'string'
+            ? { id: idConfig, typename: undefined }
+            : idConfig));
+    }
+    function isJsonValue(jsonObject) {
+        return (jsonObject != null &&
+            typeof jsonObject === 'object' &&
+            jsonObject.type === 'json');
+    }
+
+    function getDirectiveInfoFromField(field, variables) {
+        if (field.directives && field.directives.length) {
+            var directiveObj_1 = {};
+            field.directives.forEach(function (directive) {
+                directiveObj_1[directive.name.value] = argumentsObjectFromField(directive, variables);
+            });
+            return directiveObj_1;
+        }
+        return null;
+    }
+    function shouldInclude(selection, variables) {
+        if (variables === void 0) { variables = {}; }
+        return getInclusionDirectives(selection.directives).every(function (_a) {
+            var directive = _a.directive, ifArgument = _a.ifArgument;
+            var evaledValue = false;
+            if (ifArgument.value.kind === 'Variable') {
+                evaledValue = variables[ifArgument.value.name.value];
+                process.env.NODE_ENV === "production" ? invariant(evaledValue !== void 0, 3) : invariant(evaledValue !== void 0, "Invalid variable referenced in @" + directive.name.value + " directive.");
+            }
+            else {
+                evaledValue = ifArgument.value.value;
+            }
+            return directive.name.value === 'skip' ? !evaledValue : evaledValue;
+        });
+    }
+    function getDirectiveNames(doc) {
+        var names = [];
+        visit(doc, {
+            Directive: function (node) {
+                names.push(node.name.value);
+            },
+        });
+        return names;
+    }
+    function hasDirectives(names, doc) {
+        return getDirectiveNames(doc).some(function (name) { return names.indexOf(name) > -1; });
+    }
+    function hasClientExports(document) {
+        return (document &&
+            hasDirectives(['client'], document) &&
+            hasDirectives(['export'], document));
+    }
+    function isInclusionDirective(_a) {
+        var value = _a.name.value;
+        return value === 'skip' || value === 'include';
+    }
+    function getInclusionDirectives(directives) {
+        return directives ? directives.filter(isInclusionDirective).map(function (directive) {
+            var directiveArguments = directive.arguments;
+            var directiveName = directive.name.value;
+            process.env.NODE_ENV === "production" ? invariant(directiveArguments && directiveArguments.length === 1, 4) : invariant(directiveArguments && directiveArguments.length === 1, "Incorrect number of arguments for the @" + directiveName + " directive.");
+            var ifArgument = directiveArguments[0];
+            process.env.NODE_ENV === "production" ? invariant(ifArgument.name && ifArgument.name.value === 'if', 5) : invariant(ifArgument.name && ifArgument.name.value === 'if', "Invalid argument for the @" + directiveName + " directive.");
+            var ifValue = ifArgument.value;
+            process.env.NODE_ENV === "production" ? invariant(ifValue &&
+                (ifValue.kind === 'Variable' || ifValue.kind === 'BooleanValue'), 6) : invariant(ifValue &&
+                (ifValue.kind === 'Variable' || ifValue.kind === 'BooleanValue'), "Argument for the @" + directiveName + " directive must be a variable or a boolean value.");
+            return { directive: directive, ifArgument: ifArgument };
+        }) : [];
+    }
+
+    function getFragmentQueryDocument(document, fragmentName) {
+        var actualFragmentName = fragmentName;
+        var fragments = [];
+        document.definitions.forEach(function (definition) {
+            if (definition.kind === 'OperationDefinition') {
+                throw process.env.NODE_ENV === "production" ? new InvariantError(1) : new InvariantError("Found a " + definition.operation + " operation" + (definition.name ? " named '" + definition.name.value + "'" : '') + ". " +
+                    'No operations are allowed when using a fragment as a query. Only fragments are allowed.');
+            }
+            if (definition.kind === 'FragmentDefinition') {
+                fragments.push(definition);
+            }
+        });
+        if (typeof actualFragmentName === 'undefined') {
+            process.env.NODE_ENV === "production" ? invariant(fragments.length === 1, 2) : invariant(fragments.length === 1, "Found " + fragments.length + " fragments. `fragmentName` must be provided when there is not exactly 1 fragment.");
+            actualFragmentName = fragments[0].name.value;
+        }
+        var query = __assign({}, document, { definitions: [
+                {
+                    kind: 'OperationDefinition',
+                    operation: 'query',
+                    selectionSet: {
+                        kind: 'SelectionSet',
+                        selections: [
+                            {
+                                kind: 'FragmentSpread',
+                                name: {
+                                    kind: 'Name',
+                                    value: actualFragmentName,
+                                },
+                            },
+                        ],
+                    },
+                }
+            ].concat(document.definitions) });
+        return query;
+    }
+
+    function assign$1(target) {
+        var sources = [];
+        for (var _i = 1; _i < arguments.length; _i++) {
+            sources[_i - 1] = arguments[_i];
+        }
+        sources.forEach(function (source) {
+            if (typeof source === 'undefined' || source === null) {
+                return;
+            }
+            Object.keys(source).forEach(function (key) {
+                target[key] = source[key];
+            });
+        });
+        return target;
+    }
+    function checkDocument(doc) {
+        process.env.NODE_ENV === "production" ? invariant(doc && doc.kind === 'Document', 8) : invariant(doc && doc.kind === 'Document', "Expecting a parsed GraphQL document. Perhaps you need to wrap the query string in a \"gql\" tag? http://docs.apollostack.com/apollo-client/core.html#gql");
+        var operations = doc.definitions
+            .filter(function (d) { return d.kind !== 'FragmentDefinition'; })
+            .map(function (definition) {
+            if (definition.kind !== 'OperationDefinition') {
+                throw process.env.NODE_ENV === "production" ? new InvariantError(9) : new InvariantError("Schema type definitions not allowed in queries. Found: \"" + definition.kind + "\"");
+            }
+            return definition;
+        });
+        process.env.NODE_ENV === "production" ? invariant(operations.length <= 1, 10) : invariant(operations.length <= 1, "Ambiguous GraphQL document: contains " + operations.length + " operations");
+        return doc;
+    }
+    function getOperationDefinition(doc) {
+        checkDocument(doc);
+        return doc.definitions.filter(function (definition) { return definition.kind === 'OperationDefinition'; })[0];
+    }
+    function getOperationName(doc) {
+        return (doc.definitions
+            .filter(function (definition) {
+            return definition.kind === 'OperationDefinition' && definition.name;
+        })
+            .map(function (x) { return x.name.value; })[0] || null);
+    }
+    function getFragmentDefinitions(doc) {
+        return doc.definitions.filter(function (definition) { return definition.kind === 'FragmentDefinition'; });
+    }
+    function getQueryDefinition(doc) {
+        var queryDef = getOperationDefinition(doc);
+        process.env.NODE_ENV === "production" ? invariant(queryDef && queryDef.operation === 'query', 12) : invariant(queryDef && queryDef.operation === 'query', 'Must contain a query definition.');
+        return queryDef;
+    }
+    function getFragmentDefinition(doc) {
+        process.env.NODE_ENV === "production" ? invariant(doc.kind === 'Document', 13) : invariant(doc.kind === 'Document', "Expecting a parsed GraphQL document. Perhaps you need to wrap the query string in a \"gql\" tag? http://docs.apollostack.com/apollo-client/core.html#gql");
+        process.env.NODE_ENV === "production" ? invariant(doc.definitions.length <= 1, 14) : invariant(doc.definitions.length <= 1, 'Fragment must have exactly one definition.');
+        var fragmentDef = doc.definitions[0];
+        process.env.NODE_ENV === "production" ? invariant(fragmentDef.kind === 'FragmentDefinition', 15) : invariant(fragmentDef.kind === 'FragmentDefinition', 'Must be a fragment definition.');
+        return fragmentDef;
+    }
+    function getMainDefinition(queryDoc) {
+        checkDocument(queryDoc);
+        var fragmentDefinition;
+        for (var _i = 0, _a = queryDoc.definitions; _i < _a.length; _i++) {
+            var definition = _a[_i];
+            if (definition.kind === 'OperationDefinition') {
+                var operation = definition.operation;
+                if (operation === 'query' ||
+                    operation === 'mutation' ||
+                    operation === 'subscription') {
+                    return definition;
+                }
+            }
+            if (definition.kind === 'FragmentDefinition' && !fragmentDefinition) {
+                fragmentDefinition = definition;
+            }
+        }
+        if (fragmentDefinition) {
+            return fragmentDefinition;
+        }
+        throw process.env.NODE_ENV === "production" ? new InvariantError(16) : new InvariantError('Expected a parsed GraphQL query with a query, mutation, subscription, or a fragment.');
+    }
+    function createFragmentMap(fragments) {
+        if (fragments === void 0) { fragments = []; }
+        var symTable = {};
+        fragments.forEach(function (fragment) {
+            symTable[fragment.name.value] = fragment;
+        });
+        return symTable;
+    }
+    function getDefaultValues(definition) {
+        if (definition &&
+            definition.variableDefinitions &&
+            definition.variableDefinitions.length) {
+            var defaultValues = definition.variableDefinitions
+                .filter(function (_a) {
+                var defaultValue = _a.defaultValue;
+                return defaultValue;
+            })
+                .map(function (_a) {
+                var variable = _a.variable, defaultValue = _a.defaultValue;
+                var defaultValueObj = {};
+                valueToObjectRepresentation(defaultValueObj, variable.name, defaultValue);
+                return defaultValueObj;
+            });
+            return assign$1.apply(void 0, [{}].concat(defaultValues));
+        }
+        return {};
+    }
+
+    function filterInPlace(array, test, context) {
+        var target = 0;
+        array.forEach(function (elem, i) {
+            if (test.call(this, elem, i, array)) {
+                array[target++] = elem;
+            }
+        }, context);
+        array.length = target;
+        return array;
+    }
+
+    var TYPENAME_FIELD = {
+        kind: 'Field',
+        name: {
+            kind: 'Name',
+            value: '__typename',
+        },
+    };
+    function isEmpty(op, fragments) {
+        return op.selectionSet.selections.every(function (selection) {
+            return selection.kind === 'FragmentSpread' &&
+                isEmpty(fragments[selection.name.value], fragments);
+        });
+    }
+    function nullIfDocIsEmpty(doc) {
+        return isEmpty(getOperationDefinition(doc) || getFragmentDefinition(doc), createFragmentMap(getFragmentDefinitions(doc)))
+            ? null
+            : doc;
+    }
+    function getDirectiveMatcher(directives) {
+        return function directiveMatcher(directive) {
+            return directives.some(function (dir) {
+                return (dir.name && dir.name === directive.name.value) ||
+                    (dir.test && dir.test(directive));
+            });
+        };
+    }
+    function removeDirectivesFromDocument(directives, doc) {
+        var variablesInUse = Object.create(null);
+        var variablesToRemove = [];
+        var fragmentSpreadsInUse = Object.create(null);
+        var fragmentSpreadsToRemove = [];
+        var modifiedDoc = nullIfDocIsEmpty(visit(doc, {
+            Variable: {
+                enter: function (node, _key, parent) {
+                    if (parent.kind !== 'VariableDefinition') {
+                        variablesInUse[node.name.value] = true;
+                    }
+                },
+            },
+            Field: {
+                enter: function (node) {
+                    if (directives && node.directives) {
+                        var shouldRemoveField = directives.some(function (directive) { return directive.remove; });
+                        if (shouldRemoveField &&
+                            node.directives &&
+                            node.directives.some(getDirectiveMatcher(directives))) {
+                            if (node.arguments) {
+                                node.arguments.forEach(function (arg) {
+                                    if (arg.value.kind === 'Variable') {
+                                        variablesToRemove.push({
+                                            name: arg.value.name.value,
+                                        });
+                                    }
+                                });
+                            }
+                            if (node.selectionSet) {
+                                getAllFragmentSpreadsFromSelectionSet(node.selectionSet).forEach(function (frag) {
+                                    fragmentSpreadsToRemove.push({
+                                        name: frag.name.value,
+                                    });
+                                });
+                            }
+                            return null;
+                        }
+                    }
+                },
+            },
+            FragmentSpread: {
+                enter: function (node) {
+                    fragmentSpreadsInUse[node.name.value] = true;
+                },
+            },
+            Directive: {
+                enter: function (node) {
+                    if (getDirectiveMatcher(directives)(node)) {
+                        return null;
+                    }
+                },
+            },
+        }));
+        if (modifiedDoc &&
+            filterInPlace(variablesToRemove, function (v) { return !variablesInUse[v.name]; }).length) {
+            modifiedDoc = removeArgumentsFromDocument(variablesToRemove, modifiedDoc);
+        }
+        if (modifiedDoc &&
+            filterInPlace(fragmentSpreadsToRemove, function (fs) { return !fragmentSpreadsInUse[fs.name]; })
+                .length) {
+            modifiedDoc = removeFragmentSpreadFromDocument(fragmentSpreadsToRemove, modifiedDoc);
+        }
+        return modifiedDoc;
+    }
+    function addTypenameToDocument(doc) {
+        return visit(checkDocument(doc), {
+            SelectionSet: {
+                enter: function (node, _key, parent) {
+                    if (parent &&
+                        parent.kind === 'OperationDefinition') {
+                        return;
+                    }
+                    var selections = node.selections;
+                    if (!selections) {
+                        return;
+                    }
+                    var skip = selections.some(function (selection) {
+                        return (isField(selection) &&
+                            (selection.name.value === '__typename' ||
+                                selection.name.value.lastIndexOf('__', 0) === 0));
+                    });
+                    if (skip) {
+                        return;
+                    }
+                    var field = parent;
+                    if (isField(field) &&
+                        field.directives &&
+                        field.directives.some(function (d) { return d.name.value === 'export'; })) {
+                        return;
+                    }
+                    return __assign({}, node, { selections: selections.concat([TYPENAME_FIELD]) });
+                },
+            },
+        });
+    }
+    var connectionRemoveConfig = {
+        test: function (directive) {
+            var willRemove = directive.name.value === 'connection';
+            if (willRemove) {
+                if (!directive.arguments ||
+                    !directive.arguments.some(function (arg) { return arg.name.value === 'key'; })) {
+                    process.env.NODE_ENV === "production" || invariant.warn('Removing an @connection directive even though it does not have a key. ' +
+                        'You may want to use the key parameter to specify a store key.');
+                }
+            }
+            return willRemove;
+        },
+    };
+    function removeConnectionDirectiveFromDocument(doc) {
+        return removeDirectivesFromDocument([connectionRemoveConfig], checkDocument(doc));
+    }
+    function getArgumentMatcher(config) {
+        return function argumentMatcher(argument) {
+            return config.some(function (aConfig) {
+                return argument.value &&
+                    argument.value.kind === 'Variable' &&
+                    argument.value.name &&
+                    (aConfig.name === argument.value.name.value ||
+                        (aConfig.test && aConfig.test(argument)));
+            });
+        };
+    }
+    function removeArgumentsFromDocument(config, doc) {
+        var argMatcher = getArgumentMatcher(config);
+        return nullIfDocIsEmpty(visit(doc, {
+            OperationDefinition: {
+                enter: function (node) {
+                    return __assign({}, node, { variableDefinitions: node.variableDefinitions.filter(function (varDef) {
+                            return !config.some(function (arg) { return arg.name === varDef.variable.name.value; });
+                        }) });
+                },
+            },
+            Field: {
+                enter: function (node) {
+                    var shouldRemoveField = config.some(function (argConfig) { return argConfig.remove; });
+                    if (shouldRemoveField) {
+                        var argMatchCount_1 = 0;
+                        node.arguments.forEach(function (arg) {
+                            if (argMatcher(arg)) {
+                                argMatchCount_1 += 1;
+                            }
+                        });
+                        if (argMatchCount_1 === 1) {
+                            return null;
+                        }
+                    }
+                },
+            },
+            Argument: {
+                enter: function (node) {
+                    if (argMatcher(node)) {
+                        return null;
+                    }
+                },
+            },
+        }));
+    }
+    function removeFragmentSpreadFromDocument(config, doc) {
+        function enter(node) {
+            if (config.some(function (def) { return def.name === node.name.value; })) {
+                return null;
+            }
+        }
+        return nullIfDocIsEmpty(visit(doc, {
+            FragmentSpread: { enter: enter },
+            FragmentDefinition: { enter: enter },
+        }));
+    }
+    function getAllFragmentSpreadsFromSelectionSet(selectionSet) {
+        var allFragments = [];
+        selectionSet.selections.forEach(function (selection) {
+            if ((isField(selection) || isInlineFragment(selection)) &&
+                selection.selectionSet) {
+                getAllFragmentSpreadsFromSelectionSet(selection.selectionSet).forEach(function (frag) { return allFragments.push(frag); });
+            }
+            else if (selection.kind === 'FragmentSpread') {
+                allFragments.push(selection);
+            }
+        });
+        return allFragments;
+    }
+    function buildQueryFromSelectionSet(document) {
+        var definition = getMainDefinition(document);
+        var definitionOperation = definition.operation;
+        if (definitionOperation === 'query') {
+            return document;
+        }
+        var modifiedDoc = visit(document, {
+            OperationDefinition: {
+                enter: function (node) {
+                    return __assign({}, node, { operation: 'query' });
+                },
+            },
+        });
+        return modifiedDoc;
+    }
+    function removeClientSetsFromDocument(document) {
+        checkDocument(document);
+        var modifiedDoc = removeDirectivesFromDocument([
+            {
+                test: function (directive) { return directive.name.value === 'client'; },
+                remove: true,
+            },
+        ], document);
+        if (modifiedDoc) {
+            modifiedDoc = visit(modifiedDoc, {
+                FragmentDefinition: {
+                    enter: function (node) {
+                        if (node.selectionSet) {
+                            var isTypenameOnly = node.selectionSet.selections.every(function (selection) {
+                                return isField(selection) && selection.name.value === '__typename';
+                            });
+                            if (isTypenameOnly) {
+                                return null;
+                            }
+                        }
+                    },
+                },
+            });
+        }
+        return modifiedDoc;
+    }
+
+    var canUseWeakMap = typeof WeakMap === 'function' && !(typeof navigator === 'object' &&
+        navigator.product === 'ReactNative');
+
+    var toString$1 = Object.prototype.toString;
+    function cloneDeep(value) {
+        return cloneDeepHelper(value, new Map());
+    }
+    function cloneDeepHelper(val, seen) {
+        switch (toString$1.call(val)) {
+            case "[object Array]": {
+                if (seen.has(val))
+                    return seen.get(val);
+                var copy_1 = val.slice(0);
+                seen.set(val, copy_1);
+                copy_1.forEach(function (child, i) {
+                    copy_1[i] = cloneDeepHelper(child, seen);
+                });
+                return copy_1;
+            }
+            case "[object Object]": {
+                if (seen.has(val))
+                    return seen.get(val);
+                var copy_2 = Object.create(Object.getPrototypeOf(val));
+                seen.set(val, copy_2);
+                Object.keys(val).forEach(function (key) {
+                    copy_2[key] = cloneDeepHelper(val[key], seen);
+                });
+                return copy_2;
+            }
+            default:
+                return val;
+        }
+    }
+
+    function getEnv() {
+        if (typeof process !== 'undefined' && process.env.NODE_ENV) {
+            return process.env.NODE_ENV;
+        }
+        return 'development';
+    }
+    function isEnv(env) {
+        return getEnv() === env;
+    }
+    function isProduction() {
+        return isEnv('production') === true;
+    }
+    function isDevelopment() {
+        return isEnv('development') === true;
+    }
+    function isTest() {
+        return isEnv('test') === true;
+    }
+
+    function tryFunctionOrLogError(f) {
+        try {
+            return f();
+        }
+        catch (e) {
+            if (console.error) {
+                console.error(e);
+            }
+        }
+    }
+    function graphQLResultHasError(result) {
+        return result.errors && result.errors.length;
+    }
+
+    function deepFreeze(o) {
+        Object.freeze(o);
+        Object.getOwnPropertyNames(o).forEach(function (prop) {
+            if (o[prop] !== null &&
+                (typeof o[prop] === 'object' || typeof o[prop] === 'function') &&
+                !Object.isFrozen(o[prop])) {
+                deepFreeze(o[prop]);
+            }
+        });
+        return o;
+    }
+    function maybeDeepFreeze(obj) {
+        if (isDevelopment() || isTest()) {
+            var symbolIsPolyfilled = typeof Symbol === 'function' && typeof Symbol('') === 'string';
+            if (!symbolIsPolyfilled) {
+                return deepFreeze(obj);
+            }
+        }
+        return obj;
+    }
+
+    var hasOwnProperty$1 = Object.prototype.hasOwnProperty;
+    function mergeDeep() {
+        var sources = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            sources[_i] = arguments[_i];
+        }
+        return mergeDeepArray(sources);
+    }
+    function mergeDeepArray(sources) {
+        var target = sources[0] || {};
+        var count = sources.length;
+        if (count > 1) {
+            var pastCopies = [];
+            target = shallowCopyForMerge(target, pastCopies);
+            for (var i = 1; i < count; ++i) {
+                target = mergeHelper(target, sources[i], pastCopies);
+            }
+        }
+        return target;
+    }
+    function isObject(obj) {
+        return obj !== null && typeof obj === 'object';
+    }
+    function mergeHelper(target, source, pastCopies) {
+        if (isObject(source) && isObject(target)) {
+            if (Object.isExtensible && !Object.isExtensible(target)) {
+                target = shallowCopyForMerge(target, pastCopies);
+            }
+            Object.keys(source).forEach(function (sourceKey) {
+                var sourceValue = source[sourceKey];
+                if (hasOwnProperty$1.call(target, sourceKey)) {
+                    var targetValue = target[sourceKey];
+                    if (sourceValue !== targetValue) {
+                        target[sourceKey] = mergeHelper(shallowCopyForMerge(targetValue, pastCopies), sourceValue, pastCopies);
+                    }
+                }
+                else {
+                    target[sourceKey] = sourceValue;
+                }
+            });
+            return target;
+        }
+        return source;
+    }
+    function shallowCopyForMerge(value, pastCopies) {
+        if (value !== null &&
+            typeof value === 'object' &&
+            pastCopies.indexOf(value) < 0) {
+            if (Array.isArray(value)) {
+                value = value.slice(0);
+            }
+            else {
+                value = __assign({ __proto__: Object.getPrototypeOf(value) }, value);
+            }
+            pastCopies.push(value);
+        }
+        return value;
+    }
+    //# sourceMappingURL=bundle.esm.js.map
+
+    var Observable_1 = createCommonjsModule(function (module, exports) {
+
+    Object.defineProperty(exports, "__esModule", {
+      value: true
+    });
+
+    var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+    function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+    // === Symbol Support ===
+
+    var hasSymbols = function () {
+      return typeof Symbol === 'function';
+    };
+    var hasSymbol = function (name) {
+      return hasSymbols() && Boolean(Symbol[name]);
+    };
+    var getSymbol = function (name) {
+      return hasSymbol(name) ? Symbol[name] : '@@' + name;
+    };
+
+    if (hasSymbols() && !hasSymbol('observable')) {
+      Symbol.observable = Symbol('observable');
+    }
+
+    var SymbolIterator = getSymbol('iterator');
+    var SymbolObservable = getSymbol('observable');
+    var SymbolSpecies = getSymbol('species');
+
+    // === Abstract Operations ===
+
+    function getMethod(obj, key) {
+      var value = obj[key];
+
+      if (value == null) return undefined;
+
+      if (typeof value !== 'function') throw new TypeError(value + ' is not a function');
+
+      return value;
+    }
+
+    function getSpecies(obj) {
+      var ctor = obj.constructor;
+      if (ctor !== undefined) {
+        ctor = ctor[SymbolSpecies];
+        if (ctor === null) {
+          ctor = undefined;
+        }
+      }
+      return ctor !== undefined ? ctor : Observable;
+    }
+
+    function isObservable(x) {
+      return x instanceof Observable; // SPEC: Brand check
+    }
+
+    function hostReportError(e) {
+      if (hostReportError.log) {
+        hostReportError.log(e);
+      } else {
+        setTimeout(function () {
+          throw e;
+        });
+      }
+    }
+
+    function enqueue(fn) {
+      Promise.resolve().then(function () {
+        try {
+          fn();
+        } catch (e) {
+          hostReportError(e);
+        }
+      });
+    }
+
+    function cleanupSubscription(subscription) {
+      var cleanup = subscription._cleanup;
+      if (cleanup === undefined) return;
+
+      subscription._cleanup = undefined;
+
+      if (!cleanup) {
+        return;
+      }
+
+      try {
+        if (typeof cleanup === 'function') {
+          cleanup();
+        } else {
+          var unsubscribe = getMethod(cleanup, 'unsubscribe');
+          if (unsubscribe) {
+            unsubscribe.call(cleanup);
+          }
+        }
+      } catch (e) {
+        hostReportError(e);
+      }
+    }
+
+    function closeSubscription(subscription) {
+      subscription._observer = undefined;
+      subscription._queue = undefined;
+      subscription._state = 'closed';
+    }
+
+    function flushSubscription(subscription) {
+      var queue = subscription._queue;
+      if (!queue) {
+        return;
+      }
+      subscription._queue = undefined;
+      subscription._state = 'ready';
+      for (var i = 0; i < queue.length; ++i) {
+        notifySubscription(subscription, queue[i].type, queue[i].value);
+        if (subscription._state === 'closed') break;
+      }
+    }
+
+    function notifySubscription(subscription, type, value) {
+      subscription._state = 'running';
+
+      var observer = subscription._observer;
+
+      try {
+        var m = getMethod(observer, type);
+        switch (type) {
+          case 'next':
+            if (m) m.call(observer, value);
+            break;
+          case 'error':
+            closeSubscription(subscription);
+            if (m) m.call(observer, value);else throw value;
+            break;
+          case 'complete':
+            closeSubscription(subscription);
+            if (m) m.call(observer);
+            break;
+        }
+      } catch (e) {
+        hostReportError(e);
+      }
+
+      if (subscription._state === 'closed') cleanupSubscription(subscription);else if (subscription._state === 'running') subscription._state = 'ready';
+    }
+
+    function onNotify(subscription, type, value) {
+      if (subscription._state === 'closed') return;
+
+      if (subscription._state === 'buffering') {
+        subscription._queue.push({ type: type, value: value });
+        return;
+      }
+
+      if (subscription._state !== 'ready') {
+        subscription._state = 'buffering';
+        subscription._queue = [{ type: type, value: value }];
+        enqueue(function () {
+          return flushSubscription(subscription);
+        });
+        return;
+      }
+
+      notifySubscription(subscription, type, value);
+    }
+
+    var Subscription = function () {
+      function Subscription(observer, subscriber) {
+        _classCallCheck(this, Subscription);
+
+        // ASSERT: observer is an object
+        // ASSERT: subscriber is callable
+
+        this._cleanup = undefined;
+        this._observer = observer;
+        this._queue = undefined;
+        this._state = 'initializing';
+
+        var subscriptionObserver = new SubscriptionObserver(this);
+
+        try {
+          this._cleanup = subscriber.call(undefined, subscriptionObserver);
+        } catch (e) {
+          subscriptionObserver.error(e);
+        }
+
+        if (this._state === 'initializing') this._state = 'ready';
+      }
+
+      _createClass(Subscription, [{
+        key: 'unsubscribe',
+        value: function unsubscribe() {
+          if (this._state !== 'closed') {
+            closeSubscription(this);
+            cleanupSubscription(this);
+          }
+        }
+      }, {
+        key: 'closed',
+        get: function () {
+          return this._state === 'closed';
+        }
+      }]);
+
+      return Subscription;
+    }();
+
+    var SubscriptionObserver = function () {
+      function SubscriptionObserver(subscription) {
+        _classCallCheck(this, SubscriptionObserver);
+
+        this._subscription = subscription;
+      }
+
+      _createClass(SubscriptionObserver, [{
+        key: 'next',
+        value: function next(value) {
+          onNotify(this._subscription, 'next', value);
+        }
+      }, {
+        key: 'error',
+        value: function error(value) {
+          onNotify(this._subscription, 'error', value);
+        }
+      }, {
+        key: 'complete',
+        value: function complete() {
+          onNotify(this._subscription, 'complete');
+        }
+      }, {
+        key: 'closed',
+        get: function () {
+          return this._subscription._state === 'closed';
+        }
+      }]);
+
+      return SubscriptionObserver;
+    }();
+
+    var Observable = exports.Observable = function () {
+      function Observable(subscriber) {
+        _classCallCheck(this, Observable);
+
+        if (!(this instanceof Observable)) throw new TypeError('Observable cannot be called as a function');
+
+        if (typeof subscriber !== 'function') throw new TypeError('Observable initializer must be a function');
+
+        this._subscriber = subscriber;
+      }
+
+      _createClass(Observable, [{
+        key: 'subscribe',
+        value: function subscribe(observer) {
+          if (typeof observer !== 'object' || observer === null) {
+            observer = {
+              next: observer,
+              error: arguments[1],
+              complete: arguments[2]
+            };
+          }
+          return new Subscription(observer, this._subscriber);
+        }
+      }, {
+        key: 'forEach',
+        value: function forEach(fn) {
+          var _this = this;
+
+          return new Promise(function (resolve, reject) {
+            if (typeof fn !== 'function') {
+              reject(new TypeError(fn + ' is not a function'));
+              return;
+            }
+
+            function done() {
+              subscription.unsubscribe();
+              resolve();
+            }
+
+            var subscription = _this.subscribe({
+              next: function (value) {
+                try {
+                  fn(value, done);
+                } catch (e) {
+                  reject(e);
+                  subscription.unsubscribe();
+                }
+              },
+
+              error: reject,
+              complete: resolve
+            });
+          });
+        }
+      }, {
+        key: 'map',
+        value: function map(fn) {
+          var _this2 = this;
+
+          if (typeof fn !== 'function') throw new TypeError(fn + ' is not a function');
+
+          var C = getSpecies(this);
+
+          return new C(function (observer) {
+            return _this2.subscribe({
+              next: function (value) {
+                try {
+                  value = fn(value);
+                } catch (e) {
+                  return observer.error(e);
+                }
+                observer.next(value);
+              },
+              error: function (e) {
+                observer.error(e);
+              },
+              complete: function () {
+                observer.complete();
+              }
+            });
+          });
+        }
+      }, {
+        key: 'filter',
+        value: function filter(fn) {
+          var _this3 = this;
+
+          if (typeof fn !== 'function') throw new TypeError(fn + ' is not a function');
+
+          var C = getSpecies(this);
+
+          return new C(function (observer) {
+            return _this3.subscribe({
+              next: function (value) {
+                try {
+                  if (!fn(value)) return;
+                } catch (e) {
+                  return observer.error(e);
+                }
+                observer.next(value);
+              },
+              error: function (e) {
+                observer.error(e);
+              },
+              complete: function () {
+                observer.complete();
+              }
+            });
+          });
+        }
+      }, {
+        key: 'reduce',
+        value: function reduce(fn) {
+          var _this4 = this;
+
+          if (typeof fn !== 'function') throw new TypeError(fn + ' is not a function');
+
+          var C = getSpecies(this);
+          var hasSeed = arguments.length > 1;
+          var hasValue = false;
+          var seed = arguments[1];
+          var acc = seed;
+
+          return new C(function (observer) {
+            return _this4.subscribe({
+              next: function (value) {
+                var first = !hasValue;
+                hasValue = true;
+
+                if (!first || hasSeed) {
+                  try {
+                    acc = fn(acc, value);
+                  } catch (e) {
+                    return observer.error(e);
+                  }
+                } else {
+                  acc = value;
+                }
+              },
+              error: function (e) {
+                observer.error(e);
+              },
+              complete: function () {
+                if (!hasValue && !hasSeed) return observer.error(new TypeError('Cannot reduce an empty sequence'));
+
+                observer.next(acc);
+                observer.complete();
+              }
+            });
+          });
+        }
+      }, {
+        key: 'concat',
+        value: function concat() {
+          var _this5 = this;
+
+          for (var _len = arguments.length, sources = Array(_len), _key = 0; _key < _len; _key++) {
+            sources[_key] = arguments[_key];
+          }
+
+          var C = getSpecies(this);
+
+          return new C(function (observer) {
+            var subscription = void 0;
+            var index = 0;
+
+            function startNext(next) {
+              subscription = next.subscribe({
+                next: function (v) {
+                  observer.next(v);
+                },
+                error: function (e) {
+                  observer.error(e);
+                },
+                complete: function () {
+                  if (index === sources.length) {
+                    subscription = undefined;
+                    observer.complete();
+                  } else {
+                    startNext(C.from(sources[index++]));
+                  }
+                }
+              });
+            }
+
+            startNext(_this5);
+
+            return function () {
+              if (subscription) {
+                subscription.unsubscribe();
+                subscription = undefined;
+              }
+            };
+          });
+        }
+      }, {
+        key: 'flatMap',
+        value: function flatMap(fn) {
+          var _this6 = this;
+
+          if (typeof fn !== 'function') throw new TypeError(fn + ' is not a function');
+
+          var C = getSpecies(this);
+
+          return new C(function (observer) {
+            var subscriptions = [];
+
+            var outer = _this6.subscribe({
+              next: function (value) {
+                if (fn) {
+                  try {
+                    value = fn(value);
+                  } catch (e) {
+                    return observer.error(e);
+                  }
+                }
+
+                var inner = C.from(value).subscribe({
+                  next: function (value) {
+                    observer.next(value);
+                  },
+                  error: function (e) {
+                    observer.error(e);
+                  },
+                  complete: function () {
+                    var i = subscriptions.indexOf(inner);
+                    if (i >= 0) subscriptions.splice(i, 1);
+                    completeIfDone();
+                  }
+                });
+
+                subscriptions.push(inner);
+              },
+              error: function (e) {
+                observer.error(e);
+              },
+              complete: function () {
+                completeIfDone();
+              }
+            });
+
+            function completeIfDone() {
+              if (outer.closed && subscriptions.length === 0) observer.complete();
+            }
+
+            return function () {
+              subscriptions.forEach(function (s) {
+                return s.unsubscribe();
+              });
+              outer.unsubscribe();
+            };
+          });
+        }
+      }, {
+        key: SymbolObservable,
+        value: function () {
+          return this;
+        }
+      }], [{
+        key: 'from',
+        value: function from(x) {
+          var C = typeof this === 'function' ? this : Observable;
+
+          if (x == null) throw new TypeError(x + ' is not an object');
+
+          var method = getMethod(x, SymbolObservable);
+          if (method) {
+            var observable = method.call(x);
+
+            if (Object(observable) !== observable) throw new TypeError(observable + ' is not an object');
+
+            if (isObservable(observable) && observable.constructor === C) return observable;
+
+            return new C(function (observer) {
+              return observable.subscribe(observer);
+            });
+          }
+
+          if (hasSymbol('iterator')) {
+            method = getMethod(x, SymbolIterator);
+            if (method) {
+              return new C(function (observer) {
+                enqueue(function () {
+                  if (observer.closed) return;
+                  var _iteratorNormalCompletion = true;
+                  var _didIteratorError = false;
+                  var _iteratorError = undefined;
+
+                  try {
+                    for (var _iterator = method.call(x)[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+                      var item = _step.value;
+
+                      observer.next(item);
+                      if (observer.closed) return;
+                    }
+                  } catch (err) {
+                    _didIteratorError = true;
+                    _iteratorError = err;
+                  } finally {
+                    try {
+                      if (!_iteratorNormalCompletion && _iterator.return) {
+                        _iterator.return();
+                      }
+                    } finally {
+                      if (_didIteratorError) {
+                        throw _iteratorError;
+                      }
+                    }
+                  }
+
+                  observer.complete();
+                });
+              });
+            }
+          }
+
+          if (Array.isArray(x)) {
+            return new C(function (observer) {
+              enqueue(function () {
+                if (observer.closed) return;
+                for (var i = 0; i < x.length; ++i) {
+                  observer.next(x[i]);
+                  if (observer.closed) return;
+                }
+                observer.complete();
+              });
+            });
+          }
+
+          throw new TypeError(x + ' is not observable');
+        }
+      }, {
+        key: 'of',
+        value: function of() {
+          for (var _len2 = arguments.length, items = Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
+            items[_key2] = arguments[_key2];
+          }
+
+          var C = typeof this === 'function' ? this : Observable;
+
+          return new C(function (observer) {
+            enqueue(function () {
+              if (observer.closed) return;
+              for (var i = 0; i < items.length; ++i) {
+                observer.next(items[i]);
+                if (observer.closed) return;
+              }
+              observer.complete();
+            });
+          });
+        }
+      }, {
+        key: SymbolSpecies,
+        get: function () {
+          return this;
+        }
+      }]);
+
+      return Observable;
+    }();
+
+    if (hasSymbols()) {
+      Object.defineProperty(Observable, Symbol('extensions'), {
+        value: {
+          symbol: SymbolObservable,
+          hostReportError: hostReportError
+        },
+        configurable: true
+      });
+    }
+    });
+
+    unwrapExports(Observable_1);
+    var Observable_2 = Observable_1.Observable;
+
+    var zenObservable = Observable_1.Observable;
+
+    var Observable = zenObservable;
+    //# sourceMappingURL=bundle.esm.js.map
+
+    function validateOperation(operation) {
+        var OPERATION_FIELDS = [
+            'query',
+            'operationName',
+            'variables',
+            'extensions',
+            'context',
+        ];
+        for (var _i = 0, _a = Object.keys(operation); _i < _a.length; _i++) {
+            var key = _a[_i];
+            if (OPERATION_FIELDS.indexOf(key) < 0) {
+                throw process.env.NODE_ENV === "production" ? new InvariantError(2) : new InvariantError("illegal argument: " + key);
+            }
+        }
+        return operation;
+    }
+    var LinkError = (function (_super) {
+        __extends(LinkError, _super);
+        function LinkError(message, link) {
+            var _this = _super.call(this, message) || this;
+            _this.link = link;
+            return _this;
+        }
+        return LinkError;
+    }(Error));
+    function isTerminating(link) {
+        return link.request.length <= 1;
+    }
+    function fromError(errorValue) {
+        return new Observable(function (observer) {
+            observer.error(errorValue);
+        });
+    }
+    function transformOperation(operation) {
+        var transformedOperation = {
+            variables: operation.variables || {},
+            extensions: operation.extensions || {},
+            operationName: operation.operationName,
+            query: operation.query,
+        };
+        if (!transformedOperation.operationName) {
+            transformedOperation.operationName =
+                typeof transformedOperation.query !== 'string'
+                    ? getOperationName(transformedOperation.query)
+                    : '';
+        }
+        return transformedOperation;
+    }
+    function createOperation(starting, operation) {
+        var context = __assign({}, starting);
+        var setContext = function (next) {
+            if (typeof next === 'function') {
+                context = __assign({}, context, next(context));
+            }
+            else {
+                context = __assign({}, context, next);
+            }
+        };
+        var getContext = function () { return (__assign({}, context)); };
+        Object.defineProperty(operation, 'setContext', {
+            enumerable: false,
+            value: setContext,
+        });
+        Object.defineProperty(operation, 'getContext', {
+            enumerable: false,
+            value: getContext,
+        });
+        Object.defineProperty(operation, 'toKey', {
+            enumerable: false,
+            value: function () { return getKey(operation); },
+        });
+        return operation;
+    }
+    function getKey(operation) {
+        var query = operation.query, variables = operation.variables, operationName = operation.operationName;
+        return JSON.stringify([operationName, query, variables]);
+    }
+
+    function passthrough(op, forward) {
+        return forward ? forward(op) : Observable.of();
+    }
+    function toLink(handler) {
+        return typeof handler === 'function' ? new ApolloLink(handler) : handler;
+    }
+    function empty$1() {
+        return new ApolloLink(function () { return Observable.of(); });
+    }
+    function from(links) {
+        if (links.length === 0)
+            return empty$1();
+        return links.map(toLink).reduce(function (x, y) { return x.concat(y); });
+    }
+    function split(test, left, right) {
+        var leftLink = toLink(left);
+        var rightLink = toLink(right || new ApolloLink(passthrough));
+        if (isTerminating(leftLink) && isTerminating(rightLink)) {
+            return new ApolloLink(function (operation) {
+                return test(operation)
+                    ? leftLink.request(operation) || Observable.of()
+                    : rightLink.request(operation) || Observable.of();
+            });
+        }
+        else {
+            return new ApolloLink(function (operation, forward) {
+                return test(operation)
+                    ? leftLink.request(operation, forward) || Observable.of()
+                    : rightLink.request(operation, forward) || Observable.of();
+            });
+        }
+    }
+    var concat = function (first, second) {
+        var firstLink = toLink(first);
+        if (isTerminating(firstLink)) {
+            process.env.NODE_ENV === "production" || invariant.warn(new LinkError("You are calling concat on a terminating link, which will have no effect", firstLink));
+            return firstLink;
+        }
+        var nextLink = toLink(second);
+        if (isTerminating(nextLink)) {
+            return new ApolloLink(function (operation) {
+                return firstLink.request(operation, function (op) { return nextLink.request(op) || Observable.of(); }) || Observable.of();
+            });
+        }
+        else {
+            return new ApolloLink(function (operation, forward) {
+                return (firstLink.request(operation, function (op) {
+                    return nextLink.request(op, forward) || Observable.of();
+                }) || Observable.of());
+            });
+        }
+    };
+    var ApolloLink = (function () {
+        function ApolloLink(request) {
+            if (request)
+                this.request = request;
+        }
+        ApolloLink.prototype.split = function (test, left, right) {
+            return this.concat(split(test, left, right || new ApolloLink(passthrough)));
+        };
+        ApolloLink.prototype.concat = function (next) {
+            return concat(this, next);
+        };
+        ApolloLink.prototype.request = function (operation, forward) {
+            throw process.env.NODE_ENV === "production" ? new InvariantError(1) : new InvariantError('request is not implemented');
+        };
+        ApolloLink.empty = empty$1;
+        ApolloLink.from = from;
+        ApolloLink.split = split;
+        ApolloLink.execute = execute;
+        return ApolloLink;
+    }());
+    function execute(link, operation) {
+        return (link.request(createOperation(operation.context, transformOperation(validateOperation(operation)))) || Observable.of());
+    }
+    //# sourceMappingURL=bundle.esm.js.map
+
+    function symbolObservablePonyfill(root) {
+    	var result;
+    	var Symbol = root.Symbol;
+
+    	if (typeof Symbol === 'function') {
+    		if (Symbol.observable) {
+    			result = Symbol.observable;
+    		} else {
+    			result = Symbol('observable');
+    			Symbol.observable = result;
+    		}
+    	} else {
+    		result = '@@observable';
+    	}
+
+    	return result;
+    }
+
+    /* global window */
+
+    var root;
+
+    if (typeof self !== 'undefined') {
+      root = self;
+    } else if (typeof window !== 'undefined') {
+      root = window;
+    } else if (typeof global !== 'undefined') {
+      root = global;
+    } else if (typeof module !== 'undefined') {
+      root = module;
+    } else {
+      root = Function('return this')();
+    }
+
+    var result = symbolObservablePonyfill(root);
+
+    var NetworkStatus;
+    (function (NetworkStatus) {
+        NetworkStatus[NetworkStatus["loading"] = 1] = "loading";
+        NetworkStatus[NetworkStatus["setVariables"] = 2] = "setVariables";
+        NetworkStatus[NetworkStatus["fetchMore"] = 3] = "fetchMore";
+        NetworkStatus[NetworkStatus["refetch"] = 4] = "refetch";
+        NetworkStatus[NetworkStatus["poll"] = 6] = "poll";
+        NetworkStatus[NetworkStatus["ready"] = 7] = "ready";
+        NetworkStatus[NetworkStatus["error"] = 8] = "error";
+    })(NetworkStatus || (NetworkStatus = {}));
+    function isNetworkRequestInFlight(networkStatus) {
+        return networkStatus < 7;
+    }
+
+    var Observable$1 = (function (_super) {
+        __extends(Observable, _super);
+        function Observable() {
+            return _super !== null && _super.apply(this, arguments) || this;
+        }
+        Observable.prototype[result] = function () {
+            return this;
+        };
+        Observable.prototype['@@observable'] = function () {
+            return this;
+        };
+        return Observable;
+    }(Observable));
+
+    function isNonEmptyArray(value) {
+        return Array.isArray(value) && value.length > 0;
+    }
+
+    function isApolloError(err) {
+        return err.hasOwnProperty('graphQLErrors');
+    }
+    var generateErrorMessage = function (err) {
+        var message = '';
+        if (isNonEmptyArray(err.graphQLErrors)) {
+            err.graphQLErrors.forEach(function (graphQLError) {
+                var errorMessage = graphQLError
+                    ? graphQLError.message
+                    : 'Error message not found.';
+                message += "GraphQL error: " + errorMessage + "\n";
+            });
+        }
+        if (err.networkError) {
+            message += 'Network error: ' + err.networkError.message + '\n';
+        }
+        message = message.replace(/\n$/, '');
+        return message;
+    };
+    var ApolloError = (function (_super) {
+        __extends(ApolloError, _super);
+        function ApolloError(_a) {
+            var graphQLErrors = _a.graphQLErrors, networkError = _a.networkError, errorMessage = _a.errorMessage, extraInfo = _a.extraInfo;
+            var _this = _super.call(this, errorMessage) || this;
+            _this.graphQLErrors = graphQLErrors || [];
+            _this.networkError = networkError || null;
+            if (!errorMessage) {
+                _this.message = generateErrorMessage(_this);
+            }
+            else {
+                _this.message = errorMessage;
+            }
+            _this.extraInfo = extraInfo;
+            _this.__proto__ = ApolloError.prototype;
+            return _this;
+        }
+        return ApolloError;
+    }(Error));
+
+    var FetchType;
+    (function (FetchType) {
+        FetchType[FetchType["normal"] = 1] = "normal";
+        FetchType[FetchType["refetch"] = 2] = "refetch";
+        FetchType[FetchType["poll"] = 3] = "poll";
+    })(FetchType || (FetchType = {}));
+
+    var hasError = function (storeValue, policy) {
+        if (policy === void 0) { policy = 'none'; }
+        return storeValue && (storeValue.networkError ||
+            (policy === 'none' && isNonEmptyArray(storeValue.graphQLErrors)));
+    };
+    var ObservableQuery = (function (_super) {
+        __extends(ObservableQuery, _super);
+        function ObservableQuery(_a) {
+            var queryManager = _a.queryManager, options = _a.options, _b = _a.shouldSubscribe, shouldSubscribe = _b === void 0 ? true : _b;
+            var _this = _super.call(this, function (observer) {
+                return _this.onSubscribe(observer);
+            }) || this;
+            _this.observers = new Set();
+            _this.subscriptions = new Set();
+            _this.isTornDown = false;
+            _this.options = options;
+            _this.variables = options.variables || {};
+            _this.queryId = queryManager.generateQueryId();
+            _this.shouldSubscribe = shouldSubscribe;
+            var opDef = getOperationDefinition(options.query);
+            _this.queryName = opDef && opDef.name && opDef.name.value;
+            _this.queryManager = queryManager;
+            return _this;
+        }
+        ObservableQuery.prototype.result = function () {
+            var _this = this;
+            return new Promise(function (resolve, reject) {
+                var observer = {
+                    next: function (result) {
+                        resolve(result);
+                        _this.observers.delete(observer);
+                        if (!_this.observers.size) {
+                            _this.queryManager.removeQuery(_this.queryId);
+                        }
+                        setTimeout(function () {
+                            subscription.unsubscribe();
+                        }, 0);
+                    },
+                    error: reject,
+                };
+                var subscription = _this.subscribe(observer);
+            });
+        };
+        ObservableQuery.prototype.currentResult = function () {
+            var result = this.getCurrentResult();
+            if (result.data === undefined) {
+                result.data = {};
+            }
+            return result;
+        };
+        ObservableQuery.prototype.getCurrentResult = function () {
+            if (this.isTornDown) {
+                var lastResult = this.lastResult;
+                return {
+                    data: !this.lastError && lastResult && lastResult.data || void 0,
+                    error: this.lastError,
+                    loading: false,
+                    networkStatus: NetworkStatus.error,
+                };
+            }
+            var _a = this.queryManager.getCurrentQueryResult(this), data = _a.data, partial = _a.partial;
+            var queryStoreValue = this.queryManager.queryStore.get(this.queryId);
+            var result;
+            var fetchPolicy = this.options.fetchPolicy;
+            var isNetworkFetchPolicy = fetchPolicy === 'network-only' ||
+                fetchPolicy === 'no-cache';
+            if (queryStoreValue) {
+                var networkStatus = queryStoreValue.networkStatus;
+                if (hasError(queryStoreValue, this.options.errorPolicy)) {
+                    return {
+                        data: void 0,
+                        loading: false,
+                        networkStatus: networkStatus,
+                        error: new ApolloError({
+                            graphQLErrors: queryStoreValue.graphQLErrors,
+                            networkError: queryStoreValue.networkError,
+                        }),
+                    };
+                }
+                if (queryStoreValue.variables) {
+                    this.options.variables = __assign({}, this.options.variables, queryStoreValue.variables);
+                    this.variables = this.options.variables;
+                }
+                result = {
+                    data: data,
+                    loading: isNetworkRequestInFlight(networkStatus),
+                    networkStatus: networkStatus,
+                };
+                if (queryStoreValue.graphQLErrors && this.options.errorPolicy === 'all') {
+                    result.errors = queryStoreValue.graphQLErrors;
+                }
+            }
+            else {
+                var loading = isNetworkFetchPolicy ||
+                    (partial && fetchPolicy !== 'cache-only');
+                result = {
+                    data: data,
+                    loading: loading,
+                    networkStatus: loading ? NetworkStatus.loading : NetworkStatus.ready,
+                };
+            }
+            if (!partial) {
+                this.updateLastResult(__assign({}, result, { stale: false }));
+            }
+            return __assign({}, result, { partial: partial });
+        };
+        ObservableQuery.prototype.isDifferentFromLastResult = function (newResult) {
+            var snapshot = this.lastResultSnapshot;
+            return !(snapshot &&
+                newResult &&
+                snapshot.networkStatus === newResult.networkStatus &&
+                snapshot.stale === newResult.stale &&
+                equal(snapshot.data, newResult.data));
+        };
+        ObservableQuery.prototype.getLastResult = function () {
+            return this.lastResult;
+        };
+        ObservableQuery.prototype.getLastError = function () {
+            return this.lastError;
+        };
+        ObservableQuery.prototype.resetLastResults = function () {
+            delete this.lastResult;
+            delete this.lastResultSnapshot;
+            delete this.lastError;
+            this.isTornDown = false;
+        };
+        ObservableQuery.prototype.resetQueryStoreErrors = function () {
+            var queryStore = this.queryManager.queryStore.get(this.queryId);
+            if (queryStore) {
+                queryStore.networkError = null;
+                queryStore.graphQLErrors = [];
+            }
+        };
+        ObservableQuery.prototype.refetch = function (variables) {
+            var fetchPolicy = this.options.fetchPolicy;
+            if (fetchPolicy === 'cache-only') {
+                return Promise.reject(process.env.NODE_ENV === "production" ? new InvariantError(3) : new InvariantError('cache-only fetchPolicy option should not be used together with query refetch.'));
+            }
+            if (fetchPolicy !== 'no-cache' &&
+                fetchPolicy !== 'cache-and-network') {
+                fetchPolicy = 'network-only';
+            }
+            if (!equal(this.variables, variables)) {
+                this.variables = __assign({}, this.variables, variables);
+            }
+            if (!equal(this.options.variables, this.variables)) {
+                this.options.variables = __assign({}, this.options.variables, this.variables);
+            }
+            return this.queryManager.fetchQuery(this.queryId, __assign({}, this.options, { fetchPolicy: fetchPolicy }), FetchType.refetch);
+        };
+        ObservableQuery.prototype.fetchMore = function (fetchMoreOptions) {
+            var _this = this;
+            process.env.NODE_ENV === "production" ? invariant(fetchMoreOptions.updateQuery, 4) : invariant(fetchMoreOptions.updateQuery, 'updateQuery option is required. This function defines how to update the query data with the new results.');
+            var combinedOptions = __assign({}, (fetchMoreOptions.query ? fetchMoreOptions : __assign({}, this.options, fetchMoreOptions, { variables: __assign({}, this.variables, fetchMoreOptions.variables) })), { fetchPolicy: 'network-only' });
+            var qid = this.queryManager.generateQueryId();
+            return this.queryManager
+                .fetchQuery(qid, combinedOptions, FetchType.normal, this.queryId)
+                .then(function (fetchMoreResult) {
+                _this.updateQuery(function (previousResult) {
+                    return fetchMoreOptions.updateQuery(previousResult, {
+                        fetchMoreResult: fetchMoreResult.data,
+                        variables: combinedOptions.variables,
+                    });
+                });
+                _this.queryManager.stopQuery(qid);
+                return fetchMoreResult;
+            }, function (error) {
+                _this.queryManager.stopQuery(qid);
+                throw error;
+            });
+        };
+        ObservableQuery.prototype.subscribeToMore = function (options) {
+            var _this = this;
+            var subscription = this.queryManager
+                .startGraphQLSubscription({
+                query: options.document,
+                variables: options.variables,
+            })
+                .subscribe({
+                next: function (subscriptionData) {
+                    var updateQuery = options.updateQuery;
+                    if (updateQuery) {
+                        _this.updateQuery(function (previous, _a) {
+                            var variables = _a.variables;
+                            return updateQuery(previous, {
+                                subscriptionData: subscriptionData,
+                                variables: variables,
+                            });
+                        });
+                    }
+                },
+                error: function (err) {
+                    if (options.onError) {
+                        options.onError(err);
+                        return;
+                    }
+                    process.env.NODE_ENV === "production" || invariant.error('Unhandled GraphQL subscription error', err);
+                },
+            });
+            this.subscriptions.add(subscription);
+            return function () {
+                if (_this.subscriptions.delete(subscription)) {
+                    subscription.unsubscribe();
+                }
+            };
+        };
+        ObservableQuery.prototype.setOptions = function (opts) {
+            var oldFetchPolicy = this.options.fetchPolicy;
+            this.options = __assign({}, this.options, opts);
+            if (opts.pollInterval) {
+                this.startPolling(opts.pollInterval);
+            }
+            else if (opts.pollInterval === 0) {
+                this.stopPolling();
+            }
+            var fetchPolicy = opts.fetchPolicy;
+            return this.setVariables(this.options.variables, oldFetchPolicy !== fetchPolicy && (oldFetchPolicy === 'cache-only' ||
+                oldFetchPolicy === 'standby' ||
+                fetchPolicy === 'network-only'), opts.fetchResults);
+        };
+        ObservableQuery.prototype.setVariables = function (variables, tryFetch, fetchResults) {
+            if (tryFetch === void 0) { tryFetch = false; }
+            if (fetchResults === void 0) { fetchResults = true; }
+            this.isTornDown = false;
+            variables = variables || this.variables;
+            if (!tryFetch && equal(variables, this.variables)) {
+                return this.observers.size && fetchResults
+                    ? this.result()
+                    : Promise.resolve();
+            }
+            this.variables = this.options.variables = variables;
+            if (!this.observers.size) {
+                return Promise.resolve();
+            }
+            return this.queryManager.fetchQuery(this.queryId, this.options);
+        };
+        ObservableQuery.prototype.updateQuery = function (mapFn) {
+            var queryManager = this.queryManager;
+            var _a = queryManager.getQueryWithPreviousResult(this.queryId), previousResult = _a.previousResult, variables = _a.variables, document = _a.document;
+            var newResult = tryFunctionOrLogError(function () {
+                return mapFn(previousResult, { variables: variables });
+            });
+            if (newResult) {
+                queryManager.dataStore.markUpdateQueryResult(document, variables, newResult);
+                queryManager.broadcastQueries();
+            }
+        };
+        ObservableQuery.prototype.stopPolling = function () {
+            this.queryManager.stopPollingQuery(this.queryId);
+            this.options.pollInterval = undefined;
+        };
+        ObservableQuery.prototype.startPolling = function (pollInterval) {
+            assertNotCacheFirstOrOnly(this);
+            this.options.pollInterval = pollInterval;
+            this.queryManager.startPollingQuery(this.options, this.queryId);
+        };
+        ObservableQuery.prototype.updateLastResult = function (newResult) {
+            var previousResult = this.lastResult;
+            this.lastResult = newResult;
+            this.lastResultSnapshot = this.queryManager.assumeImmutableResults
+                ? newResult
+                : cloneDeep(newResult);
+            return previousResult;
+        };
+        ObservableQuery.prototype.onSubscribe = function (observer) {
+            var _this = this;
+            try {
+                var subObserver = observer._subscription._observer;
+                if (subObserver && !subObserver.error) {
+                    subObserver.error = defaultSubscriptionObserverErrorCallback;
+                }
+            }
+            catch (_a) { }
+            var first = !this.observers.size;
+            this.observers.add(observer);
+            if (observer.next && this.lastResult)
+                observer.next(this.lastResult);
+            if (observer.error && this.lastError)
+                observer.error(this.lastError);
+            if (first) {
+                this.setUpQuery();
+            }
+            return function () {
+                if (_this.observers.delete(observer) && !_this.observers.size) {
+                    _this.tearDownQuery();
+                }
+            };
+        };
+        ObservableQuery.prototype.setUpQuery = function () {
+            var _this = this;
+            var _a = this, queryManager = _a.queryManager, queryId = _a.queryId;
+            if (this.shouldSubscribe) {
+                queryManager.addObservableQuery(queryId, this);
+            }
+            if (this.options.pollInterval) {
+                assertNotCacheFirstOrOnly(this);
+                queryManager.startPollingQuery(this.options, queryId);
+            }
+            var onError = function (error) {
+                iterateObserversSafely(_this.observers, 'error', _this.lastError = error);
+            };
+            queryManager.observeQuery(queryId, this.options, {
+                next: function (result) {
+                    if (_this.lastError || _this.isDifferentFromLastResult(result)) {
+                        var previousResult_1 = _this.updateLastResult(result);
+                        var _a = _this.options, query_1 = _a.query, variables = _a.variables, fetchPolicy_1 = _a.fetchPolicy;
+                        if (queryManager.transform(query_1).hasClientExports) {
+                            queryManager.getLocalState().addExportedVariables(query_1, variables).then(function (variables) {
+                                var previousVariables = _this.variables;
+                                _this.variables = _this.options.variables = variables;
+                                if (!result.loading &&
+                                    previousResult_1 &&
+                                    fetchPolicy_1 !== 'cache-only' &&
+                                    queryManager.transform(query_1).serverQuery &&
+                                    !equal(previousVariables, variables)) {
+                                    _this.refetch();
+                                }
+                                else {
+                                    iterateObserversSafely(_this.observers, 'next', result);
+                                }
+                            });
+                        }
+                        else {
+                            iterateObserversSafely(_this.observers, 'next', result);
+                        }
+                    }
+                },
+                error: onError,
+            }).catch(onError);
+        };
+        ObservableQuery.prototype.tearDownQuery = function () {
+            var queryManager = this.queryManager;
+            this.isTornDown = true;
+            queryManager.stopPollingQuery(this.queryId);
+            this.subscriptions.forEach(function (sub) { return sub.unsubscribe(); });
+            this.subscriptions.clear();
+            queryManager.removeObservableQuery(this.queryId);
+            queryManager.stopQuery(this.queryId);
+            this.observers.clear();
+        };
+        return ObservableQuery;
+    }(Observable$1));
+    function defaultSubscriptionObserverErrorCallback(error) {
+        process.env.NODE_ENV === "production" || invariant.error('Unhandled error', error.message, error.stack);
+    }
+    function iterateObserversSafely(observers, method, argument) {
+        var observersWithMethod = [];
+        observers.forEach(function (obs) { return obs[method] && observersWithMethod.push(obs); });
+        observersWithMethod.forEach(function (obs) { return obs[method](argument); });
+    }
+    function assertNotCacheFirstOrOnly(obsQuery) {
+        var fetchPolicy = obsQuery.options.fetchPolicy;
+        process.env.NODE_ENV === "production" ? invariant(fetchPolicy !== 'cache-first' && fetchPolicy !== 'cache-only', 5) : invariant(fetchPolicy !== 'cache-first' && fetchPolicy !== 'cache-only', 'Queries that specify the cache-first and cache-only fetchPolicies cannot also be polling queries.');
+    }
+
+    var MutationStore = (function () {
+        function MutationStore() {
+            this.store = {};
+        }
+        MutationStore.prototype.getStore = function () {
+            return this.store;
+        };
+        MutationStore.prototype.get = function (mutationId) {
+            return this.store[mutationId];
+        };
+        MutationStore.prototype.initMutation = function (mutationId, mutation, variables) {
+            this.store[mutationId] = {
+                mutation: mutation,
+                variables: variables || {},
+                loading: true,
+                error: null,
+            };
+        };
+        MutationStore.prototype.markMutationError = function (mutationId, error) {
+            var mutation = this.store[mutationId];
+            if (mutation) {
+                mutation.loading = false;
+                mutation.error = error;
+            }
+        };
+        MutationStore.prototype.markMutationResult = function (mutationId) {
+            var mutation = this.store[mutationId];
+            if (mutation) {
+                mutation.loading = false;
+                mutation.error = null;
+            }
+        };
+        MutationStore.prototype.reset = function () {
+            this.store = {};
+        };
+        return MutationStore;
+    }());
+
+    var QueryStore = (function () {
+        function QueryStore() {
+            this.store = {};
+        }
+        QueryStore.prototype.getStore = function () {
+            return this.store;
+        };
+        QueryStore.prototype.get = function (queryId) {
+            return this.store[queryId];
+        };
+        QueryStore.prototype.initQuery = function (query) {
+            var previousQuery = this.store[query.queryId];
+            process.env.NODE_ENV === "production" ? invariant(!previousQuery ||
+                previousQuery.document === query.document ||
+                equal(previousQuery.document, query.document), 19) : invariant(!previousQuery ||
+                previousQuery.document === query.document ||
+                equal(previousQuery.document, query.document), 'Internal Error: may not update existing query string in store');
+            var isSetVariables = false;
+            var previousVariables = null;
+            if (query.storePreviousVariables &&
+                previousQuery &&
+                previousQuery.networkStatus !== NetworkStatus.loading) {
+                if (!equal(previousQuery.variables, query.variables)) {
+                    isSetVariables = true;
+                    previousVariables = previousQuery.variables;
+                }
+            }
+            var networkStatus;
+            if (isSetVariables) {
+                networkStatus = NetworkStatus.setVariables;
+            }
+            else if (query.isPoll) {
+                networkStatus = NetworkStatus.poll;
+            }
+            else if (query.isRefetch) {
+                networkStatus = NetworkStatus.refetch;
+            }
+            else {
+                networkStatus = NetworkStatus.loading;
+            }
+            var graphQLErrors = [];
+            if (previousQuery && previousQuery.graphQLErrors) {
+                graphQLErrors = previousQuery.graphQLErrors;
+            }
+            this.store[query.queryId] = {
+                document: query.document,
+                variables: query.variables,
+                previousVariables: previousVariables,
+                networkError: null,
+                graphQLErrors: graphQLErrors,
+                networkStatus: networkStatus,
+                metadata: query.metadata,
+            };
+            if (typeof query.fetchMoreForQueryId === 'string' &&
+                this.store[query.fetchMoreForQueryId]) {
+                this.store[query.fetchMoreForQueryId].networkStatus =
+                    NetworkStatus.fetchMore;
+            }
+        };
+        QueryStore.prototype.markQueryResult = function (queryId, result, fetchMoreForQueryId) {
+            if (!this.store || !this.store[queryId])
+                return;
+            this.store[queryId].networkError = null;
+            this.store[queryId].graphQLErrors = isNonEmptyArray(result.errors) ? result.errors : [];
+            this.store[queryId].previousVariables = null;
+            this.store[queryId].networkStatus = NetworkStatus.ready;
+            if (typeof fetchMoreForQueryId === 'string' &&
+                this.store[fetchMoreForQueryId]) {
+                this.store[fetchMoreForQueryId].networkStatus = NetworkStatus.ready;
+            }
+        };
+        QueryStore.prototype.markQueryError = function (queryId, error, fetchMoreForQueryId) {
+            if (!this.store || !this.store[queryId])
+                return;
+            this.store[queryId].networkError = error;
+            this.store[queryId].networkStatus = NetworkStatus.error;
+            if (typeof fetchMoreForQueryId === 'string') {
+                this.markQueryResultClient(fetchMoreForQueryId, true);
+            }
+        };
+        QueryStore.prototype.markQueryResultClient = function (queryId, complete) {
+            var storeValue = this.store && this.store[queryId];
+            if (storeValue) {
+                storeValue.networkError = null;
+                storeValue.previousVariables = null;
+                if (complete) {
+                    storeValue.networkStatus = NetworkStatus.ready;
+                }
+            }
+        };
+        QueryStore.prototype.stopQuery = function (queryId) {
+            delete this.store[queryId];
+        };
+        QueryStore.prototype.reset = function (observableQueryIds) {
+            var _this = this;
+            Object.keys(this.store).forEach(function (queryId) {
+                if (observableQueryIds.indexOf(queryId) < 0) {
+                    _this.stopQuery(queryId);
+                }
+                else {
+                    _this.store[queryId].networkStatus = NetworkStatus.loading;
+                }
+            });
+        };
+        return QueryStore;
+    }());
+
+    function capitalizeFirstLetter(str) {
+        return str.charAt(0).toUpperCase() + str.slice(1);
+    }
+
+    var LocalState = (function () {
+        function LocalState(_a) {
+            var cache = _a.cache, client = _a.client, resolvers = _a.resolvers, fragmentMatcher = _a.fragmentMatcher;
+            this.cache = cache;
+            if (client) {
+                this.client = client;
+            }
+            if (resolvers) {
+                this.addResolvers(resolvers);
+            }
+            if (fragmentMatcher) {
+                this.setFragmentMatcher(fragmentMatcher);
+            }
+        }
+        LocalState.prototype.addResolvers = function (resolvers) {
+            var _this = this;
+            this.resolvers = this.resolvers || {};
+            if (Array.isArray(resolvers)) {
+                resolvers.forEach(function (resolverGroup) {
+                    _this.resolvers = mergeDeep(_this.resolvers, resolverGroup);
+                });
+            }
+            else {
+                this.resolvers = mergeDeep(this.resolvers, resolvers);
+            }
+        };
+        LocalState.prototype.setResolvers = function (resolvers) {
+            this.resolvers = {};
+            this.addResolvers(resolvers);
+        };
+        LocalState.prototype.getResolvers = function () {
+            return this.resolvers || {};
+        };
+        LocalState.prototype.runResolvers = function (_a) {
+            var document = _a.document, remoteResult = _a.remoteResult, context = _a.context, variables = _a.variables, _b = _a.onlyRunForcedResolvers, onlyRunForcedResolvers = _b === void 0 ? false : _b;
+            return __awaiter(this, void 0, void 0, function () {
+                return __generator(this, function (_c) {
+                    if (document) {
+                        return [2, this.resolveDocument(document, remoteResult.data, context, variables, this.fragmentMatcher, onlyRunForcedResolvers).then(function (localResult) { return (__assign({}, remoteResult, { data: localResult.result })); })];
+                    }
+                    return [2, remoteResult];
+                });
+            });
+        };
+        LocalState.prototype.setFragmentMatcher = function (fragmentMatcher) {
+            this.fragmentMatcher = fragmentMatcher;
+        };
+        LocalState.prototype.getFragmentMatcher = function () {
+            return this.fragmentMatcher;
+        };
+        LocalState.prototype.clientQuery = function (document) {
+            if (hasDirectives(['client'], document)) {
+                if (this.resolvers) {
+                    return document;
+                }
+                process.env.NODE_ENV === "production" || invariant.warn('Found @client directives in a query but no ApolloClient resolvers ' +
+                    'were specified. This means ApolloClient local resolver handling ' +
+                    'has been disabled, and @client directives will be passed through ' +
+                    'to your link chain.');
+            }
+            return null;
+        };
+        LocalState.prototype.serverQuery = function (document) {
+            return this.resolvers ? removeClientSetsFromDocument(document) : document;
+        };
+        LocalState.prototype.prepareContext = function (context) {
+            if (context === void 0) { context = {}; }
+            var cache = this.cache;
+            var newContext = __assign({}, context, { cache: cache, getCacheKey: function (obj) {
+                    if (cache.config) {
+                        return cache.config.dataIdFromObject(obj);
+                    }
+                    else {
+                        process.env.NODE_ENV === "production" ? invariant(false, 17) : invariant(false, 'To use context.getCacheKey, you need to use a cache that has ' +
+                            'a configurable dataIdFromObject, like apollo-cache-inmemory.');
+                    }
+                } });
+            return newContext;
+        };
+        LocalState.prototype.addExportedVariables = function (document, variables, context) {
+            if (variables === void 0) { variables = {}; }
+            if (context === void 0) { context = {}; }
+            return __awaiter(this, void 0, void 0, function () {
+                return __generator(this, function (_a) {
+                    if (document) {
+                        return [2, this.resolveDocument(document, this.buildRootValueFromCache(document, variables) || {}, this.prepareContext(context), variables).then(function (data) { return (__assign({}, variables, data.exportedVariables)); })];
+                    }
+                    return [2, __assign({}, variables)];
+                });
+            });
+        };
+        LocalState.prototype.shouldForceResolvers = function (document) {
+            var forceResolvers = false;
+            visit(document, {
+                Directive: {
+                    enter: function (node) {
+                        if (node.name.value === 'client' && node.arguments) {
+                            forceResolvers = node.arguments.some(function (arg) {
+                                return arg.name.value === 'always' &&
+                                    arg.value.kind === 'BooleanValue' &&
+                                    arg.value.value === true;
+                            });
+                            if (forceResolvers) {
+                                return BREAK;
+                            }
+                        }
+                    },
+                },
+            });
+            return forceResolvers;
+        };
+        LocalState.prototype.buildRootValueFromCache = function (document, variables) {
+            return this.cache.diff({
+                query: buildQueryFromSelectionSet(document),
+                variables: variables,
+                returnPartialData: true,
+                optimistic: false,
+            }).result;
+        };
+        LocalState.prototype.resolveDocument = function (document, rootValue, context, variables, fragmentMatcher, onlyRunForcedResolvers) {
+            if (context === void 0) { context = {}; }
+            if (variables === void 0) { variables = {}; }
+            if (fragmentMatcher === void 0) { fragmentMatcher = function () { return true; }; }
+            if (onlyRunForcedResolvers === void 0) { onlyRunForcedResolvers = false; }
+            return __awaiter(this, void 0, void 0, function () {
+                var mainDefinition, fragments, fragmentMap, definitionOperation, defaultOperationType, _a, cache, client, execContext;
+                return __generator(this, function (_b) {
+                    mainDefinition = getMainDefinition(document);
+                    fragments = getFragmentDefinitions(document);
+                    fragmentMap = createFragmentMap(fragments);
+                    definitionOperation = mainDefinition
+                        .operation;
+                    defaultOperationType = definitionOperation
+                        ? capitalizeFirstLetter(definitionOperation)
+                        : 'Query';
+                    _a = this, cache = _a.cache, client = _a.client;
+                    execContext = {
+                        fragmentMap: fragmentMap,
+                        context: __assign({}, context, { cache: cache,
+                            client: client }),
+                        variables: variables,
+                        fragmentMatcher: fragmentMatcher,
+                        defaultOperationType: defaultOperationType,
+                        exportedVariables: {},
+                        onlyRunForcedResolvers: onlyRunForcedResolvers,
+                    };
+                    return [2, this.resolveSelectionSet(mainDefinition.selectionSet, rootValue, execContext).then(function (result) { return ({
+                            result: result,
+                            exportedVariables: execContext.exportedVariables,
+                        }); })];
+                });
+            });
+        };
+        LocalState.prototype.resolveSelectionSet = function (selectionSet, rootValue, execContext) {
+            return __awaiter(this, void 0, void 0, function () {
+                var fragmentMap, context, variables, resultsToMerge, execute;
+                var _this = this;
+                return __generator(this, function (_a) {
+                    fragmentMap = execContext.fragmentMap, context = execContext.context, variables = execContext.variables;
+                    resultsToMerge = [rootValue];
+                    execute = function (selection) { return __awaiter(_this, void 0, void 0, function () {
+                        var fragment, typeCondition;
+                        return __generator(this, function (_a) {
+                            if (!shouldInclude(selection, variables)) {
+                                return [2];
+                            }
+                            if (isField(selection)) {
+                                return [2, this.resolveField(selection, rootValue, execContext).then(function (fieldResult) {
+                                        var _a;
+                                        if (typeof fieldResult !== 'undefined') {
+                                            resultsToMerge.push((_a = {},
+                                                _a[resultKeyNameFromField(selection)] = fieldResult,
+                                                _a));
+                                        }
+                                    })];
+                            }
+                            if (isInlineFragment(selection)) {
+                                fragment = selection;
+                            }
+                            else {
+                                fragment = fragmentMap[selection.name.value];
+                                process.env.NODE_ENV === "production" ? invariant(fragment, 18) : invariant(fragment, "No fragment named " + selection.name.value);
+                            }
+                            if (fragment && fragment.typeCondition) {
+                                typeCondition = fragment.typeCondition.name.value;
+                                if (execContext.fragmentMatcher(rootValue, typeCondition, context)) {
+                                    return [2, this.resolveSelectionSet(fragment.selectionSet, rootValue, execContext).then(function (fragmentResult) {
+                                            resultsToMerge.push(fragmentResult);
+                                        })];
+                                }
+                            }
+                            return [2];
+                        });
+                    }); };
+                    return [2, Promise.all(selectionSet.selections.map(execute)).then(function () {
+                            return mergeDeepArray(resultsToMerge);
+                        })];
+                });
+            });
+        };
+        LocalState.prototype.resolveField = function (field, rootValue, execContext) {
+            return __awaiter(this, void 0, void 0, function () {
+                var variables, fieldName, aliasedFieldName, aliasUsed, defaultResult, resultPromise, resolverType, resolverMap, resolve;
+                var _this = this;
+                return __generator(this, function (_a) {
+                    variables = execContext.variables;
+                    fieldName = field.name.value;
+                    aliasedFieldName = resultKeyNameFromField(field);
+                    aliasUsed = fieldName !== aliasedFieldName;
+                    defaultResult = rootValue[aliasedFieldName] || rootValue[fieldName];
+                    resultPromise = Promise.resolve(defaultResult);
+                    if (!execContext.onlyRunForcedResolvers ||
+                        this.shouldForceResolvers(field)) {
+                        resolverType = rootValue.__typename || execContext.defaultOperationType;
+                        resolverMap = this.resolvers && this.resolvers[resolverType];
+                        if (resolverMap) {
+                            resolve = resolverMap[aliasUsed ? fieldName : aliasedFieldName];
+                            if (resolve) {
+                                resultPromise = Promise.resolve(resolve(rootValue, argumentsObjectFromField(field, variables), execContext.context, { field: field }));
+                            }
+                        }
+                    }
+                    return [2, resultPromise.then(function (result) {
+                            if (result === void 0) { result = defaultResult; }
+                            if (field.directives) {
+                                field.directives.forEach(function (directive) {
+                                    if (directive.name.value === 'export' && directive.arguments) {
+                                        directive.arguments.forEach(function (arg) {
+                                            if (arg.name.value === 'as' && arg.value.kind === 'StringValue') {
+                                                execContext.exportedVariables[arg.value.value] = result;
+                                            }
+                                        });
+                                    }
+                                });
+                            }
+                            if (!field.selectionSet) {
+                                return result;
+                            }
+                            if (result == null) {
+                                return result;
+                            }
+                            if (Array.isArray(result)) {
+                                return _this.resolveSubSelectedArray(field, result, execContext);
+                            }
+                            if (field.selectionSet) {
+                                return _this.resolveSelectionSet(field.selectionSet, result, execContext);
+                            }
+                        })];
+                });
+            });
+        };
+        LocalState.prototype.resolveSubSelectedArray = function (field, result, execContext) {
+            var _this = this;
+            return Promise.all(result.map(function (item) {
+                if (item === null) {
+                    return null;
+                }
+                if (Array.isArray(item)) {
+                    return _this.resolveSubSelectedArray(field, item, execContext);
+                }
+                if (field.selectionSet) {
+                    return _this.resolveSelectionSet(field.selectionSet, item, execContext);
+                }
+            }));
+        };
+        return LocalState;
+    }());
+
+    function multiplex(inner) {
+        var observers = new Set();
+        var sub = null;
+        return new Observable$1(function (observer) {
+            observers.add(observer);
+            sub = sub || inner.subscribe({
+                next: function (value) {
+                    observers.forEach(function (obs) { return obs.next && obs.next(value); });
+                },
+                error: function (error) {
+                    observers.forEach(function (obs) { return obs.error && obs.error(error); });
+                },
+                complete: function () {
+                    observers.forEach(function (obs) { return obs.complete && obs.complete(); });
+                },
+            });
+            return function () {
+                if (observers.delete(observer) && !observers.size && sub) {
+                    sub.unsubscribe();
+                    sub = null;
+                }
+            };
+        });
+    }
+    function asyncMap(observable, mapFn) {
+        return new Observable$1(function (observer) {
+            var next = observer.next, error = observer.error, complete = observer.complete;
+            var activeNextCount = 0;
+            var completed = false;
+            var handler = {
+                next: function (value) {
+                    ++activeNextCount;
+                    new Promise(function (resolve) {
+                        resolve(mapFn(value));
+                    }).then(function (result) {
+                        --activeNextCount;
+                        next && next.call(observer, result);
+                        completed && handler.complete();
+                    }, function (e) {
+                        --activeNextCount;
+                        error && error.call(observer, e);
+                    });
+                },
+                error: function (e) {
+                    error && error.call(observer, e);
+                },
+                complete: function () {
+                    completed = true;
+                    if (!activeNextCount) {
+                        complete && complete.call(observer);
+                    }
+                },
+            };
+            var sub = observable.subscribe(handler);
+            return function () { return sub.unsubscribe(); };
+        });
+    }
+
+    var hasOwnProperty$2 = Object.prototype.hasOwnProperty;
+    var QueryManager = (function () {
+        function QueryManager(_a) {
+            var link = _a.link, _b = _a.queryDeduplication, queryDeduplication = _b === void 0 ? false : _b, store = _a.store, _c = _a.onBroadcast, onBroadcast = _c === void 0 ? function () { return undefined; } : _c, _d = _a.ssrMode, ssrMode = _d === void 0 ? false : _d, _e = _a.clientAwareness, clientAwareness = _e === void 0 ? {} : _e, localState = _a.localState, assumeImmutableResults = _a.assumeImmutableResults;
+            this.mutationStore = new MutationStore();
+            this.queryStore = new QueryStore();
+            this.clientAwareness = {};
+            this.idCounter = 1;
+            this.queries = new Map();
+            this.fetchQueryRejectFns = new Map();
+            this.transformCache = new (canUseWeakMap ? WeakMap : Map)();
+            this.inFlightLinkObservables = new Map();
+            this.pollingInfoByQueryId = new Map();
+            this.link = link;
+            this.queryDeduplication = queryDeduplication;
+            this.dataStore = store;
+            this.onBroadcast = onBroadcast;
+            this.clientAwareness = clientAwareness;
+            this.localState = localState || new LocalState({ cache: store.getCache() });
+            this.ssrMode = ssrMode;
+            this.assumeImmutableResults = !!assumeImmutableResults;
+        }
+        QueryManager.prototype.stop = function () {
+            var _this = this;
+            this.queries.forEach(function (_info, queryId) {
+                _this.stopQueryNoBroadcast(queryId);
+            });
+            this.fetchQueryRejectFns.forEach(function (reject) {
+                reject(process.env.NODE_ENV === "production" ? new InvariantError(6) : new InvariantError('QueryManager stopped while query was in flight'));
+            });
+        };
+        QueryManager.prototype.mutate = function (_a) {
+            var mutation = _a.mutation, variables = _a.variables, optimisticResponse = _a.optimisticResponse, updateQueriesByName = _a.updateQueries, _b = _a.refetchQueries, refetchQueries = _b === void 0 ? [] : _b, _c = _a.awaitRefetchQueries, awaitRefetchQueries = _c === void 0 ? false : _c, updateWithProxyFn = _a.update, _d = _a.errorPolicy, errorPolicy = _d === void 0 ? 'none' : _d, fetchPolicy = _a.fetchPolicy, _e = _a.context, context = _e === void 0 ? {} : _e;
+            return __awaiter(this, void 0, void 0, function () {
+                var mutationId, generateUpdateQueriesInfo, self;
+                var _this = this;
+                return __generator(this, function (_f) {
+                    switch (_f.label) {
+                        case 0:
+                            process.env.NODE_ENV === "production" ? invariant(mutation, 7) : invariant(mutation, 'mutation option is required. You must specify your GraphQL document in the mutation option.');
+                            process.env.NODE_ENV === "production" ? invariant(!fetchPolicy || fetchPolicy === 'no-cache', 8) : invariant(!fetchPolicy || fetchPolicy === 'no-cache', "fetchPolicy for mutations currently only supports the 'no-cache' policy");
+                            mutationId = this.generateQueryId();
+                            mutation = this.transform(mutation).document;
+                            this.setQuery(mutationId, function () { return ({ document: mutation }); });
+                            variables = this.getVariables(mutation, variables);
+                            if (!this.transform(mutation).hasClientExports) return [3, 2];
+                            return [4, this.localState.addExportedVariables(mutation, variables, context)];
+                        case 1:
+                            variables = _f.sent();
+                            _f.label = 2;
+                        case 2:
+                            generateUpdateQueriesInfo = function () {
+                                var ret = {};
+                                if (updateQueriesByName) {
+                                    _this.queries.forEach(function (_a, queryId) {
+                                        var observableQuery = _a.observableQuery;
+                                        if (observableQuery) {
+                                            var queryName = observableQuery.queryName;
+                                            if (queryName &&
+                                                hasOwnProperty$2.call(updateQueriesByName, queryName)) {
+                                                ret[queryId] = {
+                                                    updater: updateQueriesByName[queryName],
+                                                    query: _this.queryStore.get(queryId),
+                                                };
+                                            }
+                                        }
+                                    });
+                                }
+                                return ret;
+                            };
+                            this.mutationStore.initMutation(mutationId, mutation, variables);
+                            this.dataStore.markMutationInit({
+                                mutationId: mutationId,
+                                document: mutation,
+                                variables: variables,
+                                updateQueries: generateUpdateQueriesInfo(),
+                                update: updateWithProxyFn,
+                                optimisticResponse: optimisticResponse,
+                            });
+                            this.broadcastQueries();
+                            self = this;
+                            return [2, new Promise(function (resolve, reject) {
+                                    var storeResult;
+                                    var error;
+                                    self.getObservableFromLink(mutation, __assign({}, context, { optimisticResponse: optimisticResponse }), variables, false).subscribe({
+                                        next: function (result) {
+                                            if (graphQLResultHasError(result) && errorPolicy === 'none') {
+                                                error = new ApolloError({
+                                                    graphQLErrors: result.errors,
+                                                });
+                                                return;
+                                            }
+                                            self.mutationStore.markMutationResult(mutationId);
+                                            if (fetchPolicy !== 'no-cache') {
+                                                self.dataStore.markMutationResult({
+                                                    mutationId: mutationId,
+                                                    result: result,
+                                                    document: mutation,
+                                                    variables: variables,
+                                                    updateQueries: generateUpdateQueriesInfo(),
+                                                    update: updateWithProxyFn,
+                                                });
+                                            }
+                                            storeResult = result;
+                                        },
+                                        error: function (err) {
+                                            self.mutationStore.markMutationError(mutationId, err);
+                                            self.dataStore.markMutationComplete({
+                                                mutationId: mutationId,
+                                                optimisticResponse: optimisticResponse,
+                                            });
+                                            self.broadcastQueries();
+                                            self.setQuery(mutationId, function () { return ({ document: null }); });
+                                            reject(new ApolloError({
+                                                networkError: err,
+                                            }));
+                                        },
+                                        complete: function () {
+                                            if (error) {
+                                                self.mutationStore.markMutationError(mutationId, error);
+                                            }
+                                            self.dataStore.markMutationComplete({
+                                                mutationId: mutationId,
+                                                optimisticResponse: optimisticResponse,
+                                            });
+                                            self.broadcastQueries();
+                                            if (error) {
+                                                reject(error);
+                                                return;
+                                            }
+                                            if (typeof refetchQueries === 'function') {
+                                                refetchQueries = refetchQueries(storeResult);
+                                            }
+                                            var refetchQueryPromises = [];
+                                            if (isNonEmptyArray(refetchQueries)) {
+                                                refetchQueries.forEach(function (refetchQuery) {
+                                                    if (typeof refetchQuery === 'string') {
+                                                        self.queries.forEach(function (_a) {
+                                                            var observableQuery = _a.observableQuery;
+                                                            if (observableQuery &&
+                                                                observableQuery.queryName === refetchQuery) {
+                                                                refetchQueryPromises.push(observableQuery.refetch());
+                                                            }
+                                                        });
+                                                    }
+                                                    else {
+                                                        var queryOptions = {
+                                                            query: refetchQuery.query,
+                                                            variables: refetchQuery.variables,
+                                                            fetchPolicy: 'network-only',
+                                                        };
+                                                        if (refetchQuery.context) {
+                                                            queryOptions.context = refetchQuery.context;
+                                                        }
+                                                        refetchQueryPromises.push(self.query(queryOptions));
+                                                    }
+                                                });
+                                            }
+                                            Promise.all(awaitRefetchQueries ? refetchQueryPromises : []).then(function () {
+                                                self.setQuery(mutationId, function () { return ({ document: null }); });
+                                                if (errorPolicy === 'ignore' &&
+                                                    storeResult &&
+                                                    graphQLResultHasError(storeResult)) {
+                                                    delete storeResult.errors;
+                                                }
+                                                resolve(storeResult);
+                                            });
+                                        },
+                                    });
+                                })];
+                    }
+                });
+            });
+        };
+        QueryManager.prototype.fetchQuery = function (queryId, options, fetchType, fetchMoreForQueryId) {
+            return __awaiter(this, void 0, void 0, function () {
+                var _a, metadata, _b, fetchPolicy, _c, context, query, variables, storeResult, isNetworkOnly, needToFetch, _d, complete, result, shouldFetch, requestId, cancel, networkResult;
+                var _this = this;
+                return __generator(this, function (_e) {
+                    switch (_e.label) {
+                        case 0:
+                            _a = options.metadata, metadata = _a === void 0 ? null : _a, _b = options.fetchPolicy, fetchPolicy = _b === void 0 ? 'cache-first' : _b, _c = options.context, context = _c === void 0 ? {} : _c;
+                            query = this.transform(options.query).document;
+                            variables = this.getVariables(query, options.variables);
+                            if (!this.transform(query).hasClientExports) return [3, 2];
+                            return [4, this.localState.addExportedVariables(query, variables, context)];
+                        case 1:
+                            variables = _e.sent();
+                            _e.label = 2;
+                        case 2:
+                            options = __assign({}, options, { variables: variables });
+                            isNetworkOnly = fetchPolicy === 'network-only' || fetchPolicy === 'no-cache';
+                            needToFetch = isNetworkOnly;
+                            if (!isNetworkOnly) {
+                                _d = this.dataStore.getCache().diff({
+                                    query: query,
+                                    variables: variables,
+                                    returnPartialData: true,
+                                    optimistic: false,
+                                }), complete = _d.complete, result = _d.result;
+                                needToFetch = !complete || fetchPolicy === 'cache-and-network';
+                                storeResult = result;
+                            }
+                            shouldFetch = needToFetch && fetchPolicy !== 'cache-only' && fetchPolicy !== 'standby';
+                            if (hasDirectives(['live'], query))
+                                shouldFetch = true;
+                            requestId = this.idCounter++;
+                            cancel = fetchPolicy !== 'no-cache'
+                                ? this.updateQueryWatch(queryId, query, options)
+                                : undefined;
+                            this.setQuery(queryId, function () { return ({
+                                document: query,
+                                lastRequestId: requestId,
+                                invalidated: true,
+                                cancel: cancel,
+                            }); });
+                            this.invalidate(fetchMoreForQueryId);
+                            this.queryStore.initQuery({
+                                queryId: queryId,
+                                document: query,
+                                storePreviousVariables: shouldFetch,
+                                variables: variables,
+                                isPoll: fetchType === FetchType.poll,
+                                isRefetch: fetchType === FetchType.refetch,
+                                metadata: metadata,
+                                fetchMoreForQueryId: fetchMoreForQueryId,
+                            });
+                            this.broadcastQueries();
+                            if (shouldFetch) {
+                                networkResult = this.fetchRequest({
+                                    requestId: requestId,
+                                    queryId: queryId,
+                                    document: query,
+                                    options: options,
+                                    fetchMoreForQueryId: fetchMoreForQueryId,
+                                }).catch(function (error) {
+                                    if (isApolloError(error)) {
+                                        throw error;
+                                    }
+                                    else {
+                                        if (requestId >= _this.getQuery(queryId).lastRequestId) {
+                                            _this.queryStore.markQueryError(queryId, error, fetchMoreForQueryId);
+                                            _this.invalidate(queryId);
+                                            _this.invalidate(fetchMoreForQueryId);
+                                            _this.broadcastQueries();
+                                        }
+                                        throw new ApolloError({ networkError: error });
+                                    }
+                                });
+                                if (fetchPolicy !== 'cache-and-network') {
+                                    return [2, networkResult];
+                                }
+                                networkResult.catch(function () { });
+                            }
+                            this.queryStore.markQueryResultClient(queryId, !shouldFetch);
+                            this.invalidate(queryId);
+                            this.invalidate(fetchMoreForQueryId);
+                            if (this.transform(query).hasForcedResolvers) {
+                                return [2, this.localState.runResolvers({
+                                        document: query,
+                                        remoteResult: { data: storeResult },
+                                        context: context,
+                                        variables: variables,
+                                        onlyRunForcedResolvers: true,
+                                    }).then(function (result) {
+                                        _this.markQueryResult(queryId, result, options, fetchMoreForQueryId);
+                                        _this.broadcastQueries();
+                                        return result;
+                                    })];
+                            }
+                            this.broadcastQueries();
+                            return [2, { data: storeResult }];
+                    }
+                });
+            });
+        };
+        QueryManager.prototype.markQueryResult = function (queryId, result, _a, fetchMoreForQueryId) {
+            var fetchPolicy = _a.fetchPolicy, variables = _a.variables, errorPolicy = _a.errorPolicy;
+            if (fetchPolicy === 'no-cache') {
+                this.setQuery(queryId, function () { return ({
+                    newData: { result: result.data, complete: true },
+                }); });
+            }
+            else {
+                this.dataStore.markQueryResult(result, this.getQuery(queryId).document, variables, fetchMoreForQueryId, errorPolicy === 'ignore' || errorPolicy === 'all');
+            }
+        };
+        QueryManager.prototype.queryListenerForObserver = function (queryId, options, observer) {
+            var _this = this;
+            function invoke(method, argument) {
+                if (observer[method]) {
+                    try {
+                        observer[method](argument);
+                    }
+                    catch (e) {
+                        process.env.NODE_ENV === "production" || invariant.error(e);
+                    }
+                }
+                else if (method === 'error') {
+                    process.env.NODE_ENV === "production" || invariant.error(argument);
+                }
+            }
+            return function (queryStoreValue, newData) {
+                _this.invalidate(queryId, false);
+                if (!queryStoreValue)
+                    return;
+                var _a = _this.getQuery(queryId), observableQuery = _a.observableQuery, document = _a.document;
+                var fetchPolicy = observableQuery
+                    ? observableQuery.options.fetchPolicy
+                    : options.fetchPolicy;
+                if (fetchPolicy === 'standby')
+                    return;
+                var loading = isNetworkRequestInFlight(queryStoreValue.networkStatus);
+                var lastResult = observableQuery && observableQuery.getLastResult();
+                var networkStatusChanged = !!(lastResult &&
+                    lastResult.networkStatus !== queryStoreValue.networkStatus);
+                var shouldNotifyIfLoading = options.returnPartialData ||
+                    (!newData && queryStoreValue.previousVariables) ||
+                    (networkStatusChanged && options.notifyOnNetworkStatusChange) ||
+                    fetchPolicy === 'cache-only' ||
+                    fetchPolicy === 'cache-and-network';
+                if (loading && !shouldNotifyIfLoading) {
+                    return;
+                }
+                var hasGraphQLErrors = isNonEmptyArray(queryStoreValue.graphQLErrors);
+                var errorPolicy = observableQuery
+                    && observableQuery.options.errorPolicy
+                    || options.errorPolicy
+                    || 'none';
+                if (errorPolicy === 'none' && hasGraphQLErrors || queryStoreValue.networkError) {
+                    return invoke('error', new ApolloError({
+                        graphQLErrors: queryStoreValue.graphQLErrors,
+                        networkError: queryStoreValue.networkError,
+                    }));
+                }
+                try {
+                    var data = void 0;
+                    var isMissing = void 0;
+                    if (newData) {
+                        if (fetchPolicy !== 'no-cache' && fetchPolicy !== 'network-only') {
+                            _this.setQuery(queryId, function () { return ({ newData: null }); });
+                        }
+                        data = newData.result;
+                        isMissing = !newData.complete;
+                    }
+                    else {
+                        var lastError = observableQuery && observableQuery.getLastError();
+                        var errorStatusChanged = errorPolicy !== 'none' &&
+                            (lastError && lastError.graphQLErrors) !==
+                                queryStoreValue.graphQLErrors;
+                        if (lastResult && lastResult.data && !errorStatusChanged) {
+                            data = lastResult.data;
+                            isMissing = false;
+                        }
+                        else {
+                            var diffResult = _this.dataStore.getCache().diff({
+                                query: document,
+                                variables: queryStoreValue.previousVariables ||
+                                    queryStoreValue.variables,
+                                returnPartialData: true,
+                                optimistic: true,
+                            });
+                            data = diffResult.result;
+                            isMissing = !diffResult.complete;
+                        }
+                    }
+                    var stale = isMissing && !(options.returnPartialData ||
+                        fetchPolicy === 'cache-only');
+                    var resultFromStore = {
+                        data: stale ? lastResult && lastResult.data : data,
+                        loading: loading,
+                        networkStatus: queryStoreValue.networkStatus,
+                        stale: stale,
+                    };
+                    if (errorPolicy === 'all' && hasGraphQLErrors) {
+                        resultFromStore.errors = queryStoreValue.graphQLErrors;
+                    }
+                    invoke('next', resultFromStore);
+                }
+                catch (networkError) {
+                    invoke('error', new ApolloError({ networkError: networkError }));
+                }
+            };
+        };
+        QueryManager.prototype.transform = function (document) {
+            var transformCache = this.transformCache;
+            if (!transformCache.has(document)) {
+                var cache = this.dataStore.getCache();
+                var transformed = cache.transformDocument(document);
+                var forLink = removeConnectionDirectiveFromDocument(cache.transformForLink(transformed));
+                var clientQuery = this.localState.clientQuery(transformed);
+                var serverQuery = this.localState.serverQuery(forLink);
+                var cacheEntry_1 = {
+                    document: transformed,
+                    hasClientExports: hasClientExports(transformed),
+                    hasForcedResolvers: this.localState.shouldForceResolvers(transformed),
+                    clientQuery: clientQuery,
+                    serverQuery: serverQuery,
+                    defaultVars: getDefaultValues(getOperationDefinition(transformed)),
+                };
+                var add = function (doc) {
+                    if (doc && !transformCache.has(doc)) {
+                        transformCache.set(doc, cacheEntry_1);
+                    }
+                };
+                add(document);
+                add(transformed);
+                add(clientQuery);
+                add(serverQuery);
+            }
+            return transformCache.get(document);
+        };
+        QueryManager.prototype.getVariables = function (document, variables) {
+            return __assign({}, this.transform(document).defaultVars, variables);
+        };
+        QueryManager.prototype.watchQuery = function (options, shouldSubscribe) {
+            if (shouldSubscribe === void 0) { shouldSubscribe = true; }
+            process.env.NODE_ENV === "production" ? invariant(options.fetchPolicy !== 'standby', 9) : invariant(options.fetchPolicy !== 'standby', 'client.watchQuery cannot be called with fetchPolicy set to "standby"');
+            options.variables = this.getVariables(options.query, options.variables);
+            if (typeof options.notifyOnNetworkStatusChange === 'undefined') {
+                options.notifyOnNetworkStatusChange = false;
+            }
+            var transformedOptions = __assign({}, options);
+            return new ObservableQuery({
+                queryManager: this,
+                options: transformedOptions,
+                shouldSubscribe: shouldSubscribe,
+            });
+        };
+        QueryManager.prototype.query = function (options) {
+            var _this = this;
+            process.env.NODE_ENV === "production" ? invariant(options.query, 10) : invariant(options.query, 'query option is required. You must specify your GraphQL document ' +
+                'in the query option.');
+            process.env.NODE_ENV === "production" ? invariant(options.query.kind === 'Document', 11) : invariant(options.query.kind === 'Document', 'You must wrap the query string in a "gql" tag.');
+            process.env.NODE_ENV === "production" ? invariant(!options.returnPartialData, 12) : invariant(!options.returnPartialData, 'returnPartialData option only supported on watchQuery.');
+            process.env.NODE_ENV === "production" ? invariant(!options.pollInterval, 13) : invariant(!options.pollInterval, 'pollInterval option only supported on watchQuery.');
+            return new Promise(function (resolve, reject) {
+                var watchedQuery = _this.watchQuery(options, false);
+                _this.fetchQueryRejectFns.set("query:" + watchedQuery.queryId, reject);
+                watchedQuery
+                    .result()
+                    .then(resolve, reject)
+                    .then(function () {
+                    return _this.fetchQueryRejectFns.delete("query:" + watchedQuery.queryId);
+                });
+            });
+        };
+        QueryManager.prototype.generateQueryId = function () {
+            return String(this.idCounter++);
+        };
+        QueryManager.prototype.stopQueryInStore = function (queryId) {
+            this.stopQueryInStoreNoBroadcast(queryId);
+            this.broadcastQueries();
+        };
+        QueryManager.prototype.stopQueryInStoreNoBroadcast = function (queryId) {
+            this.stopPollingQuery(queryId);
+            this.queryStore.stopQuery(queryId);
+            this.invalidate(queryId);
+        };
+        QueryManager.prototype.addQueryListener = function (queryId, listener) {
+            this.setQuery(queryId, function (_a) {
+                var listeners = _a.listeners;
+                listeners.add(listener);
+                return { invalidated: false };
+            });
+        };
+        QueryManager.prototype.updateQueryWatch = function (queryId, document, options) {
+            var _this = this;
+            var cancel = this.getQuery(queryId).cancel;
+            if (cancel)
+                cancel();
+            var previousResult = function () {
+                var previousResult = null;
+                var observableQuery = _this.getQuery(queryId).observableQuery;
+                if (observableQuery) {
+                    var lastResult = observableQuery.getLastResult();
+                    if (lastResult) {
+                        previousResult = lastResult.data;
+                    }
+                }
+                return previousResult;
+            };
+            return this.dataStore.getCache().watch({
+                query: document,
+                variables: options.variables,
+                optimistic: true,
+                previousResult: previousResult,
+                callback: function (newData) {
+                    _this.setQuery(queryId, function () { return ({ invalidated: true, newData: newData }); });
+                },
+            });
+        };
+        QueryManager.prototype.addObservableQuery = function (queryId, observableQuery) {
+            this.setQuery(queryId, function () { return ({ observableQuery: observableQuery }); });
+        };
+        QueryManager.prototype.removeObservableQuery = function (queryId) {
+            var cancel = this.getQuery(queryId).cancel;
+            this.setQuery(queryId, function () { return ({ observableQuery: null }); });
+            if (cancel)
+                cancel();
+        };
+        QueryManager.prototype.clearStore = function () {
+            this.fetchQueryRejectFns.forEach(function (reject) {
+                reject(process.env.NODE_ENV === "production" ? new InvariantError(14) : new InvariantError('Store reset while query was in flight (not completed in link chain)'));
+            });
+            var resetIds = [];
+            this.queries.forEach(function (_a, queryId) {
+                var observableQuery = _a.observableQuery;
+                if (observableQuery)
+                    resetIds.push(queryId);
+            });
+            this.queryStore.reset(resetIds);
+            this.mutationStore.reset();
+            return this.dataStore.reset();
+        };
+        QueryManager.prototype.resetStore = function () {
+            var _this = this;
+            return this.clearStore().then(function () {
+                return _this.reFetchObservableQueries();
+            });
+        };
+        QueryManager.prototype.reFetchObservableQueries = function (includeStandby) {
+            var _this = this;
+            if (includeStandby === void 0) { includeStandby = false; }
+            var observableQueryPromises = [];
+            this.queries.forEach(function (_a, queryId) {
+                var observableQuery = _a.observableQuery;
+                if (observableQuery) {
+                    var fetchPolicy = observableQuery.options.fetchPolicy;
+                    observableQuery.resetLastResults();
+                    if (fetchPolicy !== 'cache-only' &&
+                        (includeStandby || fetchPolicy !== 'standby')) {
+                        observableQueryPromises.push(observableQuery.refetch());
+                    }
+                    _this.setQuery(queryId, function () { return ({ newData: null }); });
+                    _this.invalidate(queryId);
+                }
+            });
+            this.broadcastQueries();
+            return Promise.all(observableQueryPromises);
+        };
+        QueryManager.prototype.observeQuery = function (queryId, options, observer) {
+            this.addQueryListener(queryId, this.queryListenerForObserver(queryId, options, observer));
+            return this.fetchQuery(queryId, options);
+        };
+        QueryManager.prototype.startQuery = function (queryId, options, listener) {
+            process.env.NODE_ENV === "production" || invariant.warn("The QueryManager.startQuery method has been deprecated");
+            this.addQueryListener(queryId, listener);
+            this.fetchQuery(queryId, options)
+                .catch(function () { return undefined; });
+            return queryId;
+        };
+        QueryManager.prototype.startGraphQLSubscription = function (_a) {
+            var _this = this;
+            var query = _a.query, fetchPolicy = _a.fetchPolicy, variables = _a.variables;
+            query = this.transform(query).document;
+            variables = this.getVariables(query, variables);
+            var makeObservable = function (variables) {
+                return _this.getObservableFromLink(query, {}, variables, false).map(function (result) {
+                    if (!fetchPolicy || fetchPolicy !== 'no-cache') {
+                        _this.dataStore.markSubscriptionResult(result, query, variables);
+                        _this.broadcastQueries();
+                    }
+                    if (graphQLResultHasError(result)) {
+                        throw new ApolloError({
+                            graphQLErrors: result.errors,
+                        });
+                    }
+                    return result;
+                });
+            };
+            if (this.transform(query).hasClientExports) {
+                var observablePromise_1 = this.localState.addExportedVariables(query, variables).then(makeObservable);
+                return new Observable$1(function (observer) {
+                    var sub = null;
+                    observablePromise_1.then(function (observable) { return sub = observable.subscribe(observer); }, observer.error);
+                    return function () { return sub && sub.unsubscribe(); };
+                });
+            }
+            return makeObservable(variables);
+        };
+        QueryManager.prototype.stopQuery = function (queryId) {
+            this.stopQueryNoBroadcast(queryId);
+            this.broadcastQueries();
+        };
+        QueryManager.prototype.stopQueryNoBroadcast = function (queryId) {
+            this.stopQueryInStoreNoBroadcast(queryId);
+            this.removeQuery(queryId);
+        };
+        QueryManager.prototype.removeQuery = function (queryId) {
+            this.fetchQueryRejectFns.delete("query:" + queryId);
+            this.fetchQueryRejectFns.delete("fetchRequest:" + queryId);
+            this.getQuery(queryId).subscriptions.forEach(function (x) { return x.unsubscribe(); });
+            this.queries.delete(queryId);
+        };
+        QueryManager.prototype.getCurrentQueryResult = function (observableQuery, optimistic) {
+            if (optimistic === void 0) { optimistic = true; }
+            var _a = observableQuery.options, variables = _a.variables, query = _a.query, fetchPolicy = _a.fetchPolicy, returnPartialData = _a.returnPartialData;
+            var lastResult = observableQuery.getLastResult();
+            var newData = this.getQuery(observableQuery.queryId).newData;
+            if (newData && newData.complete) {
+                return { data: newData.result, partial: false };
+            }
+            if (fetchPolicy === 'no-cache' || fetchPolicy === 'network-only') {
+                return { data: undefined, partial: false };
+            }
+            var _b = this.dataStore.getCache().diff({
+                query: query,
+                variables: variables,
+                previousResult: lastResult ? lastResult.data : undefined,
+                returnPartialData: true,
+                optimistic: optimistic,
+            }), result = _b.result, complete = _b.complete;
+            return {
+                data: (complete || returnPartialData) ? result : void 0,
+                partial: !complete,
+            };
+        };
+        QueryManager.prototype.getQueryWithPreviousResult = function (queryIdOrObservable) {
+            var observableQuery;
+            if (typeof queryIdOrObservable === 'string') {
+                var foundObserveableQuery = this.getQuery(queryIdOrObservable).observableQuery;
+                process.env.NODE_ENV === "production" ? invariant(foundObserveableQuery, 15) : invariant(foundObserveableQuery, "ObservableQuery with this id doesn't exist: " + queryIdOrObservable);
+                observableQuery = foundObserveableQuery;
+            }
+            else {
+                observableQuery = queryIdOrObservable;
+            }
+            var _a = observableQuery.options, variables = _a.variables, query = _a.query;
+            return {
+                previousResult: this.getCurrentQueryResult(observableQuery, false).data,
+                variables: variables,
+                document: query,
+            };
+        };
+        QueryManager.prototype.broadcastQueries = function () {
+            var _this = this;
+            this.onBroadcast();
+            this.queries.forEach(function (info, id) {
+                if (info.invalidated) {
+                    info.listeners.forEach(function (listener) {
+                        if (listener) {
+                            listener(_this.queryStore.get(id), info.newData);
+                        }
+                    });
+                }
+            });
+        };
+        QueryManager.prototype.getLocalState = function () {
+            return this.localState;
+        };
+        QueryManager.prototype.getObservableFromLink = function (query, context, variables, deduplication) {
+            var _this = this;
+            if (deduplication === void 0) { deduplication = this.queryDeduplication; }
+            var observable;
+            var serverQuery = this.transform(query).serverQuery;
+            if (serverQuery) {
+                var _a = this, inFlightLinkObservables_1 = _a.inFlightLinkObservables, link = _a.link;
+                var operation = {
+                    query: serverQuery,
+                    variables: variables,
+                    operationName: getOperationName(serverQuery) || void 0,
+                    context: this.prepareContext(__assign({}, context, { forceFetch: !deduplication })),
+                };
+                context = operation.context;
+                if (deduplication) {
+                    var byVariables_1 = inFlightLinkObservables_1.get(serverQuery) || new Map();
+                    inFlightLinkObservables_1.set(serverQuery, byVariables_1);
+                    var varJson_1 = JSON.stringify(variables);
+                    observable = byVariables_1.get(varJson_1);
+                    if (!observable) {
+                        byVariables_1.set(varJson_1, observable = multiplex(execute(link, operation)));
+                        var cleanup = function () {
+                            byVariables_1.delete(varJson_1);
+                            if (!byVariables_1.size)
+                                inFlightLinkObservables_1.delete(serverQuery);
+                            cleanupSub_1.unsubscribe();
+                        };
+                        var cleanupSub_1 = observable.subscribe({
+                            next: cleanup,
+                            error: cleanup,
+                            complete: cleanup,
+                        });
+                    }
+                }
+                else {
+                    observable = multiplex(execute(link, operation));
+                }
+            }
+            else {
+                observable = Observable$1.of({ data: {} });
+                context = this.prepareContext(context);
+            }
+            var clientQuery = this.transform(query).clientQuery;
+            if (clientQuery) {
+                observable = asyncMap(observable, function (result) {
+                    return _this.localState.runResolvers({
+                        document: clientQuery,
+                        remoteResult: result,
+                        context: context,
+                        variables: variables,
+                    });
+                });
+            }
+            return observable;
+        };
+        QueryManager.prototype.fetchRequest = function (_a) {
+            var _this = this;
+            var requestId = _a.requestId, queryId = _a.queryId, document = _a.document, options = _a.options, fetchMoreForQueryId = _a.fetchMoreForQueryId;
+            var variables = options.variables, _b = options.errorPolicy, errorPolicy = _b === void 0 ? 'none' : _b, fetchPolicy = options.fetchPolicy;
+            var resultFromStore;
+            var errorsFromStore;
+            return new Promise(function (resolve, reject) {
+                var observable = _this.getObservableFromLink(document, options.context, variables);
+                var fqrfId = "fetchRequest:" + queryId;
+                _this.fetchQueryRejectFns.set(fqrfId, reject);
+                var cleanup = function () {
+                    _this.fetchQueryRejectFns.delete(fqrfId);
+                    _this.setQuery(queryId, function (_a) {
+                        var subscriptions = _a.subscriptions;
+                        subscriptions.delete(subscription);
+                    });
+                };
+                var subscription = observable.map(function (result) {
+                    if (requestId >= _this.getQuery(queryId).lastRequestId) {
+                        _this.markQueryResult(queryId, result, options, fetchMoreForQueryId);
+                        _this.queryStore.markQueryResult(queryId, result, fetchMoreForQueryId);
+                        _this.invalidate(queryId);
+                        _this.invalidate(fetchMoreForQueryId);
+                        _this.broadcastQueries();
+                    }
+                    if (errorPolicy === 'none' && isNonEmptyArray(result.errors)) {
+                        return reject(new ApolloError({
+                            graphQLErrors: result.errors,
+                        }));
+                    }
+                    if (errorPolicy === 'all') {
+                        errorsFromStore = result.errors;
+                    }
+                    if (fetchMoreForQueryId || fetchPolicy === 'no-cache') {
+                        resultFromStore = result.data;
+                    }
+                    else {
+                        var _a = _this.dataStore.getCache().diff({
+                            variables: variables,
+                            query: document,
+                            optimistic: false,
+                            returnPartialData: true,
+                        }), result_1 = _a.result, complete = _a.complete;
+                        if (complete || options.returnPartialData) {
+                            resultFromStore = result_1;
+                        }
+                    }
+                }).subscribe({
+                    error: function (error) {
+                        cleanup();
+                        reject(error);
+                    },
+                    complete: function () {
+                        cleanup();
+                        resolve({
+                            data: resultFromStore,
+                            errors: errorsFromStore,
+                            loading: false,
+                            networkStatus: NetworkStatus.ready,
+                            stale: false,
+                        });
+                    },
+                });
+                _this.setQuery(queryId, function (_a) {
+                    var subscriptions = _a.subscriptions;
+                    subscriptions.add(subscription);
+                });
+            });
+        };
+        QueryManager.prototype.getQuery = function (queryId) {
+            return (this.queries.get(queryId) || {
+                listeners: new Set(),
+                invalidated: false,
+                document: null,
+                newData: null,
+                lastRequestId: 1,
+                observableQuery: null,
+                subscriptions: new Set(),
+            });
+        };
+        QueryManager.prototype.setQuery = function (queryId, updater) {
+            var prev = this.getQuery(queryId);
+            var newInfo = __assign({}, prev, updater(prev));
+            this.queries.set(queryId, newInfo);
+        };
+        QueryManager.prototype.invalidate = function (queryId, invalidated) {
+            if (invalidated === void 0) { invalidated = true; }
+            if (queryId) {
+                this.setQuery(queryId, function () { return ({ invalidated: invalidated }); });
+            }
+        };
+        QueryManager.prototype.prepareContext = function (context) {
+            if (context === void 0) { context = {}; }
+            var newContext = this.localState.prepareContext(context);
+            return __assign({}, newContext, { clientAwareness: this.clientAwareness });
+        };
+        QueryManager.prototype.checkInFlight = function (queryId) {
+            var query = this.queryStore.get(queryId);
+            return (query &&
+                query.networkStatus !== NetworkStatus.ready &&
+                query.networkStatus !== NetworkStatus.error);
+        };
+        QueryManager.prototype.startPollingQuery = function (options, queryId, listener) {
+            var _this = this;
+            var pollInterval = options.pollInterval;
+            process.env.NODE_ENV === "production" ? invariant(pollInterval, 16) : invariant(pollInterval, 'Attempted to start a polling query without a polling interval.');
+            if (!this.ssrMode) {
+                var info = this.pollingInfoByQueryId.get(queryId);
+                if (!info) {
+                    this.pollingInfoByQueryId.set(queryId, (info = {}));
+                }
+                info.interval = pollInterval;
+                info.options = __assign({}, options, { fetchPolicy: 'network-only' });
+                var maybeFetch_1 = function () {
+                    var info = _this.pollingInfoByQueryId.get(queryId);
+                    if (info) {
+                        if (_this.checkInFlight(queryId)) {
+                            poll_1();
+                        }
+                        else {
+                            _this.fetchQuery(queryId, info.options, FetchType.poll).then(poll_1, poll_1);
+                        }
+                    }
+                };
+                var poll_1 = function () {
+                    var info = _this.pollingInfoByQueryId.get(queryId);
+                    if (info) {
+                        clearTimeout(info.timeout);
+                        info.timeout = setTimeout(maybeFetch_1, info.interval);
+                    }
+                };
+                if (listener) {
+                    this.addQueryListener(queryId, listener);
+                }
+                poll_1();
+            }
+            return queryId;
+        };
+        QueryManager.prototype.stopPollingQuery = function (queryId) {
+            this.pollingInfoByQueryId.delete(queryId);
+        };
+        return QueryManager;
+    }());
+
+    var DataStore = (function () {
+        function DataStore(initialCache) {
+            this.cache = initialCache;
+        }
+        DataStore.prototype.getCache = function () {
+            return this.cache;
+        };
+        DataStore.prototype.markQueryResult = function (result, document, variables, fetchMoreForQueryId, ignoreErrors) {
+            if (ignoreErrors === void 0) { ignoreErrors = false; }
+            var writeWithErrors = !graphQLResultHasError(result);
+            if (ignoreErrors && graphQLResultHasError(result) && result.data) {
+                writeWithErrors = true;
+            }
+            if (!fetchMoreForQueryId && writeWithErrors) {
+                this.cache.write({
+                    result: result.data,
+                    dataId: 'ROOT_QUERY',
+                    query: document,
+                    variables: variables,
+                });
+            }
+        };
+        DataStore.prototype.markSubscriptionResult = function (result, document, variables) {
+            if (!graphQLResultHasError(result)) {
+                this.cache.write({
+                    result: result.data,
+                    dataId: 'ROOT_SUBSCRIPTION',
+                    query: document,
+                    variables: variables,
+                });
+            }
+        };
+        DataStore.prototype.markMutationInit = function (mutation) {
+            var _this = this;
+            if (mutation.optimisticResponse) {
+                var optimistic_1;
+                if (typeof mutation.optimisticResponse === 'function') {
+                    optimistic_1 = mutation.optimisticResponse(mutation.variables);
+                }
+                else {
+                    optimistic_1 = mutation.optimisticResponse;
+                }
+                this.cache.recordOptimisticTransaction(function (c) {
+                    var orig = _this.cache;
+                    _this.cache = c;
+                    try {
+                        _this.markMutationResult({
+                            mutationId: mutation.mutationId,
+                            result: { data: optimistic_1 },
+                            document: mutation.document,
+                            variables: mutation.variables,
+                            updateQueries: mutation.updateQueries,
+                            update: mutation.update,
+                        });
+                    }
+                    finally {
+                        _this.cache = orig;
+                    }
+                }, mutation.mutationId);
+            }
+        };
+        DataStore.prototype.markMutationResult = function (mutation) {
+            var _this = this;
+            if (!graphQLResultHasError(mutation.result)) {
+                var cacheWrites_1 = [{
+                        result: mutation.result.data,
+                        dataId: 'ROOT_MUTATION',
+                        query: mutation.document,
+                        variables: mutation.variables,
+                    }];
+                var updateQueries_1 = mutation.updateQueries;
+                if (updateQueries_1) {
+                    Object.keys(updateQueries_1).forEach(function (id) {
+                        var _a = updateQueries_1[id], query = _a.query, updater = _a.updater;
+                        var _b = _this.cache.diff({
+                            query: query.document,
+                            variables: query.variables,
+                            returnPartialData: true,
+                            optimistic: false,
+                        }), currentQueryResult = _b.result, complete = _b.complete;
+                        if (complete) {
+                            var nextQueryResult = tryFunctionOrLogError(function () {
+                                return updater(currentQueryResult, {
+                                    mutationResult: mutation.result,
+                                    queryName: getOperationName(query.document) || undefined,
+                                    queryVariables: query.variables,
+                                });
+                            });
+                            if (nextQueryResult) {
+                                cacheWrites_1.push({
+                                    result: nextQueryResult,
+                                    dataId: 'ROOT_QUERY',
+                                    query: query.document,
+                                    variables: query.variables,
+                                });
+                            }
+                        }
+                    });
+                }
+                this.cache.performTransaction(function (c) {
+                    cacheWrites_1.forEach(function (write) { return c.write(write); });
+                    var update = mutation.update;
+                    if (update) {
+                        tryFunctionOrLogError(function () { return update(c, mutation.result); });
+                    }
+                });
+            }
+        };
+        DataStore.prototype.markMutationComplete = function (_a) {
+            var mutationId = _a.mutationId, optimisticResponse = _a.optimisticResponse;
+            if (optimisticResponse) {
+                this.cache.removeOptimistic(mutationId);
+            }
+        };
+        DataStore.prototype.markUpdateQueryResult = function (document, variables, newResult) {
+            this.cache.write({
+                result: newResult,
+                dataId: 'ROOT_QUERY',
+                variables: variables,
+                query: document,
+            });
+        };
+        DataStore.prototype.reset = function () {
+            return this.cache.reset();
+        };
+        return DataStore;
+    }());
+
+    var version = "2.6.3";
+
+    var hasSuggestedDevtools = false;
+    var ApolloClient = (function () {
+        function ApolloClient(options) {
+            var _this = this;
+            this.defaultOptions = {};
+            this.resetStoreCallbacks = [];
+            this.clearStoreCallbacks = [];
+            var cache = options.cache, _a = options.ssrMode, ssrMode = _a === void 0 ? false : _a, _b = options.ssrForceFetchDelay, ssrForceFetchDelay = _b === void 0 ? 0 : _b, connectToDevTools = options.connectToDevTools, _c = options.queryDeduplication, queryDeduplication = _c === void 0 ? true : _c, defaultOptions = options.defaultOptions, _d = options.assumeImmutableResults, assumeImmutableResults = _d === void 0 ? false : _d, resolvers = options.resolvers, typeDefs = options.typeDefs, fragmentMatcher = options.fragmentMatcher, clientAwarenessName = options.name, clientAwarenessVersion = options.version;
+            var link = options.link;
+            if (!link && resolvers) {
+                link = ApolloLink.empty();
+            }
+            if (!link || !cache) {
+                throw process.env.NODE_ENV === "production" ? new InvariantError(1) : new InvariantError("In order to initialize Apollo Client, you must specify 'link' and 'cache' properties in the options object.\n" +
+                    "These options are part of the upgrade requirements when migrating from Apollo Client 1.x to Apollo Client 2.x.\n" +
+                    "For more information, please visit: https://www.apollographql.com/docs/tutorial/client.html#apollo-client-setup");
+            }
+            this.link = link;
+            this.cache = cache;
+            this.store = new DataStore(cache);
+            this.disableNetworkFetches = ssrMode || ssrForceFetchDelay > 0;
+            this.queryDeduplication = queryDeduplication;
+            this.defaultOptions = defaultOptions || {};
+            this.typeDefs = typeDefs;
+            if (ssrForceFetchDelay) {
+                setTimeout(function () { return (_this.disableNetworkFetches = false); }, ssrForceFetchDelay);
+            }
+            this.watchQuery = this.watchQuery.bind(this);
+            this.query = this.query.bind(this);
+            this.mutate = this.mutate.bind(this);
+            this.resetStore = this.resetStore.bind(this);
+            this.reFetchObservableQueries = this.reFetchObservableQueries.bind(this);
+            var defaultConnectToDevTools = process.env.NODE_ENV !== 'production' &&
+                typeof window !== 'undefined' &&
+                !window.__APOLLO_CLIENT__;
+            if (typeof connectToDevTools === 'undefined'
+                ? defaultConnectToDevTools
+                : connectToDevTools && typeof window !== 'undefined') {
+                window.__APOLLO_CLIENT__ = this;
+            }
+            if (!hasSuggestedDevtools && process.env.NODE_ENV !== 'production') {
+                hasSuggestedDevtools = true;
+                if (typeof window !== 'undefined' &&
+                    window.document &&
+                    window.top === window.self) {
+                    if (typeof window.__APOLLO_DEVTOOLS_GLOBAL_HOOK__ === 'undefined') {
+                        if (window.navigator &&
+                            window.navigator.userAgent &&
+                            window.navigator.userAgent.indexOf('Chrome') > -1) {
+                            console.debug('Download the Apollo DevTools ' +
+                                'for a better development experience: ' +
+                                'https://chrome.google.com/webstore/detail/apollo-client-developer-t/jdkknkkbebbapilgoeccciglkfbmbnfm');
+                        }
+                    }
+                }
+            }
+            this.version = version;
+            this.localState = new LocalState({
+                cache: cache,
+                client: this,
+                resolvers: resolvers,
+                fragmentMatcher: fragmentMatcher,
+            });
+            this.queryManager = new QueryManager({
+                link: this.link,
+                store: this.store,
+                queryDeduplication: queryDeduplication,
+                ssrMode: ssrMode,
+                clientAwareness: {
+                    name: clientAwarenessName,
+                    version: clientAwarenessVersion,
+                },
+                localState: this.localState,
+                assumeImmutableResults: assumeImmutableResults,
+                onBroadcast: function () {
+                    if (_this.devToolsHookCb) {
+                        _this.devToolsHookCb({
+                            action: {},
+                            state: {
+                                queries: _this.queryManager.queryStore.getStore(),
+                                mutations: _this.queryManager.mutationStore.getStore(),
+                            },
+                            dataWithOptimisticResults: _this.cache.extract(true),
+                        });
+                    }
+                },
+            });
+        }
+        ApolloClient.prototype.stop = function () {
+            this.queryManager.stop();
+        };
+        ApolloClient.prototype.watchQuery = function (options) {
+            if (this.defaultOptions.watchQuery) {
+                options = __assign({}, this.defaultOptions.watchQuery, options);
+            }
+            if (this.disableNetworkFetches &&
+                (options.fetchPolicy === 'network-only' ||
+                    options.fetchPolicy === 'cache-and-network')) {
+                options = __assign({}, options, { fetchPolicy: 'cache-first' });
+            }
+            return this.queryManager.watchQuery(options);
+        };
+        ApolloClient.prototype.query = function (options) {
+            if (this.defaultOptions.query) {
+                options = __assign({}, this.defaultOptions.query, options);
+            }
+            process.env.NODE_ENV === "production" ? invariant(options.fetchPolicy !== 'cache-and-network', 2) : invariant(options.fetchPolicy !== 'cache-and-network', 'The cache-and-network fetchPolicy does not work with client.query, because ' +
+                'client.query can only return a single result. Please use client.watchQuery ' +
+                'to receive multiple results from the cache and the network, or consider ' +
+                'using a different fetchPolicy, such as cache-first or network-only.');
+            if (this.disableNetworkFetches && options.fetchPolicy === 'network-only') {
+                options = __assign({}, options, { fetchPolicy: 'cache-first' });
+            }
+            return this.queryManager.query(options);
+        };
+        ApolloClient.prototype.mutate = function (options) {
+            if (this.defaultOptions.mutate) {
+                options = __assign({}, this.defaultOptions.mutate, options);
+            }
+            return this.queryManager.mutate(options);
+        };
+        ApolloClient.prototype.subscribe = function (options) {
+            return this.queryManager.startGraphQLSubscription(options);
+        };
+        ApolloClient.prototype.readQuery = function (options, optimistic) {
+            if (optimistic === void 0) { optimistic = false; }
+            return this.cache.readQuery(options, optimistic);
+        };
+        ApolloClient.prototype.readFragment = function (options, optimistic) {
+            if (optimistic === void 0) { optimistic = false; }
+            return this.cache.readFragment(options, optimistic);
+        };
+        ApolloClient.prototype.writeQuery = function (options) {
+            var result = this.cache.writeQuery(options);
+            this.queryManager.broadcastQueries();
+            return result;
+        };
+        ApolloClient.prototype.writeFragment = function (options) {
+            var result = this.cache.writeFragment(options);
+            this.queryManager.broadcastQueries();
+            return result;
+        };
+        ApolloClient.prototype.writeData = function (options) {
+            var result = this.cache.writeData(options);
+            this.queryManager.broadcastQueries();
+            return result;
+        };
+        ApolloClient.prototype.__actionHookForDevTools = function (cb) {
+            this.devToolsHookCb = cb;
+        };
+        ApolloClient.prototype.__requestRaw = function (payload) {
+            return execute(this.link, payload);
+        };
+        ApolloClient.prototype.initQueryManager = function () {
+            process.env.NODE_ENV === "production" || invariant.warn('Calling the initQueryManager method is no longer necessary, ' +
+                'and it will be removed from ApolloClient in version 3.0.');
+            return this.queryManager;
+        };
+        ApolloClient.prototype.resetStore = function () {
+            var _this = this;
+            return Promise.resolve()
+                .then(function () { return _this.queryManager.clearStore(); })
+                .then(function () { return Promise.all(_this.resetStoreCallbacks.map(function (fn) { return fn(); })); })
+                .then(function () { return _this.reFetchObservableQueries(); });
+        };
+        ApolloClient.prototype.clearStore = function () {
+            var _this = this;
+            return Promise.resolve()
+                .then(function () { return _this.queryManager.clearStore(); })
+                .then(function () { return Promise.all(_this.clearStoreCallbacks.map(function (fn) { return fn(); })); });
+        };
+        ApolloClient.prototype.onResetStore = function (cb) {
+            var _this = this;
+            this.resetStoreCallbacks.push(cb);
+            return function () {
+                _this.resetStoreCallbacks = _this.resetStoreCallbacks.filter(function (c) { return c !== cb; });
+            };
+        };
+        ApolloClient.prototype.onClearStore = function (cb) {
+            var _this = this;
+            this.clearStoreCallbacks.push(cb);
+            return function () {
+                _this.clearStoreCallbacks = _this.clearStoreCallbacks.filter(function (c) { return c !== cb; });
+            };
+        };
+        ApolloClient.prototype.reFetchObservableQueries = function (includeStandby) {
+            return this.queryManager.reFetchObservableQueries(includeStandby);
+        };
+        ApolloClient.prototype.extract = function (optimistic) {
+            return this.cache.extract(optimistic);
+        };
+        ApolloClient.prototype.restore = function (serializedState) {
+            return this.cache.restore(serializedState);
+        };
+        ApolloClient.prototype.addResolvers = function (resolvers) {
+            this.localState.addResolvers(resolvers);
+        };
+        ApolloClient.prototype.setResolvers = function (resolvers) {
+            this.localState.setResolvers(resolvers);
+        };
+        ApolloClient.prototype.getResolvers = function () {
+            return this.localState.getResolvers();
+        };
+        ApolloClient.prototype.setLocalStateFragmentMatcher = function (fragmentMatcher) {
+            this.localState.setFragmentMatcher(fragmentMatcher);
+        };
+        return ApolloClient;
+    }());
+    //# sourceMappingURL=bundle.esm.js.map
+
+    function queryFromPojo(obj) {
+        var op = {
+            kind: 'OperationDefinition',
+            operation: 'query',
+            name: {
+                kind: 'Name',
+                value: 'GeneratedClientQuery',
+            },
+            selectionSet: selectionSetFromObj(obj),
+        };
+        var out = {
+            kind: 'Document',
+            definitions: [op],
+        };
+        return out;
+    }
+    function fragmentFromPojo(obj, typename) {
+        var frag = {
+            kind: 'FragmentDefinition',
+            typeCondition: {
+                kind: 'NamedType',
+                name: {
+                    kind: 'Name',
+                    value: typename || '__FakeType',
+                },
+            },
+            name: {
+                kind: 'Name',
+                value: 'GeneratedClientQuery',
+            },
+            selectionSet: selectionSetFromObj(obj),
+        };
+        var out = {
+            kind: 'Document',
+            definitions: [frag],
+        };
+        return out;
+    }
+    function selectionSetFromObj(obj) {
+        if (typeof obj === 'number' ||
+            typeof obj === 'boolean' ||
+            typeof obj === 'string' ||
+            typeof obj === 'undefined' ||
+            obj === null) {
+            return null;
+        }
+        if (Array.isArray(obj)) {
+            return selectionSetFromObj(obj[0]);
+        }
+        var selections = [];
+        Object.keys(obj).forEach(function (key) {
+            var nestedSelSet = selectionSetFromObj(obj[key]);
+            var field = {
+                kind: 'Field',
+                name: {
+                    kind: 'Name',
+                    value: key,
+                },
+                selectionSet: nestedSelSet || undefined,
+            };
+            selections.push(field);
+        });
+        var selectionSet = {
+            kind: 'SelectionSet',
+            selections: selections,
+        };
+        return selectionSet;
+    }
+    var justTypenameQuery = {
+        kind: 'Document',
+        definitions: [
+            {
+                kind: 'OperationDefinition',
+                operation: 'query',
+                name: null,
+                variableDefinitions: null,
+                directives: [],
+                selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                        {
+                            kind: 'Field',
+                            alias: null,
+                            name: {
+                                kind: 'Name',
+                                value: '__typename',
+                            },
+                            arguments: [],
+                            directives: [],
+                            selectionSet: null,
+                        },
+                    ],
+                },
+            },
+        ],
+    };
+
+    var ApolloCache = (function () {
+        function ApolloCache() {
+        }
+        ApolloCache.prototype.transformDocument = function (document) {
+            return document;
+        };
+        ApolloCache.prototype.transformForLink = function (document) {
+            return document;
+        };
+        ApolloCache.prototype.readQuery = function (options, optimistic) {
+            if (optimistic === void 0) { optimistic = false; }
+            return this.read({
+                query: options.query,
+                variables: options.variables,
+                optimistic: optimistic,
+            });
+        };
+        ApolloCache.prototype.readFragment = function (options, optimistic) {
+            if (optimistic === void 0) { optimistic = false; }
+            return this.read({
+                query: getFragmentQueryDocument(options.fragment, options.fragmentName),
+                variables: options.variables,
+                rootId: options.id,
+                optimistic: optimistic,
+            });
+        };
+        ApolloCache.prototype.writeQuery = function (options) {
+            this.write({
+                dataId: 'ROOT_QUERY',
+                result: options.data,
+                query: options.query,
+                variables: options.variables,
+            });
+        };
+        ApolloCache.prototype.writeFragment = function (options) {
+            this.write({
+                dataId: options.id,
+                result: options.data,
+                variables: options.variables,
+                query: getFragmentQueryDocument(options.fragment, options.fragmentName),
+            });
+        };
+        ApolloCache.prototype.writeData = function (_a) {
+            var id = _a.id, data = _a.data;
+            if (typeof id !== 'undefined') {
+                var typenameResult = null;
+                try {
+                    typenameResult = this.read({
+                        rootId: id,
+                        optimistic: false,
+                        query: justTypenameQuery,
+                    });
+                }
+                catch (e) {
+                }
+                var __typename = (typenameResult && typenameResult.__typename) || '__ClientData';
+                var dataToWrite = Object.assign({ __typename: __typename }, data);
+                this.writeFragment({
+                    id: id,
+                    fragment: fragmentFromPojo(dataToWrite, __typename),
+                    data: dataToWrite,
+                });
+            }
+            else {
+                this.writeQuery({ query: queryFromPojo(data), data: data });
+            }
+        };
+        return ApolloCache;
+    }());
+    //# sourceMappingURL=bundle.esm.js.map
+
+    // This currentContext variable will only be used if the makeSlotClass
+    // function is called, which happens only if this is the first copy of the
+    // @wry/context package to be imported.
+    var currentContext = null;
+    // This unique internal object is used to denote the absence of a value
+    // for a given Slot, and is never exposed to outside code.
+    var MISSING_VALUE = {};
+    var idCounter = 1;
+    // Although we can't do anything about the cost of duplicated code from
+    // accidentally bundling multiple copies of the @wry/context package, we can
+    // avoid creating the Slot class more than once using makeSlotClass.
+    var makeSlotClass = function () { return /** @class */ (function () {
+        function Slot() {
+            // If you have a Slot object, you can find out its slot.id, but you cannot
+            // guess the slot.id of a Slot you don't have access to, thanks to the
+            // randomized suffix.
+            this.id = [
+                "slot",
+                idCounter++,
+                Date.now(),
+                Math.random().toString(36).slice(2),
+            ].join(":");
+        }
+        Slot.prototype.hasValue = function () {
+            for (var context_1 = currentContext; context_1; context_1 = context_1.parent) {
+                // We use the Slot object iself as a key to its value, which means the
+                // value cannot be obtained without a reference to the Slot object.
+                if (this.id in context_1.slots) {
+                    var value = context_1.slots[this.id];
+                    if (value === MISSING_VALUE)
+                        break;
+                    if (context_1 !== currentContext) {
+                        // Cache the value in currentContext.slots so the next lookup will
+                        // be faster. This caching is safe because the tree of contexts and
+                        // the values of the slots are logically immutable.
+                        currentContext.slots[this.id] = value;
+                    }
+                    return true;
+                }
+            }
+            if (currentContext) {
+                // If a value was not found for this Slot, it's never going to be found
+                // no matter how many times we look it up, so we might as well cache
+                // the absence of the value, too.
+                currentContext.slots[this.id] = MISSING_VALUE;
+            }
+            return false;
+        };
+        Slot.prototype.getValue = function () {
+            if (this.hasValue()) {
+                return currentContext.slots[this.id];
+            }
+        };
+        Slot.prototype.withValue = function (value, callback, 
+        // Given the prevalence of arrow functions, specifying arguments is likely
+        // to be much more common than specifying `this`, hence this ordering:
+        args, thisArg) {
+            var _a;
+            var slots = (_a = {
+                    __proto__: null
+                },
+                _a[this.id] = value,
+                _a);
+            var parent = currentContext;
+            currentContext = { parent: parent, slots: slots };
+            try {
+                // Function.prototype.apply allows the arguments array argument to be
+                // omitted or undefined, so args! is fine here.
+                return callback.apply(thisArg, args);
+            }
+            finally {
+                currentContext = parent;
+            }
+        };
+        // Capture the current context and wrap a callback function so that it
+        // reestablishes the captured context when called.
+        Slot.bind = function (callback) {
+            var context = currentContext;
+            return function () {
+                var saved = currentContext;
+                try {
+                    currentContext = context;
+                    return callback.apply(this, arguments);
+                }
+                finally {
+                    currentContext = saved;
+                }
+            };
+        };
+        // Immediately run a callback function without any captured context.
+        Slot.noContext = function (callback, 
+        // Given the prevalence of arrow functions, specifying arguments is likely
+        // to be much more common than specifying `this`, hence this ordering:
+        args, thisArg) {
+            if (currentContext) {
+                var saved = currentContext;
+                try {
+                    currentContext = null;
+                    // Function.prototype.apply allows the arguments array argument to be
+                    // omitted or undefined, so args! is fine here.
+                    return callback.apply(thisArg, args);
+                }
+                finally {
+                    currentContext = saved;
+                }
+            }
+            else {
+                return callback.apply(thisArg, args);
+            }
+        };
+        return Slot;
+    }()); };
+    // We store a single global implementation of the Slot class as a permanent
+    // non-enumerable symbol property of the Array constructor. This obfuscation
+    // does nothing to prevent access to the Slot class, but at least it ensures
+    // the implementation (i.e. currentContext) cannot be tampered with, and all
+    // copies of the @wry/context package (hopefully just one) will share the
+    // same Slot implementation. Since the first copy of the @wry/context package
+    // to be imported wins, this technique imposes a very high cost for any
+    // future breaking changes to the Slot class.
+    var globalKey = "@wry/context:Slot";
+    var host = Array;
+    var Slot = host[globalKey] || function () {
+        var Slot = makeSlotClass();
+        try {
+            Object.defineProperty(host, globalKey, {
+                value: host[globalKey] = Slot,
+                enumerable: false,
+                writable: false,
+                configurable: false,
+            });
+        }
+        finally {
+            return Slot;
+        }
+    }();
+
+    var bind = Slot.bind, noContext = Slot.noContext;
+    //# sourceMappingURL=context.esm.js.map
+
+    function defaultDispose() { }
+    var Cache = /** @class */ (function () {
+        function Cache(max, dispose) {
+            if (max === void 0) { max = Infinity; }
+            if (dispose === void 0) { dispose = defaultDispose; }
+            this.max = max;
+            this.dispose = dispose;
+            this.map = new Map();
+            this.newest = null;
+            this.oldest = null;
+        }
+        Cache.prototype.has = function (key) {
+            return this.map.has(key);
+        };
+        Cache.prototype.get = function (key) {
+            var entry = this.getEntry(key);
+            return entry && entry.value;
+        };
+        Cache.prototype.getEntry = function (key) {
+            var entry = this.map.get(key);
+            if (entry && entry !== this.newest) {
+                var older = entry.older, newer = entry.newer;
+                if (newer) {
+                    newer.older = older;
+                }
+                if (older) {
+                    older.newer = newer;
+                }
+                entry.older = this.newest;
+                entry.older.newer = entry;
+                entry.newer = null;
+                this.newest = entry;
+                if (entry === this.oldest) {
+                    this.oldest = newer;
+                }
+            }
+            return entry;
+        };
+        Cache.prototype.set = function (key, value) {
+            var entry = this.getEntry(key);
+            if (entry) {
+                return entry.value = value;
+            }
+            entry = {
+                key: key,
+                value: value,
+                newer: null,
+                older: this.newest
+            };
+            if (this.newest) {
+                this.newest.newer = entry;
+            }
+            this.newest = entry;
+            this.oldest = this.oldest || entry;
+            this.map.set(key, entry);
+            return entry.value;
+        };
+        Cache.prototype.clean = function () {
+            while (this.oldest && this.map.size > this.max) {
+                this.delete(this.oldest.key);
+            }
+        };
+        Cache.prototype.delete = function (key) {
+            var entry = this.map.get(key);
+            if (entry) {
+                if (entry === this.newest) {
+                    this.newest = entry.older;
+                }
+                if (entry === this.oldest) {
+                    this.oldest = entry.newer;
+                }
+                if (entry.newer) {
+                    entry.newer.older = entry.older;
+                }
+                if (entry.older) {
+                    entry.older.newer = entry.newer;
+                }
+                this.map.delete(key);
+                this.dispose(entry.value, key);
+                return true;
+            }
+            return false;
+        };
+        return Cache;
+    }());
+
+    var parentEntrySlot = new Slot();
+
+    var UNKNOWN_VALUE = Object.create(null);
+    var reusableEmptyArray = [];
+    var emptySetPool = [];
+    var POOL_TARGET_SIZE = 100;
+    // Since this package might be used browsers, we should avoid using the
+    // Node built-in assert module.
+    function assert(condition, optionalMessage) {
+        if (!condition) {
+            throw new Error(optionalMessage || "assertion failure");
+        }
+    }
+    var Entry = /** @class */ (function () {
+        function Entry(fn, args) {
+            this.fn = fn;
+            this.args = args;
+            this.parents = new Set();
+            this.childValues = new Map();
+            // When this Entry has children that are dirty, this property becomes
+            // a Set containing other Entry objects, borrowed from emptySetPool.
+            // When the set becomes empty, it gets recycled back to emptySetPool.
+            this.dirtyChildren = null;
+            this.dirty = true;
+            this.recomputing = false;
+            this.value = UNKNOWN_VALUE;
+            ++Entry.count;
+        }
+        Entry.prototype.recompute = function () {
+            if (!rememberParent(this) && maybeReportOrphan(this)) {
+                // The recipient of the entry.reportOrphan callback decided to dispose
+                // of this orphan entry by calling entry.dispose(), so we don't need to
+                // (and should not) proceed with the recomputation.
+                return void 0;
+            }
+            return recomputeIfDirty(this);
+        };
+        Entry.prototype.setDirty = function () {
+            if (this.dirty)
+                return;
+            this.dirty = true;
+            this.value = UNKNOWN_VALUE;
+            reportDirty(this);
+            // We can go ahead and unsubscribe here, since any further dirty
+            // notifications we receive will be redundant, and unsubscribing may
+            // free up some resources, e.g. file watchers.
+            maybeUnsubscribe(this);
+        };
+        Entry.prototype.dispose = function () {
+            var _this = this;
+            forgetChildren(this).forEach(maybeReportOrphan);
+            maybeUnsubscribe(this);
+            // Because this entry has been kicked out of the cache (in index.js),
+            // we've lost the ability to find out if/when this entry becomes dirty,
+            // whether that happens through a subscription, because of a direct call
+            // to entry.setDirty(), or because one of its children becomes dirty.
+            // Because of this loss of future information, we have to assume the
+            // worst (that this entry might have become dirty very soon), so we must
+            // immediately mark this entry's parents as dirty. Normally we could
+            // just call entry.setDirty() rather than calling parent.setDirty() for
+            // each parent, but that would leave this entry in parent.childValues
+            // and parent.dirtyChildren, which would prevent the child from being
+            // truly forgotten.
+            this.parents.forEach(function (parent) {
+                parent.setDirty();
+                forgetChild(parent, _this);
+            });
+        };
+        Entry.count = 0;
+        return Entry;
+    }());
+    function rememberParent(child) {
+        var parent = parentEntrySlot.getValue();
+        if (parent) {
+            child.parents.add(parent);
+            if (!parent.childValues.has(child)) {
+                parent.childValues.set(child, UNKNOWN_VALUE);
+            }
+            if (mightBeDirty(child)) {
+                reportDirtyChild(parent, child);
+            }
+            else {
+                reportCleanChild(parent, child);
+            }
+            return parent;
+        }
+    }
+    // This is the most important method of the Entry API, because it
+    // determines whether the cached entry.value can be returned immediately,
+    // or must be recomputed. The overall performance of the caching system
+    // depends on the truth of the following observations: (1) this.dirty is
+    // usually false, (2) this.dirtyChildren is usually null/empty, and thus
+    // (3) this.value is usally returned very quickly, without recomputation.
+    function recomputeIfDirty(entry) {
+        if (entry.dirty) {
+            // If this Entry is explicitly dirty because someone called
+            // entry.setDirty(), recompute.
+            return reallyRecompute(entry);
+        }
+        if (mightBeDirty(entry)) {
+            // Get fresh values for any dirty children, and if those values
+            // disagree with this.childValues, mark this Entry explicitly dirty.
+            entry.dirtyChildren.forEach(function (child) {
+                assert(entry.childValues.has(child));
+                try {
+                    recomputeIfDirty(child);
+                }
+                catch (e) {
+                    entry.setDirty();
+                }
+            });
+            if (entry.dirty) {
+                // If this Entry has become explicitly dirty after comparing the fresh
+                // values of its dirty children against this.childValues, recompute.
+                return reallyRecompute(entry);
+            }
+        }
+        assert(entry.value !== UNKNOWN_VALUE);
+        return entry.value;
+    }
+    function reallyRecompute(entry) {
+        assert(!entry.recomputing, "already recomputing");
+        entry.recomputing = true;
+        // Since this recomputation is likely to re-remember some of this
+        // entry's children, we forget our children here but do not call
+        // maybeReportOrphan until after the recomputation finishes.
+        var originalChildren = forgetChildren(entry);
+        var threw = true;
+        try {
+            parentEntrySlot.withValue(entry, function () {
+                entry.value = entry.fn.apply(null, entry.args);
+            });
+            threw = false;
+        }
+        finally {
+            entry.recomputing = false;
+            if (threw || !maybeSubscribe(entry)) {
+                // Mark this Entry dirty if entry.fn threw or we failed to
+                // resubscribe. This is important because, if we have a subscribe
+                // function and it failed, then we're going to miss important
+                // notifications about the potential dirtiness of entry.value.
+                entry.setDirty();
+            }
+            else {
+                // If we successfully recomputed entry.value and did not fail to
+                // (re)subscribe, then this Entry is no longer explicitly dirty.
+                setClean(entry);
+            }
+        }
+        // Now that we've had a chance to re-remember any children that were
+        // involved in the recomputation, we can safely report any orphan
+        // children that remain.
+        originalChildren.forEach(maybeReportOrphan);
+        return entry.value;
+    }
+    function mightBeDirty(entry) {
+        return entry.dirty || !!(entry.dirtyChildren && entry.dirtyChildren.size);
+    }
+    function setClean(entry) {
+        entry.dirty = false;
+        if (mightBeDirty(entry)) {
+            // This Entry may still have dirty children, in which case we can't
+            // let our parents know we're clean just yet.
+            return;
+        }
+        reportClean(entry);
+    }
+    function reportDirty(child) {
+        child.parents.forEach(function (parent) { return reportDirtyChild(parent, child); });
+    }
+    function reportClean(child) {
+        child.parents.forEach(function (parent) { return reportCleanChild(parent, child); });
+    }
+    // Let a parent Entry know that one of its children may be dirty.
+    function reportDirtyChild(parent, child) {
+        // Must have called rememberParent(child) before calling
+        // reportDirtyChild(parent, child).
+        assert(parent.childValues.has(child));
+        assert(mightBeDirty(child));
+        if (!parent.dirtyChildren) {
+            parent.dirtyChildren = emptySetPool.pop() || new Set;
+        }
+        else if (parent.dirtyChildren.has(child)) {
+            // If we already know this child is dirty, then we must have already
+            // informed our own parents that we are dirty, so we can terminate
+            // the recursion early.
+            return;
+        }
+        parent.dirtyChildren.add(child);
+        reportDirty(parent);
+    }
+    // Let a parent Entry know that one of its children is no longer dirty.
+    function reportCleanChild(parent, child) {
+        // Must have called rememberChild(child) before calling
+        // reportCleanChild(parent, child).
+        assert(parent.childValues.has(child));
+        assert(!mightBeDirty(child));
+        var childValue = parent.childValues.get(child);
+        if (childValue === UNKNOWN_VALUE) {
+            parent.childValues.set(child, child.value);
+        }
+        else if (childValue !== child.value) {
+            parent.setDirty();
+        }
+        removeDirtyChild(parent, child);
+        if (mightBeDirty(parent)) {
+            return;
+        }
+        reportClean(parent);
+    }
+    function removeDirtyChild(parent, child) {
+        var dc = parent.dirtyChildren;
+        if (dc) {
+            dc.delete(child);
+            if (dc.size === 0) {
+                if (emptySetPool.length < POOL_TARGET_SIZE) {
+                    emptySetPool.push(dc);
+                }
+                parent.dirtyChildren = null;
+            }
+        }
+    }
+    // If the given entry has a reportOrphan method, and no remaining parents,
+    // call entry.reportOrphan and return true iff it returns true. The
+    // reportOrphan function should return true to indicate entry.dispose()
+    // has been called, and the entry has been removed from any other caches
+    // (see index.js for the only current example).
+    function maybeReportOrphan(entry) {
+        return entry.parents.size === 0 &&
+            typeof entry.reportOrphan === "function" &&
+            entry.reportOrphan() === true;
+    }
+    // Removes all children from this entry and returns an array of the
+    // removed children.
+    function forgetChildren(parent) {
+        var children = reusableEmptyArray;
+        if (parent.childValues.size > 0) {
+            children = [];
+            parent.childValues.forEach(function (value, child) {
+                forgetChild(parent, child);
+                children.push(child);
+            });
+        }
+        // After we forget all our children, this.dirtyChildren must be empty
+        // and therefore must have been reset to null.
+        assert(parent.dirtyChildren === null);
+        return children;
+    }
+    function forgetChild(parent, child) {
+        child.parents.delete(parent);
+        parent.childValues.delete(child);
+        removeDirtyChild(parent, child);
+    }
+    function maybeSubscribe(entry) {
+        if (typeof entry.subscribe === "function") {
+            try {
+                maybeUnsubscribe(entry); // Prevent double subscriptions.
+                entry.unsubscribe = entry.subscribe.apply(null, entry.args);
+            }
+            catch (e) {
+                // If this Entry has a subscribe function and it threw an exception
+                // (or an unsubscribe function it previously returned now throws),
+                // return false to indicate that we were not able to subscribe (or
+                // unsubscribe), and this Entry should remain dirty.
+                entry.setDirty();
+                return false;
+            }
+        }
+        // Returning true indicates either that there was no entry.subscribe
+        // function or that it succeeded.
+        return true;
+    }
+    function maybeUnsubscribe(entry) {
+        var unsubscribe = entry.unsubscribe;
+        if (typeof unsubscribe === "function") {
+            entry.unsubscribe = void 0;
+            unsubscribe();
+        }
+    }
+
+    // A trie data structure that holds object keys weakly, yet can also hold
+    // non-object keys, unlike the native `WeakMap`.
+    var KeyTrie = /** @class */ (function () {
+        function KeyTrie(weakness) {
+            this.weakness = weakness;
+        }
+        KeyTrie.prototype.lookup = function () {
+            var array = [];
+            for (var _i = 0; _i < arguments.length; _i++) {
+                array[_i] = arguments[_i];
+            }
+            return this.lookupArray(array);
+        };
+        KeyTrie.prototype.lookupArray = function (array) {
+            var node = this;
+            array.forEach(function (key) { return node = node.getChildTrie(key); });
+            return node.data || (node.data = Object.create(null));
+        };
+        KeyTrie.prototype.getChildTrie = function (key) {
+            var map = this.weakness && isObjRef(key)
+                ? this.weak || (this.weak = new WeakMap())
+                : this.strong || (this.strong = new Map());
+            var child = map.get(key);
+            if (!child)
+                map.set(key, child = new KeyTrie(this.weakness));
+            return child;
+        };
+        return KeyTrie;
+    }());
+    function isObjRef(value) {
+        switch (typeof value) {
+            case "object":
+                if (value === null)
+                    break;
+            // Fall through to return true...
+            case "function":
+                return true;
+        }
+        return false;
+    }
+
+    // The defaultMakeCacheKey function is remarkably powerful, because it gives
+    // a unique object for any shallow-identical list of arguments. If you need
+    // to implement a custom makeCacheKey function, you may find it helpful to
+    // delegate the final work to defaultMakeCacheKey, which is why we export it
+    // here. However, you may want to avoid defaultMakeCacheKey if your runtime
+    // does not support WeakMap, or you have the ability to return a string key.
+    // In those cases, just write your own custom makeCacheKey functions.
+    var keyTrie = new KeyTrie(typeof WeakMap === "function");
+    function defaultMakeCacheKey() {
+        var args = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            args[_i] = arguments[_i];
+        }
+        return keyTrie.lookupArray(args);
+    }
+    function wrap(originalFunction, options) {
+        if (options === void 0) { options = Object.create(null); }
+        var cache = new Cache(options.max || Math.pow(2, 16), function (entry) { return entry.dispose(); });
+        var disposable = !!options.disposable;
+        var makeCacheKey = options.makeCacheKey || defaultMakeCacheKey;
+        function optimistic() {
+            if (disposable && !parentEntrySlot.hasValue()) {
+                // If there's no current parent computation, and this wrapped
+                // function is disposable (meaning we don't care about entry.value,
+                // just dependency tracking), then we can short-cut everything else
+                // in this function, because entry.recompute() is going to recycle
+                // the entry object without recomputing anything, anyway.
+                return void 0;
+            }
+            var key = makeCacheKey.apply(null, arguments);
+            if (!key) {
+                return originalFunction.apply(null, arguments);
+            }
+            var args = Array.prototype.slice.call(arguments);
+            var entry = cache.get(key);
+            if (entry) {
+                entry.args = args;
+            }
+            else {
+                entry = new Entry(originalFunction, args);
+                cache.set(key, entry);
+                entry.subscribe = options.subscribe;
+                if (disposable) {
+                    entry.reportOrphan = function () { return cache.delete(key); };
+                }
+            }
+            var value = entry.recompute();
+            // Move this entry to the front of the least-recently used queue,
+            // since we just finished computing its value.
+            cache.set(key, entry);
+            // Clean up any excess entries in the cache, but only if there is no
+            // active parent entry, meaning we're not in the middle of a larger
+            // computation that might be flummoxed by the cleaning.
+            if (!parentEntrySlot.hasValue()) {
+                cache.clean();
+            }
+            // If options.disposable is truthy, the caller of wrap is telling us
+            // they don't care about the result of entry.recompute(), so we should
+            // avoid returning the value, so it won't be accidentally used.
+            return disposable ? void 0 : value;
+        }
+        optimistic.dirty = function () {
+            var key = makeCacheKey.apply(null, arguments);
+            var child = key && cache.get(key);
+            if (child) {
+                child.setDirty();
+            }
+        };
+        return optimistic;
+    }
+    //# sourceMappingURL=bundle.esm.js.map
+
+    var testMap = new Map();
+    if (testMap.set(1, 2) !== testMap) {
+        var set_1 = testMap.set;
+        Map.prototype.set = function () {
+            var args = [];
+            for (var _i = 0; _i < arguments.length; _i++) {
+                args[_i] = arguments[_i];
+            }
+            set_1.apply(this, args);
+            return this;
+        };
+    }
+    var testSet = new Set();
+    if (testSet.add(3) !== testSet) {
+        var add_1 = testSet.add;
+        Set.prototype.add = function () {
+            var args = [];
+            for (var _i = 0; _i < arguments.length; _i++) {
+                args[_i] = arguments[_i];
+            }
+            add_1.apply(this, args);
+            return this;
+        };
+    }
+    var frozen = {};
+    if (typeof Object.freeze === 'function') {
+        Object.freeze(frozen);
+    }
+    try {
+        testMap.set(frozen, frozen).delete(frozen);
+    }
+    catch (_a) {
+        var wrap$1 = function (method) {
+            return method && (function (obj) {
+                try {
+                    testMap.set(obj, obj).delete(obj);
+                }
+                finally {
+                    return method.call(Object, obj);
+                }
+            });
+        };
+        Object.freeze = wrap$1(Object.freeze);
+        Object.seal = wrap$1(Object.seal);
+        Object.preventExtensions = wrap$1(Object.preventExtensions);
+    }
+
+    var haveWarned = false;
+    function shouldWarn() {
+        var answer = !haveWarned;
+        if (!isTest()) {
+            haveWarned = true;
+        }
+        return answer;
+    }
+    var HeuristicFragmentMatcher = (function () {
+        function HeuristicFragmentMatcher() {
+        }
+        HeuristicFragmentMatcher.prototype.ensureReady = function () {
+            return Promise.resolve();
+        };
+        HeuristicFragmentMatcher.prototype.canBypassInit = function () {
+            return true;
+        };
+        HeuristicFragmentMatcher.prototype.match = function (idValue, typeCondition, context) {
+            var obj = context.store.get(idValue.id);
+            var isRootQuery = idValue.id === 'ROOT_QUERY';
+            if (!obj) {
+                return isRootQuery;
+            }
+            var _a = obj.__typename, __typename = _a === void 0 ? isRootQuery && 'Query' : _a;
+            if (!__typename) {
+                if (shouldWarn()) {
+                    process.env.NODE_ENV === "production" || invariant.warn("You're using fragments in your queries, but either don't have the addTypename:\n  true option set in Apollo Client, or you are trying to write a fragment to the store without the __typename.\n   Please turn on the addTypename option and include __typename when writing fragments so that Apollo Client\n   can accurately match fragments.");
+                    process.env.NODE_ENV === "production" || invariant.warn('Could not find __typename on Fragment ', typeCondition, obj);
+                    process.env.NODE_ENV === "production" || invariant.warn("DEPRECATION WARNING: using fragments without __typename is unsupported behavior " +
+                        "and will be removed in future versions of Apollo client. You should fix this and set addTypename to true now.");
+                }
+                return 'heuristic';
+            }
+            if (__typename === typeCondition) {
+                return true;
+            }
+            if (shouldWarn()) {
+                process.env.NODE_ENV === "production" || invariant.error('You are using the simple (heuristic) fragment matcher, but your ' +
+                    'queries contain union or interface types. Apollo Client will not be ' +
+                    'able to accurately map fragments. To make this error go away, use ' +
+                    'the `IntrospectionFragmentMatcher` as described in the docs: ' +
+                    'https://www.apollographql.com/docs/react/advanced/fragments.html#fragment-matcher');
+            }
+            return 'heuristic';
+        };
+        return HeuristicFragmentMatcher;
+    }());
+
+    var hasOwn = Object.prototype.hasOwnProperty;
+    var DepTrackingCache = (function () {
+        function DepTrackingCache(data) {
+            var _this = this;
+            if (data === void 0) { data = Object.create(null); }
+            this.data = data;
+            this.depend = wrap(function (dataId) { return _this.data[dataId]; }, {
+                disposable: true,
+                makeCacheKey: function (dataId) {
+                    return dataId;
+                }
+            });
+        }
+        DepTrackingCache.prototype.toObject = function () {
+            return this.data;
+        };
+        DepTrackingCache.prototype.get = function (dataId) {
+            this.depend(dataId);
+            return this.data[dataId];
+        };
+        DepTrackingCache.prototype.set = function (dataId, value) {
+            var oldValue = this.data[dataId];
+            if (value !== oldValue) {
+                this.data[dataId] = value;
+                this.depend.dirty(dataId);
+            }
+        };
+        DepTrackingCache.prototype.delete = function (dataId) {
+            if (hasOwn.call(this.data, dataId)) {
+                delete this.data[dataId];
+                this.depend.dirty(dataId);
+            }
+        };
+        DepTrackingCache.prototype.clear = function () {
+            this.replace(null);
+        };
+        DepTrackingCache.prototype.replace = function (newData) {
+            var _this = this;
+            if (newData) {
+                Object.keys(newData).forEach(function (dataId) {
+                    _this.set(dataId, newData[dataId]);
+                });
+                Object.keys(this.data).forEach(function (dataId) {
+                    if (!hasOwn.call(newData, dataId)) {
+                        _this.delete(dataId);
+                    }
+                });
+            }
+            else {
+                Object.keys(this.data).forEach(function (dataId) {
+                    _this.delete(dataId);
+                });
+            }
+        };
+        return DepTrackingCache;
+    }());
+    function defaultNormalizedCacheFactory(seed) {
+        return new DepTrackingCache(seed);
+    }
+
+    var StoreReader = (function () {
+        function StoreReader(_a) {
+            var _this = this;
+            var _b = _a === void 0 ? {} : _a, _c = _b.cacheKeyRoot, cacheKeyRoot = _c === void 0 ? new KeyTrie(canUseWeakMap) : _c, _d = _b.freezeResults, freezeResults = _d === void 0 ? false : _d;
+            var _e = this, executeStoreQuery = _e.executeStoreQuery, executeSelectionSet = _e.executeSelectionSet, executeSubSelectedArray = _e.executeSubSelectedArray;
+            this.freezeResults = freezeResults;
+            this.executeStoreQuery = wrap(function (options) {
+                return executeStoreQuery.call(_this, options);
+            }, {
+                makeCacheKey: function (_a) {
+                    var query = _a.query, rootValue = _a.rootValue, contextValue = _a.contextValue, variableValues = _a.variableValues, fragmentMatcher = _a.fragmentMatcher;
+                    if (contextValue.store instanceof DepTrackingCache) {
+                        return cacheKeyRoot.lookup(contextValue.store, query, fragmentMatcher, JSON.stringify(variableValues), rootValue.id);
+                    }
+                }
+            });
+            this.executeSelectionSet = wrap(function (options) {
+                return executeSelectionSet.call(_this, options);
+            }, {
+                makeCacheKey: function (_a) {
+                    var selectionSet = _a.selectionSet, rootValue = _a.rootValue, execContext = _a.execContext;
+                    if (execContext.contextValue.store instanceof DepTrackingCache) {
+                        return cacheKeyRoot.lookup(execContext.contextValue.store, selectionSet, execContext.fragmentMatcher, JSON.stringify(execContext.variableValues), rootValue.id);
+                    }
+                }
+            });
+            this.executeSubSelectedArray = wrap(function (options) {
+                return executeSubSelectedArray.call(_this, options);
+            }, {
+                makeCacheKey: function (_a) {
+                    var field = _a.field, array = _a.array, execContext = _a.execContext;
+                    if (execContext.contextValue.store instanceof DepTrackingCache) {
+                        return cacheKeyRoot.lookup(execContext.contextValue.store, field, array, JSON.stringify(execContext.variableValues));
+                    }
+                }
+            });
+        }
+        StoreReader.prototype.readQueryFromStore = function (options) {
+            var optsPatch = { returnPartialData: false };
+            return this.diffQueryAgainstStore(__assign({}, options, optsPatch)).result;
+        };
+        StoreReader.prototype.diffQueryAgainstStore = function (_a) {
+            var store = _a.store, query = _a.query, variables = _a.variables, previousResult = _a.previousResult, _b = _a.returnPartialData, returnPartialData = _b === void 0 ? true : _b, _c = _a.rootId, rootId = _c === void 0 ? 'ROOT_QUERY' : _c, fragmentMatcherFunction = _a.fragmentMatcherFunction, config = _a.config;
+            var queryDefinition = getQueryDefinition(query);
+            variables = assign$1({}, getDefaultValues(queryDefinition), variables);
+            var context = {
+                store: store,
+                dataIdFromObject: (config && config.dataIdFromObject) || null,
+                cacheRedirects: (config && config.cacheRedirects) || {},
+            };
+            var execResult = this.executeStoreQuery({
+                query: query,
+                rootValue: {
+                    type: 'id',
+                    id: rootId,
+                    generated: true,
+                    typename: 'Query',
+                },
+                contextValue: context,
+                variableValues: variables,
+                fragmentMatcher: fragmentMatcherFunction,
+            });
+            var hasMissingFields = execResult.missing && execResult.missing.length > 0;
+            if (hasMissingFields && !returnPartialData) {
+                execResult.missing.forEach(function (info) {
+                    if (info.tolerable)
+                        return;
+                    throw process.env.NODE_ENV === "production" ? new InvariantError(2) : new InvariantError("Can't find field " + info.fieldName + " on object " + JSON.stringify(info.object, null, 2) + ".");
+                });
+            }
+            if (previousResult) {
+                if (equal(previousResult, execResult.result)) {
+                    execResult.result = previousResult;
+                }
+            }
+            return {
+                result: execResult.result,
+                complete: !hasMissingFields,
+            };
+        };
+        StoreReader.prototype.executeStoreQuery = function (_a) {
+            var query = _a.query, rootValue = _a.rootValue, contextValue = _a.contextValue, variableValues = _a.variableValues, _b = _a.fragmentMatcher, fragmentMatcher = _b === void 0 ? defaultFragmentMatcher : _b;
+            var mainDefinition = getMainDefinition(query);
+            var fragments = getFragmentDefinitions(query);
+            var fragmentMap = createFragmentMap(fragments);
+            var execContext = {
+                query: query,
+                fragmentMap: fragmentMap,
+                contextValue: contextValue,
+                variableValues: variableValues,
+                fragmentMatcher: fragmentMatcher,
+            };
+            return this.executeSelectionSet({
+                selectionSet: mainDefinition.selectionSet,
+                rootValue: rootValue,
+                execContext: execContext,
+            });
+        };
+        StoreReader.prototype.executeSelectionSet = function (_a) {
+            var _this = this;
+            var selectionSet = _a.selectionSet, rootValue = _a.rootValue, execContext = _a.execContext;
+            var fragmentMap = execContext.fragmentMap, contextValue = execContext.contextValue, variables = execContext.variableValues;
+            var finalResult = { result: null };
+            var objectsToMerge = [];
+            var object = contextValue.store.get(rootValue.id);
+            var typename = (object && object.__typename) ||
+                (rootValue.id === 'ROOT_QUERY' && 'Query') ||
+                void 0;
+            function handleMissing(result) {
+                var _a;
+                if (result.missing) {
+                    finalResult.missing = finalResult.missing || [];
+                    (_a = finalResult.missing).push.apply(_a, result.missing);
+                }
+                return result.result;
+            }
+            selectionSet.selections.forEach(function (selection) {
+                var _a;
+                if (!shouldInclude(selection, variables)) {
+                    return;
+                }
+                if (isField(selection)) {
+                    var fieldResult = handleMissing(_this.executeField(object, typename, selection, execContext));
+                    if (typeof fieldResult !== 'undefined') {
+                        objectsToMerge.push((_a = {},
+                            _a[resultKeyNameFromField(selection)] = fieldResult,
+                            _a));
+                    }
+                }
+                else {
+                    var fragment = void 0;
+                    if (isInlineFragment(selection)) {
+                        fragment = selection;
+                    }
+                    else {
+                        fragment = fragmentMap[selection.name.value];
+                        if (!fragment) {
+                            throw process.env.NODE_ENV === "production" ? new InvariantError(3) : new InvariantError("No fragment named " + selection.name.value);
+                        }
+                    }
+                    var typeCondition = fragment.typeCondition.name.value;
+                    var match = execContext.fragmentMatcher(rootValue, typeCondition, contextValue);
+                    if (match) {
+                        var fragmentExecResult = _this.executeSelectionSet({
+                            selectionSet: fragment.selectionSet,
+                            rootValue: rootValue,
+                            execContext: execContext,
+                        });
+                        if (match === 'heuristic' && fragmentExecResult.missing) {
+                            fragmentExecResult = __assign({}, fragmentExecResult, { missing: fragmentExecResult.missing.map(function (info) {
+                                    return __assign({}, info, { tolerable: true });
+                                }) });
+                        }
+                        objectsToMerge.push(handleMissing(fragmentExecResult));
+                    }
+                }
+            });
+            finalResult.result = mergeDeepArray(objectsToMerge);
+            if (this.freezeResults && process.env.NODE_ENV !== 'production') {
+                Object.freeze(finalResult.result);
+            }
+            return finalResult;
+        };
+        StoreReader.prototype.executeField = function (object, typename, field, execContext) {
+            var variables = execContext.variableValues, contextValue = execContext.contextValue;
+            var fieldName = field.name.value;
+            var args = argumentsObjectFromField(field, variables);
+            var info = {
+                resultKey: resultKeyNameFromField(field),
+                directives: getDirectiveInfoFromField(field, variables),
+            };
+            var readStoreResult = readStoreResolver(object, typename, fieldName, args, contextValue, info);
+            if (Array.isArray(readStoreResult.result)) {
+                return this.combineExecResults(readStoreResult, this.executeSubSelectedArray({
+                    field: field,
+                    array: readStoreResult.result,
+                    execContext: execContext,
+                }));
+            }
+            if (!field.selectionSet) {
+                assertSelectionSetForIdValue(field, readStoreResult.result);
+                if (this.freezeResults && process.env.NODE_ENV !== 'production') {
+                    maybeDeepFreeze(readStoreResult);
+                }
+                return readStoreResult;
+            }
+            if (readStoreResult.result == null) {
+                return readStoreResult;
+            }
+            return this.combineExecResults(readStoreResult, this.executeSelectionSet({
+                selectionSet: field.selectionSet,
+                rootValue: readStoreResult.result,
+                execContext: execContext,
+            }));
+        };
+        StoreReader.prototype.combineExecResults = function () {
+            var execResults = [];
+            for (var _i = 0; _i < arguments.length; _i++) {
+                execResults[_i] = arguments[_i];
+            }
+            var missing = null;
+            execResults.forEach(function (execResult) {
+                if (execResult.missing) {
+                    missing = missing || [];
+                    missing.push.apply(missing, execResult.missing);
+                }
+            });
+            return {
+                result: execResults.pop().result,
+                missing: missing,
+            };
+        };
+        StoreReader.prototype.executeSubSelectedArray = function (_a) {
+            var _this = this;
+            var field = _a.field, array = _a.array, execContext = _a.execContext;
+            var missing = null;
+            function handleMissing(childResult) {
+                if (childResult.missing) {
+                    missing = missing || [];
+                    missing.push.apply(missing, childResult.missing);
+                }
+                return childResult.result;
+            }
+            array = array.map(function (item) {
+                if (item === null) {
+                    return null;
+                }
+                if (Array.isArray(item)) {
+                    return handleMissing(_this.executeSubSelectedArray({
+                        field: field,
+                        array: item,
+                        execContext: execContext,
+                    }));
+                }
+                if (field.selectionSet) {
+                    return handleMissing(_this.executeSelectionSet({
+                        selectionSet: field.selectionSet,
+                        rootValue: item,
+                        execContext: execContext,
+                    }));
+                }
+                assertSelectionSetForIdValue(field, item);
+                return item;
+            });
+            if (this.freezeResults && process.env.NODE_ENV !== 'production') {
+                Object.freeze(array);
+            }
+            return { result: array, missing: missing };
+        };
+        return StoreReader;
+    }());
+    function assertSelectionSetForIdValue(field, value) {
+        if (!field.selectionSet && isIdValue(value)) {
+            throw process.env.NODE_ENV === "production" ? new InvariantError(4) : new InvariantError("Missing selection set for object of type " + value.typename + " returned for query field " + field.name.value);
+        }
+    }
+    function defaultFragmentMatcher() {
+        return true;
+    }
+    function readStoreResolver(object, typename, fieldName, args, context, _a) {
+        var resultKey = _a.resultKey, directives = _a.directives;
+        var storeKeyName = fieldName;
+        if (args || directives) {
+            storeKeyName = getStoreKeyName(storeKeyName, args, directives);
+        }
+        var fieldValue = void 0;
+        if (object) {
+            fieldValue = object[storeKeyName];
+            if (typeof fieldValue === 'undefined' &&
+                context.cacheRedirects &&
+                typeof typename === 'string') {
+                var type = context.cacheRedirects[typename];
+                if (type) {
+                    var resolver = type[fieldName];
+                    if (resolver) {
+                        fieldValue = resolver(object, args, {
+                            getCacheKey: function (storeObj) {
+                                return toIdValue({
+                                    id: context.dataIdFromObject(storeObj),
+                                    typename: storeObj.__typename,
+                                });
+                            },
+                        });
+                    }
+                }
+            }
+        }
+        if (typeof fieldValue === 'undefined') {
+            return {
+                result: fieldValue,
+                missing: [{
+                        object: object,
+                        fieldName: storeKeyName,
+                        tolerable: false,
+                    }],
+            };
+        }
+        if (isJsonValue(fieldValue)) {
+            fieldValue = fieldValue.json;
+        }
+        return {
+            result: fieldValue,
+        };
+    }
+
+    var ObjectCache = (function () {
+        function ObjectCache(data) {
+            if (data === void 0) { data = Object.create(null); }
+            this.data = data;
+        }
+        ObjectCache.prototype.toObject = function () {
+            return this.data;
+        };
+        ObjectCache.prototype.get = function (dataId) {
+            return this.data[dataId];
+        };
+        ObjectCache.prototype.set = function (dataId, value) {
+            this.data[dataId] = value;
+        };
+        ObjectCache.prototype.delete = function (dataId) {
+            this.data[dataId] = void 0;
+        };
+        ObjectCache.prototype.clear = function () {
+            this.data = Object.create(null);
+        };
+        ObjectCache.prototype.replace = function (newData) {
+            this.data = newData || Object.create(null);
+        };
+        return ObjectCache;
+    }());
+
+    var WriteError = (function (_super) {
+        __extends(WriteError, _super);
+        function WriteError() {
+            var _this = _super !== null && _super.apply(this, arguments) || this;
+            _this.type = 'WriteError';
+            return _this;
+        }
+        return WriteError;
+    }(Error));
+    function enhanceErrorWithDocument(error, document) {
+        var enhancedError = new WriteError("Error writing result to store for query:\n " + JSON.stringify(document));
+        enhancedError.message += '\n' + error.message;
+        enhancedError.stack = error.stack;
+        return enhancedError;
+    }
+    var StoreWriter = (function () {
+        function StoreWriter() {
+        }
+        StoreWriter.prototype.writeQueryToStore = function (_a) {
+            var query = _a.query, result = _a.result, _b = _a.store, store = _b === void 0 ? defaultNormalizedCacheFactory() : _b, variables = _a.variables, dataIdFromObject = _a.dataIdFromObject, fragmentMatcherFunction = _a.fragmentMatcherFunction;
+            return this.writeResultToStore({
+                dataId: 'ROOT_QUERY',
+                result: result,
+                document: query,
+                store: store,
+                variables: variables,
+                dataIdFromObject: dataIdFromObject,
+                fragmentMatcherFunction: fragmentMatcherFunction,
+            });
+        };
+        StoreWriter.prototype.writeResultToStore = function (_a) {
+            var dataId = _a.dataId, result = _a.result, document = _a.document, _b = _a.store, store = _b === void 0 ? defaultNormalizedCacheFactory() : _b, variables = _a.variables, dataIdFromObject = _a.dataIdFromObject, fragmentMatcherFunction = _a.fragmentMatcherFunction;
+            var operationDefinition = getOperationDefinition(document);
+            try {
+                return this.writeSelectionSetToStore({
+                    result: result,
+                    dataId: dataId,
+                    selectionSet: operationDefinition.selectionSet,
+                    context: {
+                        store: store,
+                        processedData: {},
+                        variables: assign$1({}, getDefaultValues(operationDefinition), variables),
+                        dataIdFromObject: dataIdFromObject,
+                        fragmentMap: createFragmentMap(getFragmentDefinitions(document)),
+                        fragmentMatcherFunction: fragmentMatcherFunction,
+                    },
+                });
+            }
+            catch (e) {
+                throw enhanceErrorWithDocument(e, document);
+            }
+        };
+        StoreWriter.prototype.writeSelectionSetToStore = function (_a) {
+            var _this = this;
+            var result = _a.result, dataId = _a.dataId, selectionSet = _a.selectionSet, context = _a.context;
+            var variables = context.variables, store = context.store, fragmentMap = context.fragmentMap;
+            selectionSet.selections.forEach(function (selection) {
+                var _a;
+                if (!shouldInclude(selection, variables)) {
+                    return;
+                }
+                if (isField(selection)) {
+                    var resultFieldKey = resultKeyNameFromField(selection);
+                    var value = result[resultFieldKey];
+                    if (typeof value !== 'undefined') {
+                        _this.writeFieldToStore({
+                            dataId: dataId,
+                            value: value,
+                            field: selection,
+                            context: context,
+                        });
+                    }
+                    else {
+                        var isDefered = false;
+                        var isClient = false;
+                        if (selection.directives && selection.directives.length) {
+                            isDefered = selection.directives.some(function (directive) { return directive.name && directive.name.value === 'defer'; });
+                            isClient = selection.directives.some(function (directive) { return directive.name && directive.name.value === 'client'; });
+                        }
+                        if (!isDefered && !isClient && context.fragmentMatcherFunction) {
+                            process.env.NODE_ENV === "production" || invariant.warn("Missing field " + resultFieldKey + " in " + JSON.stringify(result, null, 2).substring(0, 100));
+                        }
+                    }
+                }
+                else {
+                    var fragment = void 0;
+                    if (isInlineFragment(selection)) {
+                        fragment = selection;
+                    }
+                    else {
+                        fragment = (fragmentMap || {})[selection.name.value];
+                        process.env.NODE_ENV === "production" ? invariant(fragment, 6) : invariant(fragment, "No fragment named " + selection.name.value + ".");
+                    }
+                    var matches = true;
+                    if (context.fragmentMatcherFunction && fragment.typeCondition) {
+                        var id = dataId || 'self';
+                        var idValue = toIdValue({ id: id, typename: undefined });
+                        var fakeContext = {
+                            store: new ObjectCache((_a = {}, _a[id] = result, _a)),
+                            cacheRedirects: {},
+                        };
+                        var match = context.fragmentMatcherFunction(idValue, fragment.typeCondition.name.value, fakeContext);
+                        if (!isProduction() && match === 'heuristic') {
+                            process.env.NODE_ENV === "production" || invariant.error('WARNING: heuristic fragment matching going on!');
+                        }
+                        matches = !!match;
+                    }
+                    if (matches) {
+                        _this.writeSelectionSetToStore({
+                            result: result,
+                            selectionSet: fragment.selectionSet,
+                            dataId: dataId,
+                            context: context,
+                        });
+                    }
+                }
+            });
+            return store;
+        };
+        StoreWriter.prototype.writeFieldToStore = function (_a) {
+            var _b;
+            var field = _a.field, value = _a.value, dataId = _a.dataId, context = _a.context;
+            var variables = context.variables, dataIdFromObject = context.dataIdFromObject, store = context.store;
+            var storeValue;
+            var storeObject;
+            var storeFieldName = storeKeyNameFromField(field, variables);
+            if (!field.selectionSet || value === null) {
+                storeValue =
+                    value != null && typeof value === 'object'
+                        ?
+                            { type: 'json', json: value }
+                        :
+                            value;
+            }
+            else if (Array.isArray(value)) {
+                var generatedId = dataId + "." + storeFieldName;
+                storeValue = this.processArrayValue(value, generatedId, field.selectionSet, context);
+            }
+            else {
+                var valueDataId = dataId + "." + storeFieldName;
+                var generated = true;
+                if (!isGeneratedId(valueDataId)) {
+                    valueDataId = '$' + valueDataId;
+                }
+                if (dataIdFromObject) {
+                    var semanticId = dataIdFromObject(value);
+                    process.env.NODE_ENV === "production" ? invariant(!semanticId || !isGeneratedId(semanticId), 7) : invariant(!semanticId || !isGeneratedId(semanticId), 'IDs returned by dataIdFromObject cannot begin with the "$" character.');
+                    if (semanticId ||
+                        (typeof semanticId === 'number' && semanticId === 0)) {
+                        valueDataId = semanticId;
+                        generated = false;
+                    }
+                }
+                if (!isDataProcessed(valueDataId, field, context.processedData)) {
+                    this.writeSelectionSetToStore({
+                        dataId: valueDataId,
+                        result: value,
+                        selectionSet: field.selectionSet,
+                        context: context,
+                    });
+                }
+                var typename = value.__typename;
+                storeValue = toIdValue({ id: valueDataId, typename: typename }, generated);
+                storeObject = store.get(dataId);
+                var escapedId = storeObject && storeObject[storeFieldName];
+                if (escapedId !== storeValue && isIdValue(escapedId)) {
+                    var hadTypename = escapedId.typename !== undefined;
+                    var hasTypename = typename !== undefined;
+                    var typenameChanged = hadTypename && hasTypename && escapedId.typename !== typename;
+                    process.env.NODE_ENV === "production" ? invariant(!generated || escapedId.generated || typenameChanged, 8) : invariant(!generated || escapedId.generated || typenameChanged, "Store error: the application attempted to write an object with no provided id but the store already contains an id of " + escapedId.id + " for this object. The selectionSet that was trying to be written is:\n" + JSON.stringify(field));
+                    process.env.NODE_ENV === "production" ? invariant(!hadTypename || hasTypename, 9) : invariant(!hadTypename || hasTypename, "Store error: the application attempted to write an object with no provided typename but the store already contains an object with typename of " + escapedId.typename + " for the object of id " + escapedId.id + ". The selectionSet that was trying to be written is:\n" + JSON.stringify(field));
+                    if (escapedId.generated) {
+                        if (typenameChanged) {
+                            if (!generated) {
+                                store.delete(escapedId.id);
+                            }
+                        }
+                        else {
+                            mergeWithGenerated(escapedId.id, storeValue.id, store);
+                        }
+                    }
+                }
+            }
+            storeObject = store.get(dataId);
+            if (!storeObject || !equal(storeValue, storeObject[storeFieldName])) {
+                store.set(dataId, __assign({}, storeObject, (_b = {}, _b[storeFieldName] = storeValue, _b)));
+            }
+        };
+        StoreWriter.prototype.processArrayValue = function (value, generatedId, selectionSet, context) {
+            var _this = this;
+            return value.map(function (item, index) {
+                if (item === null) {
+                    return null;
+                }
+                var itemDataId = generatedId + "." + index;
+                if (Array.isArray(item)) {
+                    return _this.processArrayValue(item, itemDataId, selectionSet, context);
+                }
+                var generated = true;
+                if (context.dataIdFromObject) {
+                    var semanticId = context.dataIdFromObject(item);
+                    if (semanticId) {
+                        itemDataId = semanticId;
+                        generated = false;
+                    }
+                }
+                if (!isDataProcessed(itemDataId, selectionSet, context.processedData)) {
+                    _this.writeSelectionSetToStore({
+                        dataId: itemDataId,
+                        result: item,
+                        selectionSet: selectionSet,
+                        context: context,
+                    });
+                }
+                return toIdValue({ id: itemDataId, typename: item.__typename }, generated);
+            });
+        };
+        return StoreWriter;
+    }());
+    function isGeneratedId(id) {
+        return id[0] === '$';
+    }
+    function mergeWithGenerated(generatedKey, realKey, cache) {
+        if (generatedKey === realKey) {
+            return false;
+        }
+        var generated = cache.get(generatedKey);
+        var real = cache.get(realKey);
+        var madeChanges = false;
+        Object.keys(generated).forEach(function (key) {
+            var value = generated[key];
+            var realValue = real[key];
+            if (isIdValue(value) &&
+                isGeneratedId(value.id) &&
+                isIdValue(realValue) &&
+                !equal(value, realValue) &&
+                mergeWithGenerated(value.id, realValue.id, cache)) {
+                madeChanges = true;
+            }
+        });
+        cache.delete(generatedKey);
+        var newRealValue = __assign({}, generated, real);
+        if (equal(newRealValue, real)) {
+            return madeChanges;
+        }
+        cache.set(realKey, newRealValue);
+        return true;
+    }
+    function isDataProcessed(dataId, field, processedData) {
+        if (!processedData) {
+            return false;
+        }
+        if (processedData[dataId]) {
+            if (processedData[dataId].indexOf(field) >= 0) {
+                return true;
+            }
+            else {
+                processedData[dataId].push(field);
+            }
+        }
+        else {
+            processedData[dataId] = [field];
+        }
+        return false;
+    }
+
+    var defaultConfig = {
+        fragmentMatcher: new HeuristicFragmentMatcher(),
+        dataIdFromObject: defaultDataIdFromObject,
+        addTypename: true,
+        resultCaching: true,
+        freezeResults: false,
+    };
+    function defaultDataIdFromObject(result) {
+        if (result.__typename) {
+            if (result.id !== undefined) {
+                return result.__typename + ":" + result.id;
+            }
+            if (result._id !== undefined) {
+                return result.__typename + ":" + result._id;
+            }
+        }
+        return null;
+    }
+    var hasOwn$1 = Object.prototype.hasOwnProperty;
+    var OptimisticCacheLayer = (function (_super) {
+        __extends(OptimisticCacheLayer, _super);
+        function OptimisticCacheLayer(optimisticId, parent, transaction) {
+            var _this = _super.call(this, Object.create(null)) || this;
+            _this.optimisticId = optimisticId;
+            _this.parent = parent;
+            _this.transaction = transaction;
+            return _this;
+        }
+        OptimisticCacheLayer.prototype.toObject = function () {
+            return __assign({}, this.parent.toObject(), this.data);
+        };
+        OptimisticCacheLayer.prototype.get = function (dataId) {
+            return hasOwn$1.call(this.data, dataId)
+                ? this.data[dataId]
+                : this.parent.get(dataId);
+        };
+        return OptimisticCacheLayer;
+    }(ObjectCache));
+    var InMemoryCache = (function (_super) {
+        __extends(InMemoryCache, _super);
+        function InMemoryCache(config) {
+            if (config === void 0) { config = {}; }
+            var _this = _super.call(this) || this;
+            _this.watches = new Set();
+            _this.typenameDocumentCache = new Map();
+            _this.cacheKeyRoot = new KeyTrie(canUseWeakMap);
+            _this.silenceBroadcast = false;
+            _this.config = __assign({}, defaultConfig, config);
+            if (_this.config.customResolvers) {
+                process.env.NODE_ENV === "production" || invariant.warn('customResolvers have been renamed to cacheRedirects. Please update your config as we will be deprecating customResolvers in the next major version.');
+                _this.config.cacheRedirects = _this.config.customResolvers;
+            }
+            if (_this.config.cacheResolvers) {
+                process.env.NODE_ENV === "production" || invariant.warn('cacheResolvers have been renamed to cacheRedirects. Please update your config as we will be deprecating cacheResolvers in the next major version.');
+                _this.config.cacheRedirects = _this.config.cacheResolvers;
+            }
+            _this.addTypename = _this.config.addTypename;
+            _this.data = _this.config.resultCaching
+                ? new DepTrackingCache()
+                : new ObjectCache();
+            _this.optimisticData = _this.data;
+            _this.storeWriter = new StoreWriter();
+            _this.storeReader = new StoreReader({
+                cacheKeyRoot: _this.cacheKeyRoot,
+                freezeResults: config.freezeResults,
+            });
+            var cache = _this;
+            var maybeBroadcastWatch = cache.maybeBroadcastWatch;
+            _this.maybeBroadcastWatch = wrap(function (c) {
+                return maybeBroadcastWatch.call(_this, c);
+            }, {
+                makeCacheKey: function (c) {
+                    if (c.optimistic) {
+                        return;
+                    }
+                    if (c.previousResult) {
+                        return;
+                    }
+                    if (cache.data instanceof DepTrackingCache) {
+                        return cache.cacheKeyRoot.lookup(c.query, JSON.stringify(c.variables));
+                    }
+                }
+            });
+            return _this;
+        }
+        InMemoryCache.prototype.restore = function (data) {
+            if (data)
+                this.data.replace(data);
+            return this;
+        };
+        InMemoryCache.prototype.extract = function (optimistic) {
+            if (optimistic === void 0) { optimistic = false; }
+            return (optimistic ? this.optimisticData : this.data).toObject();
+        };
+        InMemoryCache.prototype.read = function (options) {
+            if (typeof options.rootId === 'string' &&
+                typeof this.data.get(options.rootId) === 'undefined') {
+                return null;
+            }
+            return this.storeReader.readQueryFromStore({
+                store: options.optimistic ? this.optimisticData : this.data,
+                query: this.transformDocument(options.query),
+                variables: options.variables,
+                rootId: options.rootId,
+                fragmentMatcherFunction: this.config.fragmentMatcher.match,
+                previousResult: options.previousResult,
+                config: this.config,
+            });
+        };
+        InMemoryCache.prototype.write = function (write) {
+            this.storeWriter.writeResultToStore({
+                dataId: write.dataId,
+                result: write.result,
+                variables: write.variables,
+                document: this.transformDocument(write.query),
+                store: this.data,
+                dataIdFromObject: this.config.dataIdFromObject,
+                fragmentMatcherFunction: this.config.fragmentMatcher.match,
+            });
+            this.broadcastWatches();
+        };
+        InMemoryCache.prototype.diff = function (query) {
+            return this.storeReader.diffQueryAgainstStore({
+                store: query.optimistic ? this.optimisticData : this.data,
+                query: this.transformDocument(query.query),
+                variables: query.variables,
+                returnPartialData: query.returnPartialData,
+                previousResult: query.previousResult,
+                fragmentMatcherFunction: this.config.fragmentMatcher.match,
+                config: this.config,
+            });
+        };
+        InMemoryCache.prototype.watch = function (watch) {
+            var _this = this;
+            this.watches.add(watch);
+            return function () {
+                _this.watches.delete(watch);
+            };
+        };
+        InMemoryCache.prototype.evict = function (query) {
+            throw process.env.NODE_ENV === "production" ? new InvariantError(1) : new InvariantError("eviction is not implemented on InMemory Cache");
+        };
+        InMemoryCache.prototype.reset = function () {
+            this.data.clear();
+            this.broadcastWatches();
+            return Promise.resolve();
+        };
+        InMemoryCache.prototype.removeOptimistic = function (idToRemove) {
+            var toReapply = [];
+            var removedCount = 0;
+            var layer = this.optimisticData;
+            while (layer instanceof OptimisticCacheLayer) {
+                if (layer.optimisticId === idToRemove) {
+                    ++removedCount;
+                }
+                else {
+                    toReapply.push(layer);
+                }
+                layer = layer.parent;
+            }
+            if (removedCount > 0) {
+                this.optimisticData = layer;
+                while (toReapply.length > 0) {
+                    var layer_1 = toReapply.pop();
+                    this.performTransaction(layer_1.transaction, layer_1.optimisticId);
+                }
+                this.broadcastWatches();
+            }
+        };
+        InMemoryCache.prototype.performTransaction = function (transaction, optimisticId) {
+            var _a = this, data = _a.data, silenceBroadcast = _a.silenceBroadcast;
+            this.silenceBroadcast = true;
+            if (typeof optimisticId === 'string') {
+                this.data = this.optimisticData = new OptimisticCacheLayer(optimisticId, this.optimisticData, transaction);
+            }
+            try {
+                transaction(this);
+            }
+            finally {
+                this.silenceBroadcast = silenceBroadcast;
+                this.data = data;
+            }
+            this.broadcastWatches();
+        };
+        InMemoryCache.prototype.recordOptimisticTransaction = function (transaction, id) {
+            return this.performTransaction(transaction, id);
+        };
+        InMemoryCache.prototype.transformDocument = function (document) {
+            if (this.addTypename) {
+                var result = this.typenameDocumentCache.get(document);
+                if (!result) {
+                    result = addTypenameToDocument(document);
+                    this.typenameDocumentCache.set(document, result);
+                    this.typenameDocumentCache.set(result, result);
+                }
+                return result;
+            }
+            return document;
+        };
+        InMemoryCache.prototype.broadcastWatches = function () {
+            var _this = this;
+            if (!this.silenceBroadcast) {
+                this.watches.forEach(function (c) { return _this.maybeBroadcastWatch(c); });
+            }
+        };
+        InMemoryCache.prototype.maybeBroadcastWatch = function (c) {
+            c.callback(this.diff({
+                query: c.query,
+                variables: c.variables,
+                previousResult: c.previousResult && c.previousResult(),
+                optimistic: c.optimistic,
+            }));
+        };
+        return InMemoryCache;
+    }(ApolloCache));
+    //# sourceMappingURL=bundle.esm.js.map
+
+    /**
+     * Produces the value of a block string from its parsed raw value, similar to
+     * CoffeeScript's block string, Python's docstring trim or Ruby's strip_heredoc.
+     *
+     * This implements the GraphQL spec's BlockStringValue() static algorithm.
+     */
+    function dedentBlockStringValue(rawString) {
+      // Expand a block string's raw value into independent lines.
+      var lines = rawString.split(/\r\n|[\n\r]/g); // Remove common indentation from all lines but first.
+
+      var commonIndent = getBlockStringIndentation(lines);
+
+      if (commonIndent !== 0) {
+        for (var i = 1; i < lines.length; i++) {
+          lines[i] = lines[i].slice(commonIndent);
+        }
+      } // Remove leading and trailing blank lines.
+
+
+      while (lines.length > 0 && isBlank(lines[0])) {
+        lines.shift();
+      }
+
+      while (lines.length > 0 && isBlank(lines[lines.length - 1])) {
+        lines.pop();
+      } // Return a string of the lines joined with U+000A.
+
+
+      return lines.join('\n');
+    } // @internal
+
+    function getBlockStringIndentation(lines) {
+      var commonIndent = null;
+
+      for (var i = 1; i < lines.length; i++) {
+        var line = lines[i];
+        var indent = leadingWhitespace(line);
+
+        if (indent === line.length) {
+          continue; // skip empty lines
+        }
+
+        if (commonIndent === null || indent < commonIndent) {
+          commonIndent = indent;
+
+          if (commonIndent === 0) {
+            break;
+          }
+        }
+      }
+
+      return commonIndent === null ? 0 : commonIndent;
+    }
+
+    function leadingWhitespace(str) {
+      var i = 0;
+
+      while (i < str.length && (str[i] === ' ' || str[i] === '\t')) {
+        i++;
+      }
+
+      return i;
+    }
+
+    function isBlank(str) {
+      return leadingWhitespace(str) === str.length;
+    }
+    /**
+     * Print a block string in the indented block form by adding a leading and
+     * trailing blank line. However, if a block string starts with whitespace and is
+     * a single-line, adding a leading blank line would strip that whitespace.
+     */
+
+
+    function printBlockString(value) {
+      var indentation = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : '';
+      var preferMultipleLines = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : false;
+      var isSingleLine = value.indexOf('\n') === -1;
+      var hasLeadingSpace = value[0] === ' ' || value[0] === '\t';
+      var hasTrailingQuote = value[value.length - 1] === '"';
+      var printAsMultipleLines = !isSingleLine || hasTrailingQuote || preferMultipleLines;
+      var result = ''; // Format a multi-line block quote to account for leading space.
+
+      if (printAsMultipleLines && !(isSingleLine && hasLeadingSpace)) {
+        result += '\n' + indentation;
+      }
+
+      result += indentation ? value.replace(/\n/g, '\n' + indentation) : value;
+
+      if (printAsMultipleLines) {
+        result += '\n';
+      }
+
+      return '"""' + result.replace(/"""/g, '\\"""') + '"""';
+    }
+
+    /**
+     * Converts an AST into a string, using one set of reasonable
+     * formatting rules.
+     */
+
+    function print(ast) {
+      return visit(ast, {
+        leave: printDocASTReducer
+      });
+    } // TODO: provide better type coverage in future
+
+    var printDocASTReducer = {
+      Name: function Name(node) {
+        return node.value;
+      },
+      Variable: function Variable(node) {
+        return '$' + node.name;
+      },
+      // Document
+      Document: function Document(node) {
+        return join(node.definitions, '\n\n') + '\n';
+      },
+      OperationDefinition: function OperationDefinition(node) {
+        var op = node.operation;
+        var name = node.name;
+        var varDefs = wrap$2('(', join(node.variableDefinitions, ', '), ')');
+        var directives = join(node.directives, ' ');
+        var selectionSet = node.selectionSet; // Anonymous queries with no directives or variable definitions can use
+        // the query short form.
+
+        return !name && !directives && !varDefs && op === 'query' ? selectionSet : join([op, join([name, varDefs]), directives, selectionSet], ' ');
+      },
+      VariableDefinition: function VariableDefinition(_ref) {
+        var variable = _ref.variable,
+            type = _ref.type,
+            defaultValue = _ref.defaultValue,
+            directives = _ref.directives;
+        return variable + ': ' + type + wrap$2(' = ', defaultValue) + wrap$2(' ', join(directives, ' '));
+      },
+      SelectionSet: function SelectionSet(_ref2) {
+        var selections = _ref2.selections;
+        return block(selections);
+      },
+      Field: function Field(_ref3) {
+        var alias = _ref3.alias,
+            name = _ref3.name,
+            args = _ref3.arguments,
+            directives = _ref3.directives,
+            selectionSet = _ref3.selectionSet;
+        return join([wrap$2('', alias, ': ') + name + wrap$2('(', join(args, ', '), ')'), join(directives, ' '), selectionSet], ' ');
+      },
+      Argument: function Argument(_ref4) {
+        var name = _ref4.name,
+            value = _ref4.value;
+        return name + ': ' + value;
+      },
+      // Fragments
+      FragmentSpread: function FragmentSpread(_ref5) {
+        var name = _ref5.name,
+            directives = _ref5.directives;
+        return '...' + name + wrap$2(' ', join(directives, ' '));
+      },
+      InlineFragment: function InlineFragment(_ref6) {
+        var typeCondition = _ref6.typeCondition,
+            directives = _ref6.directives,
+            selectionSet = _ref6.selectionSet;
+        return join(['...', wrap$2('on ', typeCondition), join(directives, ' '), selectionSet], ' ');
+      },
+      FragmentDefinition: function FragmentDefinition(_ref7) {
+        var name = _ref7.name,
+            typeCondition = _ref7.typeCondition,
+            variableDefinitions = _ref7.variableDefinitions,
+            directives = _ref7.directives,
+            selectionSet = _ref7.selectionSet;
+        return (// Note: fragment variable definitions are experimental and may be changed
+          // or removed in the future.
+          "fragment ".concat(name).concat(wrap$2('(', join(variableDefinitions, ', '), ')'), " ") + "on ".concat(typeCondition, " ").concat(wrap$2('', join(directives, ' '), ' ')) + selectionSet
+        );
+      },
+      // Value
+      IntValue: function IntValue(_ref8) {
+        var value = _ref8.value;
+        return value;
+      },
+      FloatValue: function FloatValue(_ref9) {
+        var value = _ref9.value;
+        return value;
+      },
+      StringValue: function StringValue(_ref10, key) {
+        var value = _ref10.value,
+            isBlockString = _ref10.block;
+        return isBlockString ? printBlockString(value, key === 'description' ? '' : '  ') : JSON.stringify(value);
+      },
+      BooleanValue: function BooleanValue(_ref11) {
+        var value = _ref11.value;
+        return value ? 'true' : 'false';
+      },
+      NullValue: function NullValue() {
+        return 'null';
+      },
+      EnumValue: function EnumValue(_ref12) {
+        var value = _ref12.value;
+        return value;
+      },
+      ListValue: function ListValue(_ref13) {
+        var values = _ref13.values;
+        return '[' + join(values, ', ') + ']';
+      },
+      ObjectValue: function ObjectValue(_ref14) {
+        var fields = _ref14.fields;
+        return '{' + join(fields, ', ') + '}';
+      },
+      ObjectField: function ObjectField(_ref15) {
+        var name = _ref15.name,
+            value = _ref15.value;
+        return name + ': ' + value;
+      },
+      // Directive
+      Directive: function Directive(_ref16) {
+        var name = _ref16.name,
+            args = _ref16.arguments;
+        return '@' + name + wrap$2('(', join(args, ', '), ')');
+      },
+      // Type
+      NamedType: function NamedType(_ref17) {
+        var name = _ref17.name;
+        return name;
+      },
+      ListType: function ListType(_ref18) {
+        var type = _ref18.type;
+        return '[' + type + ']';
+      },
+      NonNullType: function NonNullType(_ref19) {
+        var type = _ref19.type;
+        return type + '!';
+      },
+      // Type System Definitions
+      SchemaDefinition: function SchemaDefinition(_ref20) {
+        var directives = _ref20.directives,
+            operationTypes = _ref20.operationTypes;
+        return join(['schema', join(directives, ' '), block(operationTypes)], ' ');
+      },
+      OperationTypeDefinition: function OperationTypeDefinition(_ref21) {
+        var operation = _ref21.operation,
+            type = _ref21.type;
+        return operation + ': ' + type;
+      },
+      ScalarTypeDefinition: addDescription(function (_ref22) {
+        var name = _ref22.name,
+            directives = _ref22.directives;
+        return join(['scalar', name, join(directives, ' ')], ' ');
+      }),
+      ObjectTypeDefinition: addDescription(function (_ref23) {
+        var name = _ref23.name,
+            interfaces = _ref23.interfaces,
+            directives = _ref23.directives,
+            fields = _ref23.fields;
+        return join(['type', name, wrap$2('implements ', join(interfaces, ' & ')), join(directives, ' '), block(fields)], ' ');
+      }),
+      FieldDefinition: addDescription(function (_ref24) {
+        var name = _ref24.name,
+            args = _ref24.arguments,
+            type = _ref24.type,
+            directives = _ref24.directives;
+        return name + (hasMultilineItems(args) ? wrap$2('(\n', indent(join(args, '\n')), '\n)') : wrap$2('(', join(args, ', '), ')')) + ': ' + type + wrap$2(' ', join(directives, ' '));
+      }),
+      InputValueDefinition: addDescription(function (_ref25) {
+        var name = _ref25.name,
+            type = _ref25.type,
+            defaultValue = _ref25.defaultValue,
+            directives = _ref25.directives;
+        return join([name + ': ' + type, wrap$2('= ', defaultValue), join(directives, ' ')], ' ');
+      }),
+      InterfaceTypeDefinition: addDescription(function (_ref26) {
+        var name = _ref26.name,
+            directives = _ref26.directives,
+            fields = _ref26.fields;
+        return join(['interface', name, join(directives, ' '), block(fields)], ' ');
+      }),
+      UnionTypeDefinition: addDescription(function (_ref27) {
+        var name = _ref27.name,
+            directives = _ref27.directives,
+            types = _ref27.types;
+        return join(['union', name, join(directives, ' '), types && types.length !== 0 ? '= ' + join(types, ' | ') : ''], ' ');
+      }),
+      EnumTypeDefinition: addDescription(function (_ref28) {
+        var name = _ref28.name,
+            directives = _ref28.directives,
+            values = _ref28.values;
+        return join(['enum', name, join(directives, ' '), block(values)], ' ');
+      }),
+      EnumValueDefinition: addDescription(function (_ref29) {
+        var name = _ref29.name,
+            directives = _ref29.directives;
+        return join([name, join(directives, ' ')], ' ');
+      }),
+      InputObjectTypeDefinition: addDescription(function (_ref30) {
+        var name = _ref30.name,
+            directives = _ref30.directives,
+            fields = _ref30.fields;
+        return join(['input', name, join(directives, ' '), block(fields)], ' ');
+      }),
+      DirectiveDefinition: addDescription(function (_ref31) {
+        var name = _ref31.name,
+            args = _ref31.arguments,
+            repeatable = _ref31.repeatable,
+            locations = _ref31.locations;
+        return 'directive @' + name + (hasMultilineItems(args) ? wrap$2('(\n', indent(join(args, '\n')), '\n)') : wrap$2('(', join(args, ', '), ')')) + (repeatable ? ' repeatable' : '') + ' on ' + join(locations, ' | ');
+      }),
+      SchemaExtension: function SchemaExtension(_ref32) {
+        var directives = _ref32.directives,
+            operationTypes = _ref32.operationTypes;
+        return join(['extend schema', join(directives, ' '), block(operationTypes)], ' ');
+      },
+      ScalarTypeExtension: function ScalarTypeExtension(_ref33) {
+        var name = _ref33.name,
+            directives = _ref33.directives;
+        return join(['extend scalar', name, join(directives, ' ')], ' ');
+      },
+      ObjectTypeExtension: function ObjectTypeExtension(_ref34) {
+        var name = _ref34.name,
+            interfaces = _ref34.interfaces,
+            directives = _ref34.directives,
+            fields = _ref34.fields;
+        return join(['extend type', name, wrap$2('implements ', join(interfaces, ' & ')), join(directives, ' '), block(fields)], ' ');
+      },
+      InterfaceTypeExtension: function InterfaceTypeExtension(_ref35) {
+        var name = _ref35.name,
+            directives = _ref35.directives,
+            fields = _ref35.fields;
+        return join(['extend interface', name, join(directives, ' '), block(fields)], ' ');
+      },
+      UnionTypeExtension: function UnionTypeExtension(_ref36) {
+        var name = _ref36.name,
+            directives = _ref36.directives,
+            types = _ref36.types;
+        return join(['extend union', name, join(directives, ' '), types && types.length !== 0 ? '= ' + join(types, ' | ') : ''], ' ');
+      },
+      EnumTypeExtension: function EnumTypeExtension(_ref37) {
+        var name = _ref37.name,
+            directives = _ref37.directives,
+            values = _ref37.values;
+        return join(['extend enum', name, join(directives, ' '), block(values)], ' ');
+      },
+      InputObjectTypeExtension: function InputObjectTypeExtension(_ref38) {
+        var name = _ref38.name,
+            directives = _ref38.directives,
+            fields = _ref38.fields;
+        return join(['extend input', name, join(directives, ' '), block(fields)], ' ');
+      }
+    };
+
+    function addDescription(cb) {
+      return function (node) {
+        return join([node.description, cb(node)], '\n');
+      };
+    }
+    /**
+     * Given maybeArray, print an empty string if it is null or empty, otherwise
+     * print all items together separated by separator if provided
+     */
+
+
+    function join(maybeArray, separator) {
+      return maybeArray ? maybeArray.filter(function (x) {
+        return x;
+      }).join(separator || '') : '';
+    }
+    /**
+     * Given array, print each item on its own line, wrapped in an
+     * indented "{ }" block.
+     */
+
+
+    function block(array) {
+      return array && array.length !== 0 ? '{\n' + indent(join(array, '\n')) + '\n}' : '';
+    }
+    /**
+     * If maybeString is not null or empty, then wrap with start and end, otherwise
+     * print an empty string.
+     */
+
+
+    function wrap$2(start, maybeString, end) {
+      return maybeString ? start + maybeString + (end || '') : '';
+    }
+
+    function indent(maybeString) {
+      return maybeString && '  ' + maybeString.replace(/\n/g, '\n  ');
+    }
+
+    function isMultiline(string) {
+      return string.indexOf('\n') !== -1;
+    }
+
+    function hasMultilineItems(maybeArray) {
+      return maybeArray && maybeArray.some(isMultiline);
+    }
+
+    var defaultHttpOptions = {
+        includeQuery: true,
+        includeExtensions: false,
+    };
+    var defaultHeaders = {
+        accept: '*/*',
+        'content-type': 'application/json',
+    };
+    var defaultOptions = {
+        method: 'POST',
+    };
+    var fallbackHttpConfig = {
+        http: defaultHttpOptions,
+        headers: defaultHeaders,
+        options: defaultOptions,
+    };
+    var throwServerError = function (response, result, message) {
+        var error = new Error(message);
+        error.name = 'ServerError';
+        error.response = response;
+        error.statusCode = response.status;
+        error.result = result;
+        throw error;
+    };
+    var parseAndCheckHttpResponse = function (operations) { return function (response) {
+        return (response
+            .text()
+            .then(function (bodyText) {
+            try {
+                return JSON.parse(bodyText);
+            }
+            catch (err) {
+                var parseError = err;
+                parseError.name = 'ServerParseError';
+                parseError.response = response;
+                parseError.statusCode = response.status;
+                parseError.bodyText = bodyText;
+                return Promise.reject(parseError);
+            }
+        })
+            .then(function (result) {
+            if (response.status >= 300) {
+                throwServerError(response, result, "Response not successful: Received status code " + response.status);
+            }
+            if (!Array.isArray(result) &&
+                !result.hasOwnProperty('data') &&
+                !result.hasOwnProperty('errors')) {
+                throwServerError(response, result, "Server response was missing for query '" + (Array.isArray(operations)
+                    ? operations.map(function (op) { return op.operationName; })
+                    : operations.operationName) + "'.");
+            }
+            return result;
+        }));
+    }; };
+    var checkFetcher = function (fetcher) {
+        if (!fetcher && typeof fetch === 'undefined') {
+            var library = 'unfetch';
+            if (typeof window === 'undefined')
+                library = 'node-fetch';
+            throw process.env.NODE_ENV === "production" ? new InvariantError(1) : new InvariantError("\nfetch is not found globally and no fetcher passed, to fix pass a fetch for\nyour environment like https://www.npmjs.com/package/" + library + ".\n\nFor example:\nimport fetch from '" + library + "';\nimport { createHttpLink } from 'apollo-link-http';\n\nconst link = createHttpLink({ uri: '/graphql', fetch: fetch });");
+        }
+    };
+    var createSignalIfSupported = function () {
+        if (typeof AbortController === 'undefined')
+            return { controller: false, signal: false };
+        var controller = new AbortController();
+        var signal = controller.signal;
+        return { controller: controller, signal: signal };
+    };
+    var selectHttpOptionsAndBody = function (operation, fallbackConfig) {
+        var configs = [];
+        for (var _i = 2; _i < arguments.length; _i++) {
+            configs[_i - 2] = arguments[_i];
+        }
+        var options = __assign({}, fallbackConfig.options, { headers: fallbackConfig.headers, credentials: fallbackConfig.credentials });
+        var http = fallbackConfig.http;
+        configs.forEach(function (config) {
+            options = __assign({}, options, config.options, { headers: __assign({}, options.headers, config.headers) });
+            if (config.credentials)
+                options.credentials = config.credentials;
+            http = __assign({}, http, config.http);
+        });
+        var operationName = operation.operationName, extensions = operation.extensions, variables = operation.variables, query = operation.query;
+        var body = { operationName: operationName, variables: variables };
+        if (http.includeExtensions)
+            body.extensions = extensions;
+        if (http.includeQuery)
+            body.query = print(query);
+        return {
+            options: options,
+            body: body,
+        };
+    };
+    var serializeFetchParameter = function (p, label) {
+        var serialized;
+        try {
+            serialized = JSON.stringify(p);
+        }
+        catch (e) {
+            var parseError = process.env.NODE_ENV === "production" ? new InvariantError(2) : new InvariantError("Network request failed. " + label + " is not serializable: " + e.message);
+            parseError.parseError = e;
+            throw parseError;
+        }
+        return serialized;
+    };
+    var selectURI = function (operation, fallbackURI) {
+        var context = operation.getContext();
+        var contextURI = context.uri;
+        if (contextURI) {
+            return contextURI;
+        }
+        else if (typeof fallbackURI === 'function') {
+            return fallbackURI(operation);
+        }
+        else {
+            return fallbackURI || '/graphql';
+        }
+    };
+    //# sourceMappingURL=bundle.esm.js.map
+
+    var createHttpLink = function (linkOptions) {
+        if (linkOptions === void 0) { linkOptions = {}; }
+        var _a = linkOptions.uri, uri = _a === void 0 ? '/graphql' : _a, fetcher = linkOptions.fetch, includeExtensions = linkOptions.includeExtensions, useGETForQueries = linkOptions.useGETForQueries, requestOptions = __rest(linkOptions, ["uri", "fetch", "includeExtensions", "useGETForQueries"]);
+        checkFetcher(fetcher);
+        if (!fetcher) {
+            fetcher = fetch;
+        }
+        var linkConfig = {
+            http: { includeExtensions: includeExtensions },
+            options: requestOptions.fetchOptions,
+            credentials: requestOptions.credentials,
+            headers: requestOptions.headers,
+        };
+        return new ApolloLink(function (operation) {
+            var chosenURI = selectURI(operation, uri);
+            var context = operation.getContext();
+            var clientAwarenessHeaders = {};
+            if (context.clientAwareness) {
+                var _a = context.clientAwareness, name_1 = _a.name, version = _a.version;
+                if (name_1) {
+                    clientAwarenessHeaders['apollographql-client-name'] = name_1;
+                }
+                if (version) {
+                    clientAwarenessHeaders['apollographql-client-version'] = version;
+                }
+            }
+            var contextHeaders = __assign({}, clientAwarenessHeaders, context.headers);
+            var contextConfig = {
+                http: context.http,
+                options: context.fetchOptions,
+                credentials: context.credentials,
+                headers: contextHeaders,
+            };
+            var _b = selectHttpOptionsAndBody(operation, fallbackHttpConfig, linkConfig, contextConfig), options = _b.options, body = _b.body;
+            var controller;
+            if (!options.signal) {
+                var _c = createSignalIfSupported(), _controller = _c.controller, signal = _c.signal;
+                controller = _controller;
+                if (controller)
+                    options.signal = signal;
+            }
+            var definitionIsMutation = function (d) {
+                return d.kind === 'OperationDefinition' && d.operation === 'mutation';
+            };
+            if (useGETForQueries &&
+                !operation.query.definitions.some(definitionIsMutation)) {
+                options.method = 'GET';
+            }
+            if (options.method === 'GET') {
+                var _d = rewriteURIForGET(chosenURI, body), newURI = _d.newURI, parseError = _d.parseError;
+                if (parseError) {
+                    return fromError(parseError);
+                }
+                chosenURI = newURI;
+            }
+            else {
+                try {
+                    options.body = serializeFetchParameter(body, 'Payload');
+                }
+                catch (parseError) {
+                    return fromError(parseError);
+                }
+            }
+            return new Observable(function (observer) {
+                fetcher(chosenURI, options)
+                    .then(function (response) {
+                    operation.setContext({ response: response });
+                    return response;
+                })
+                    .then(parseAndCheckHttpResponse(operation))
+                    .then(function (result) {
+                    observer.next(result);
+                    observer.complete();
+                    return result;
+                })
+                    .catch(function (err) {
+                    if (err.name === 'AbortError')
+                        return;
+                    if (err.result && err.result.errors && err.result.data) {
+                        observer.next(err.result);
+                    }
+                    observer.error(err);
+                });
+                return function () {
+                    if (controller)
+                        controller.abort();
+                };
+            });
+        });
+    };
+    function rewriteURIForGET(chosenURI, body) {
+        var queryParams = [];
+        var addQueryParam = function (key, value) {
+            queryParams.push(key + "=" + encodeURIComponent(value));
+        };
+        if ('query' in body) {
+            addQueryParam('query', body.query);
+        }
+        if (body.operationName) {
+            addQueryParam('operationName', body.operationName);
+        }
+        if (body.variables) {
+            var serializedVariables = void 0;
+            try {
+                serializedVariables = serializeFetchParameter(body.variables, 'Variables map');
+            }
+            catch (parseError) {
+                return { parseError: parseError };
+            }
+            addQueryParam('variables', serializedVariables);
+        }
+        if (body.extensions) {
+            var serializedExtensions = void 0;
+            try {
+                serializedExtensions = serializeFetchParameter(body.extensions, 'Extensions map');
+            }
+            catch (parseError) {
+                return { parseError: parseError };
+            }
+            addQueryParam('extensions', serializedExtensions);
+        }
+        var fragment = '', preFragment = chosenURI;
+        var fragmentStart = chosenURI.indexOf('#');
+        if (fragmentStart !== -1) {
+            fragment = chosenURI.substr(fragmentStart);
+            preFragment = chosenURI.substr(0, fragmentStart);
+        }
+        var queryParamsPrefix = preFragment.indexOf('?') === -1 ? '?' : '&';
+        var newURI = preFragment + queryParamsPrefix + queryParams.join('&') + fragment;
+        return { newURI: newURI };
+    }
+    var HttpLink = (function (_super) {
+        __extends(HttpLink, _super);
+        function HttpLink(opts) {
+            return _super.call(this, createHttpLink(opts).request) || this;
+        }
+        return HttpLink;
+    }(ApolloLink));
+    //# sourceMappingURL=bundle.esm.js.map
+
+    function onError(errorHandler) {
+        return new ApolloLink(function (operation, forward) {
+            return new Observable(function (observer) {
+                var sub;
+                var retriedSub;
+                var retriedResult;
+                try {
+                    sub = forward(operation).subscribe({
+                        next: function (result) {
+                            if (result.errors) {
+                                retriedResult = errorHandler({
+                                    graphQLErrors: result.errors,
+                                    response: result,
+                                    operation: operation,
+                                    forward: forward,
+                                });
+                                if (retriedResult) {
+                                    retriedSub = retriedResult.subscribe({
+                                        next: observer.next.bind(observer),
+                                        error: observer.error.bind(observer),
+                                        complete: observer.complete.bind(observer),
+                                    });
+                                    return;
+                                }
+                            }
+                            observer.next(result);
+                        },
+                        error: function (networkError) {
+                            retriedResult = errorHandler({
+                                operation: operation,
+                                networkError: networkError,
+                                graphQLErrors: networkError &&
+                                    networkError.result &&
+                                    networkError.result.errors,
+                                forward: forward,
+                            });
+                            if (retriedResult) {
+                                retriedSub = retriedResult.subscribe({
+                                    next: observer.next.bind(observer),
+                                    error: observer.error.bind(observer),
+                                    complete: observer.complete.bind(observer),
+                                });
+                                return;
+                            }
+                            observer.error(networkError);
+                        },
+                        complete: function () {
+                            if (!retriedResult) {
+                                observer.complete.bind(observer)();
+                            }
+                        },
+                    });
+                }
+                catch (e) {
+                    errorHandler({ networkError: e, operation: operation, forward: forward });
+                    observer.error(e);
+                }
+                return function () {
+                    if (sub)
+                        sub.unsubscribe();
+                    if (retriedSub)
+                        sub.unsubscribe();
+                };
+            });
+        });
+    }
+    var ErrorLink = (function (_super) {
+        __extends(ErrorLink, _super);
+        function ErrorLink(errorHandler) {
+            var _this = _super.call(this) || this;
+            _this.link = onError(errorHandler);
+            return _this;
+        }
+        ErrorLink.prototype.request = function (operation, forward) {
+            return this.link.request(operation, forward);
+        };
+        return ErrorLink;
+    }(ApolloLink));
+    //# sourceMappingURL=bundle.esm.js.map
+
+    /**
+     * The `defineToJSON()` function defines toJSON() and inspect() prototype
+     * methods, if no function provided they become aliases for toString().
+     */
+
+    function defineToJSON(classObject) {
+      var fn = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : classObject.prototype.toString;
+      classObject.prototype.toJSON = fn;
+      classObject.prototype.inspect = fn;
+
+      if (nodejsCustomInspectSymbol) {
+        classObject.prototype[nodejsCustomInspectSymbol] = fn;
+      }
+    }
+
+    function invariant$1(condition, message) {
+      var booleanCondition = Boolean(condition);
+      /* istanbul ignore else */
+
+      if (!booleanCondition) {
+        throw new Error(message);
+      }
+    }
+
+    /**
+     * The `defineToStringTag()` function checks first to see if the runtime
+     * supports the `Symbol` class and then if the `Symbol.toStringTag` constant
+     * is defined as a `Symbol` instance. If both conditions are met, the
+     * Symbol.toStringTag property is defined as a getter that returns the
+     * supplied class constructor's name.
+     *
+     * @method defineToStringTag
+     *
+     * @param {Class<any>} classObject a class such as Object, String, Number but
+     * typically one of your own creation through the class keyword; `class A {}`,
+     * for example.
+     */
+    function defineToStringTag(classObject) {
+      if (typeof Symbol === 'function' && Symbol.toStringTag) {
+        Object.defineProperty(classObject.prototype, Symbol.toStringTag, {
+          get: function get() {
+            return this.constructor.name;
+          }
+        });
+      }
+    }
+
+    /**
+     * A representation of source input to GraphQL.
+     * `name` and `locationOffset` are optional. They are useful for clients who
+     * store GraphQL documents in source files; for example, if the GraphQL input
+     * starts at line 40 in a file named Foo.graphql, it might be useful for name to
+     * be "Foo.graphql" and location to be `{ line: 40, column: 0 }`.
+     * line and column in locationOffset are 1-indexed
+     */
+    var Source = function Source(body, name, locationOffset) {
+      this.body = body;
+      this.name = name || 'GraphQL request';
+      this.locationOffset = locationOffset || {
+        line: 1,
+        column: 1
+      };
+      !(this.locationOffset.line > 0) ? invariant$1(0, 'line in locationOffset is 1-indexed and must be positive') : void 0;
+      !(this.locationOffset.column > 0) ? invariant$1(0, 'column in locationOffset is 1-indexed and must be positive') : void 0;
+    }; // Conditionally apply `[Symbol.toStringTag]` if `Symbol`s are supported
+
+    defineToStringTag(Source);
+
+    function _typeof$1(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof$1 = function _typeof(obj) { return typeof obj; }; } else { _typeof$1 = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof$1(obj); }
+
+    /**
+     * Return true if `value` is object-like. A value is object-like if it's not
+     * `null` and has a `typeof` result of "object".
+     */
+    function isObjectLike(value) {
+      return _typeof$1(value) == 'object' && value !== null;
+    }
+
+    /**
+     * Represents a location in a Source.
+     */
+
+    /**
+     * Takes a Source and a UTF-8 character offset, and returns the corresponding
+     * line and column as a SourceLocation.
+     */
+    function getLocation(source, position) {
+      var lineRegexp = /\r\n|[\n\r]/g;
+      var line = 1;
+      var column = position + 1;
+      var match;
+
+      while ((match = lineRegexp.exec(source.body)) && match.index < position) {
+        line += 1;
+        column = position + 1 - (match.index + match[0].length);
+      }
+
+      return {
+        line: line,
+        column: column
+      };
+    }
+
+    /**
+     * Render a helpful description of the location in the GraphQL Source document.
+     */
+
+    function printLocation(location) {
+      return printSourceLocation(location.source, getLocation(location.source, location.start));
+    }
+    /**
+     * Render a helpful description of the location in the GraphQL Source document.
+     */
+
+    function printSourceLocation(source, sourceLocation) {
+      var firstLineColumnOffset = source.locationOffset.column - 1;
+      var body = whitespace(firstLineColumnOffset) + source.body;
+      var lineIndex = sourceLocation.line - 1;
+      var lineOffset = source.locationOffset.line - 1;
+      var lineNum = sourceLocation.line + lineOffset;
+      var columnOffset = sourceLocation.line === 1 ? firstLineColumnOffset : 0;
+      var columnNum = sourceLocation.column + columnOffset;
+      var locationStr = "".concat(source.name, ":").concat(lineNum, ":").concat(columnNum, "\n");
+      var lines = body.split(/\r\n|[\n\r]/g);
+      var locationLine = lines[lineIndex]; // Special case for minified documents
+
+      if (locationLine.length > 120) {
+        var sublineIndex = Math.floor(columnNum / 80);
+        var sublineColumnNum = columnNum % 80;
+        var sublines = [];
+
+        for (var i = 0; i < locationLine.length; i += 80) {
+          sublines.push(locationLine.slice(i, i + 80));
+        }
+
+        return locationStr + printPrefixedLines([["".concat(lineNum), sublines[0]]].concat(sublines.slice(1, sublineIndex + 1).map(function (subline) {
+          return ['', subline];
+        }), [[' ', whitespace(sublineColumnNum - 1) + '^'], ['', sublines[sublineIndex + 1]]]));
+      }
+
+      return locationStr + printPrefixedLines([// Lines specified like this: ["prefix", "string"],
+      ["".concat(lineNum - 1), lines[lineIndex - 1]], ["".concat(lineNum), locationLine], ['', whitespace(columnNum - 1) + '^'], ["".concat(lineNum + 1), lines[lineIndex + 1]]]);
+    }
+
+    function printPrefixedLines(lines) {
+      var existingLines = lines.filter(function (_ref) {
+        var _ = _ref[0],
+            line = _ref[1];
+        return line !== undefined;
+      });
+      var padLen = Math.max.apply(Math, existingLines.map(function (_ref2) {
+        var prefix = _ref2[0];
+        return prefix.length;
+      }));
+      return existingLines.map(function (_ref3) {
+        var prefix = _ref3[0],
+            line = _ref3[1];
+        return lpad(padLen, prefix) + ' | ' + line;
+      }).join('\n');
+    }
+
+    function whitespace(len) {
+      return Array(len + 1).join(' ');
+    }
+
+    function lpad(len, str) {
+      return whitespace(len - str.length) + str;
+    }
+
+    /**
+     * A GraphQLError describes an Error found during the parse, validate, or
+     * execute phases of performing a GraphQL operation. In addition to a message
+     * and stack trace, it also includes information about the locations in a
+     * GraphQL document and/or execution result that correspond to the Error.
+     */
+
+    function GraphQLError( // eslint-disable-line no-redeclare
+    message, nodes, source, positions, path, originalError, extensions) {
+      // Compute list of blame nodes.
+      var _nodes = Array.isArray(nodes) ? nodes.length !== 0 ? nodes : undefined : nodes ? [nodes] : undefined; // Compute locations in the source for the given nodes/positions.
+
+
+      var _source = source;
+
+      if (!_source && _nodes) {
+        var node = _nodes[0];
+        _source = node && node.loc && node.loc.source;
+      }
+
+      var _positions = positions;
+
+      if (!_positions && _nodes) {
+        _positions = _nodes.reduce(function (list, node) {
+          if (node.loc) {
+            list.push(node.loc.start);
+          }
+
+          return list;
+        }, []);
+      }
+
+      if (_positions && _positions.length === 0) {
+        _positions = undefined;
+      }
+
+      var _locations;
+
+      if (positions && source) {
+        _locations = positions.map(function (pos) {
+          return getLocation(source, pos);
+        });
+      } else if (_nodes) {
+        _locations = _nodes.reduce(function (list, node) {
+          if (node.loc) {
+            list.push(getLocation(node.loc.source, node.loc.start));
+          }
+
+          return list;
+        }, []);
+      }
+
+      var _extensions = extensions;
+
+      if (_extensions == null && originalError != null) {
+        var originalExtensions = originalError.extensions;
+
+        if (isObjectLike(originalExtensions)) {
+          _extensions = originalExtensions;
+        }
+      }
+
+      Object.defineProperties(this, {
+        message: {
+          value: message,
+          // By being enumerable, JSON.stringify will include `message` in the
+          // resulting output. This ensures that the simplest possible GraphQL
+          // service adheres to the spec.
+          enumerable: true,
+          writable: true
+        },
+        locations: {
+          // Coercing falsey values to undefined ensures they will not be included
+          // in JSON.stringify() when not provided.
+          value: _locations || undefined,
+          // By being enumerable, JSON.stringify will include `locations` in the
+          // resulting output. This ensures that the simplest possible GraphQL
+          // service adheres to the spec.
+          enumerable: Boolean(_locations)
+        },
+        path: {
+          // Coercing falsey values to undefined ensures they will not be included
+          // in JSON.stringify() when not provided.
+          value: path || undefined,
+          // By being enumerable, JSON.stringify will include `path` in the
+          // resulting output. This ensures that the simplest possible GraphQL
+          // service adheres to the spec.
+          enumerable: Boolean(path)
+        },
+        nodes: {
+          value: _nodes || undefined
+        },
+        source: {
+          value: _source || undefined
+        },
+        positions: {
+          value: _positions || undefined
+        },
+        originalError: {
+          value: originalError
+        },
+        extensions: {
+          // Coercing falsey values to undefined ensures they will not be included
+          // in JSON.stringify() when not provided.
+          value: _extensions || undefined,
+          // By being enumerable, JSON.stringify will include `path` in the
+          // resulting output. This ensures that the simplest possible GraphQL
+          // service adheres to the spec.
+          enumerable: Boolean(_extensions)
+        }
+      }); // Include (non-enumerable) stack trace.
+
+      if (originalError && originalError.stack) {
+        Object.defineProperty(this, 'stack', {
+          value: originalError.stack,
+          writable: true,
+          configurable: true
+        });
+      } else if (Error.captureStackTrace) {
+        Error.captureStackTrace(this, GraphQLError);
+      } else {
+        Object.defineProperty(this, 'stack', {
+          value: Error().stack,
+          writable: true,
+          configurable: true
+        });
+      }
+    }
+    GraphQLError.prototype = Object.create(Error.prototype, {
+      constructor: {
+        value: GraphQLError
+      },
+      name: {
+        value: 'GraphQLError'
+      },
+      toString: {
+        value: function toString() {
+          return printError(this);
+        }
+      }
+    });
+    /**
+     * Prints a GraphQLError to a string, representing useful location information
+     * about the error's position in the source.
+     */
+
+    function printError(error) {
+      var output = error.message;
+
+      if (error.nodes) {
+        var _iteratorNormalCompletion = true;
+        var _didIteratorError = false;
+        var _iteratorError = undefined;
+
+        try {
+          for (var _iterator = error.nodes[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+            var node = _step.value;
+
+            if (node.loc) {
+              output += '\n\n' + printLocation(node.loc);
+            }
+          }
+        } catch (err) {
+          _didIteratorError = true;
+          _iteratorError = err;
+        } finally {
+          try {
+            if (!_iteratorNormalCompletion && _iterator.return != null) {
+              _iterator.return();
+            }
+          } finally {
+            if (_didIteratorError) {
+              throw _iteratorError;
+            }
+          }
+        }
+      } else if (error.source && error.locations) {
+        var _iteratorNormalCompletion2 = true;
+        var _didIteratorError2 = false;
+        var _iteratorError2 = undefined;
+
+        try {
+          for (var _iterator2 = error.locations[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+            var location = _step2.value;
+            output += '\n\n' + printSourceLocation(error.source, location);
+          }
+        } catch (err) {
+          _didIteratorError2 = true;
+          _iteratorError2 = err;
+        } finally {
+          try {
+            if (!_iteratorNormalCompletion2 && _iterator2.return != null) {
+              _iterator2.return();
+            }
+          } finally {
+            if (_didIteratorError2) {
+              throw _iteratorError2;
+            }
+          }
+        }
+      }
+
+      return output;
+    }
+
+    /**
+     * Produces a GraphQLError representing a syntax error, containing useful
+     * descriptive information about the syntax error's position in the source.
+     */
+
+    function syntaxError(source, position, description) {
+      return new GraphQLError("Syntax Error: ".concat(description), undefined, source, [position]);
+    }
+
+    /**
+     * An exported enum describing the different kinds of tokens that the
+     * lexer emits.
+     */
+    var TokenKind = Object.freeze({
+      SOF: '<SOF>',
+      EOF: '<EOF>',
+      BANG: '!',
+      DOLLAR: '$',
+      AMP: '&',
+      PAREN_L: '(',
+      PAREN_R: ')',
+      SPREAD: '...',
+      COLON: ':',
+      EQUALS: '=',
+      AT: '@',
+      BRACKET_L: '[',
+      BRACKET_R: ']',
+      BRACE_L: '{',
+      PIPE: '|',
+      BRACE_R: '}',
+      NAME: 'Name',
+      INT: 'Int',
+      FLOAT: 'Float',
+      STRING: 'String',
+      BLOCK_STRING: 'BlockString',
+      COMMENT: 'Comment'
+    });
+    /**
+     * The enum type representing the token kinds values.
+     */
+
+    /**
+     * Given a Source object, this returns a Lexer for that source.
+     * A Lexer is a stateful stream generator in that every time
+     * it is advanced, it returns the next token in the Source. Assuming the
+     * source lexes, the final Token emitted by the lexer will be of kind
+     * EOF, after which the lexer will repeatedly return the same EOF token
+     * whenever called.
+     */
+
+    function createLexer(source, options) {
+      var startOfFileToken = new Tok(TokenKind.SOF, 0, 0, 0, 0, null);
+      var lexer = {
+        source: source,
+        options: options,
+        lastToken: startOfFileToken,
+        token: startOfFileToken,
+        line: 1,
+        lineStart: 0,
+        advance: advanceLexer,
+        lookahead: lookahead
+      };
+      return lexer;
+    }
+
+    function advanceLexer() {
+      this.lastToken = this.token;
+      var token = this.token = this.lookahead();
+      return token;
+    }
+
+    function lookahead() {
+      var token = this.token;
+
+      if (token.kind !== TokenKind.EOF) {
+        do {
+          // Note: next is only mutable during parsing, so we cast to allow this.
+          token = token.next || (token.next = readToken(this, token));
+        } while (token.kind === TokenKind.COMMENT);
+      }
+
+      return token;
+    }
+    /**
+     * A helper function to describe a token as a string for debugging
+     */
+
+    function getTokenDesc(token) {
+      var value = token.value;
+      return value ? "".concat(token.kind, " \"").concat(value, "\"") : token.kind;
+    }
+    /**
+     * Helper function for constructing the Token object.
+     */
+
+    function Tok(kind, start, end, line, column, prev, value) {
+      this.kind = kind;
+      this.start = start;
+      this.end = end;
+      this.line = line;
+      this.column = column;
+      this.value = value;
+      this.prev = prev;
+      this.next = null;
+    } // Print a simplified form when appearing in JSON/util.inspect.
+
+
+    defineToJSON(Tok, function () {
+      return {
+        kind: this.kind,
+        value: this.value,
+        line: this.line,
+        column: this.column
+      };
+    });
+
+    function printCharCode(code) {
+      return (// NaN/undefined represents access beyond the end of the file.
+        isNaN(code) ? TokenKind.EOF : // Trust JSON for ASCII.
+        code < 0x007f ? JSON.stringify(String.fromCharCode(code)) : // Otherwise print the escaped form.
+        "\"\\u".concat(('00' + code.toString(16).toUpperCase()).slice(-4), "\"")
+      );
+    }
+    /**
+     * Gets the next token from the source starting at the given position.
+     *
+     * This skips over whitespace until it finds the next lexable token, then lexes
+     * punctuators immediately or calls the appropriate helper function for more
+     * complicated tokens.
+     */
+
+
+    function readToken(lexer, prev) {
+      var source = lexer.source;
+      var body = source.body;
+      var bodyLength = body.length;
+      var pos = positionAfterWhitespace(body, prev.end, lexer);
+      var line = lexer.line;
+      var col = 1 + pos - lexer.lineStart;
+
+      if (pos >= bodyLength) {
+        return new Tok(TokenKind.EOF, bodyLength, bodyLength, line, col, prev);
+      }
+
+      var code = body.charCodeAt(pos); // SourceCharacter
+
+      switch (code) {
+        // !
+        case 33:
+          return new Tok(TokenKind.BANG, pos, pos + 1, line, col, prev);
+        // #
+
+        case 35:
+          return readComment(source, pos, line, col, prev);
+        // $
+
+        case 36:
+          return new Tok(TokenKind.DOLLAR, pos, pos + 1, line, col, prev);
+        // &
+
+        case 38:
+          return new Tok(TokenKind.AMP, pos, pos + 1, line, col, prev);
+        // (
+
+        case 40:
+          return new Tok(TokenKind.PAREN_L, pos, pos + 1, line, col, prev);
+        // )
+
+        case 41:
+          return new Tok(TokenKind.PAREN_R, pos, pos + 1, line, col, prev);
+        // .
+
+        case 46:
+          if (body.charCodeAt(pos + 1) === 46 && body.charCodeAt(pos + 2) === 46) {
+            return new Tok(TokenKind.SPREAD, pos, pos + 3, line, col, prev);
+          }
+
+          break;
+        // :
+
+        case 58:
+          return new Tok(TokenKind.COLON, pos, pos + 1, line, col, prev);
+        // =
+
+        case 61:
+          return new Tok(TokenKind.EQUALS, pos, pos + 1, line, col, prev);
+        // @
+
+        case 64:
+          return new Tok(TokenKind.AT, pos, pos + 1, line, col, prev);
+        // [
+
+        case 91:
+          return new Tok(TokenKind.BRACKET_L, pos, pos + 1, line, col, prev);
+        // ]
+
+        case 93:
+          return new Tok(TokenKind.BRACKET_R, pos, pos + 1, line, col, prev);
+        // {
+
+        case 123:
+          return new Tok(TokenKind.BRACE_L, pos, pos + 1, line, col, prev);
+        // |
+
+        case 124:
+          return new Tok(TokenKind.PIPE, pos, pos + 1, line, col, prev);
+        // }
+
+        case 125:
+          return new Tok(TokenKind.BRACE_R, pos, pos + 1, line, col, prev);
+        // A-Z _ a-z
+
+        case 65:
+        case 66:
+        case 67:
+        case 68:
+        case 69:
+        case 70:
+        case 71:
+        case 72:
+        case 73:
+        case 74:
+        case 75:
+        case 76:
+        case 77:
+        case 78:
+        case 79:
+        case 80:
+        case 81:
+        case 82:
+        case 83:
+        case 84:
+        case 85:
+        case 86:
+        case 87:
+        case 88:
+        case 89:
+        case 90:
+        case 95:
+        case 97:
+        case 98:
+        case 99:
+        case 100:
+        case 101:
+        case 102:
+        case 103:
+        case 104:
+        case 105:
+        case 106:
+        case 107:
+        case 108:
+        case 109:
+        case 110:
+        case 111:
+        case 112:
+        case 113:
+        case 114:
+        case 115:
+        case 116:
+        case 117:
+        case 118:
+        case 119:
+        case 120:
+        case 121:
+        case 122:
+          return readName(source, pos, line, col, prev);
+        // - 0-9
+
+        case 45:
+        case 48:
+        case 49:
+        case 50:
+        case 51:
+        case 52:
+        case 53:
+        case 54:
+        case 55:
+        case 56:
+        case 57:
+          return readNumber(source, pos, code, line, col, prev);
+        // "
+
+        case 34:
+          if (body.charCodeAt(pos + 1) === 34 && body.charCodeAt(pos + 2) === 34) {
+            return readBlockString(source, pos, line, col, prev, lexer);
+          }
+
+          return readString(source, pos, line, col, prev);
+      }
+
+      throw syntaxError(source, pos, unexpectedCharacterMessage(code));
+    }
+    /**
+     * Report a message that an unexpected character was encountered.
+     */
+
+
+    function unexpectedCharacterMessage(code) {
+      if (code < 0x0020 && code !== 0x0009 && code !== 0x000a && code !== 0x000d) {
+        return "Cannot contain the invalid character ".concat(printCharCode(code), ".");
+      }
+
+      if (code === 39) {
+        // '
+        return 'Unexpected single quote character (\'), did you mean to use a double quote (")?';
+      }
+
+      return "Cannot parse the unexpected character ".concat(printCharCode(code), ".");
+    }
+    /**
+     * Reads from body starting at startPosition until it finds a non-whitespace
+     * character, then returns the position of that character for lexing.
+     */
+
+
+    function positionAfterWhitespace(body, startPosition, lexer) {
+      var bodyLength = body.length;
+      var position = startPosition;
+
+      while (position < bodyLength) {
+        var code = body.charCodeAt(position); // tab | space | comma | BOM
+
+        if (code === 9 || code === 32 || code === 44 || code === 0xfeff) {
+          ++position;
+        } else if (code === 10) {
+          // new line
+          ++position;
+          ++lexer.line;
+          lexer.lineStart = position;
+        } else if (code === 13) {
+          // carriage return
+          if (body.charCodeAt(position + 1) === 10) {
+            position += 2;
+          } else {
+            ++position;
+          }
+
+          ++lexer.line;
+          lexer.lineStart = position;
+        } else {
+          break;
+        }
+      }
+
+      return position;
+    }
+    /**
+     * Reads a comment token from the source file.
+     *
+     * #[\u0009\u0020-\uFFFF]*
+     */
+
+
+    function readComment(source, start, line, col, prev) {
+      var body = source.body;
+      var code;
+      var position = start;
+
+      do {
+        code = body.charCodeAt(++position);
+      } while (!isNaN(code) && ( // SourceCharacter but not LineTerminator
+      code > 0x001f || code === 0x0009));
+
+      return new Tok(TokenKind.COMMENT, start, position, line, col, prev, body.slice(start + 1, position));
+    }
+    /**
+     * Reads a number token from the source file, either a float
+     * or an int depending on whether a decimal point appears.
+     *
+     * Int:   -?(0|[1-9][0-9]*)
+     * Float: -?(0|[1-9][0-9]*)(\.[0-9]+)?((E|e)(+|-)?[0-9]+)?
+     */
+
+
+    function readNumber(source, start, firstCode, line, col, prev) {
+      var body = source.body;
+      var code = firstCode;
+      var position = start;
+      var isFloat = false;
+
+      if (code === 45) {
+        // -
+        code = body.charCodeAt(++position);
+      }
+
+      if (code === 48) {
+        // 0
+        code = body.charCodeAt(++position);
+
+        if (code >= 48 && code <= 57) {
+          throw syntaxError(source, position, "Invalid number, unexpected digit after 0: ".concat(printCharCode(code), "."));
+        }
+      } else {
+        position = readDigits(source, position, code);
+        code = body.charCodeAt(position);
+      }
+
+      if (code === 46) {
+        // .
+        isFloat = true;
+        code = body.charCodeAt(++position);
+        position = readDigits(source, position, code);
+        code = body.charCodeAt(position);
+      }
+
+      if (code === 69 || code === 101) {
+        // E e
+        isFloat = true;
+        code = body.charCodeAt(++position);
+
+        if (code === 43 || code === 45) {
+          // + -
+          code = body.charCodeAt(++position);
+        }
+
+        position = readDigits(source, position, code);
+      }
+
+      return new Tok(isFloat ? TokenKind.FLOAT : TokenKind.INT, start, position, line, col, prev, body.slice(start, position));
+    }
+    /**
+     * Returns the new position in the source after reading digits.
+     */
+
+
+    function readDigits(source, start, firstCode) {
+      var body = source.body;
+      var position = start;
+      var code = firstCode;
+
+      if (code >= 48 && code <= 57) {
+        // 0 - 9
+        do {
+          code = body.charCodeAt(++position);
+        } while (code >= 48 && code <= 57); // 0 - 9
+
+
+        return position;
+      }
+
+      throw syntaxError(source, position, "Invalid number, expected digit but got: ".concat(printCharCode(code), "."));
+    }
+    /**
+     * Reads a string token from the source file.
+     *
+     * "([^"\\\u000A\u000D]|(\\(u[0-9a-fA-F]{4}|["\\/bfnrt])))*"
+     */
+
+
+    function readString(source, start, line, col, prev) {
+      var body = source.body;
+      var position = start + 1;
+      var chunkStart = position;
+      var code = 0;
+      var value = '';
+
+      while (position < body.length && !isNaN(code = body.charCodeAt(position)) && // not LineTerminator
+      code !== 0x000a && code !== 0x000d) {
+        // Closing Quote (")
+        if (code === 34) {
+          value += body.slice(chunkStart, position);
+          return new Tok(TokenKind.STRING, start, position + 1, line, col, prev, value);
+        } // SourceCharacter
+
+
+        if (code < 0x0020 && code !== 0x0009) {
+          throw syntaxError(source, position, "Invalid character within String: ".concat(printCharCode(code), "."));
+        }
+
+        ++position;
+
+        if (code === 92) {
+          // \
+          value += body.slice(chunkStart, position - 1);
+          code = body.charCodeAt(position);
+
+          switch (code) {
+            case 34:
+              value += '"';
+              break;
+
+            case 47:
+              value += '/';
+              break;
+
+            case 92:
+              value += '\\';
+              break;
+
+            case 98:
+              value += '\b';
+              break;
+
+            case 102:
+              value += '\f';
+              break;
+
+            case 110:
+              value += '\n';
+              break;
+
+            case 114:
+              value += '\r';
+              break;
+
+            case 116:
+              value += '\t';
+              break;
+
+            case 117:
+              {
+                // uXXXX
+                var charCode = uniCharCode(body.charCodeAt(position + 1), body.charCodeAt(position + 2), body.charCodeAt(position + 3), body.charCodeAt(position + 4));
+
+                if (charCode < 0) {
+                  var invalidSequence = body.slice(position + 1, position + 5);
+                  throw syntaxError(source, position, "Invalid character escape sequence: \\u".concat(invalidSequence, "."));
+                }
+
+                value += String.fromCharCode(charCode);
+                position += 4;
+                break;
+              }
+
+            default:
+              throw syntaxError(source, position, "Invalid character escape sequence: \\".concat(String.fromCharCode(code), "."));
+          }
+
+          ++position;
+          chunkStart = position;
+        }
+      }
+
+      throw syntaxError(source, position, 'Unterminated string.');
+    }
+    /**
+     * Reads a block string token from the source file.
+     *
+     * """("?"?(\\"""|\\(?!=""")|[^"\\]))*"""
+     */
+
+
+    function readBlockString(source, start, line, col, prev, lexer) {
+      var body = source.body;
+      var position = start + 3;
+      var chunkStart = position;
+      var code = 0;
+      var rawValue = '';
+
+      while (position < body.length && !isNaN(code = body.charCodeAt(position))) {
+        // Closing Triple-Quote (""")
+        if (code === 34 && body.charCodeAt(position + 1) === 34 && body.charCodeAt(position + 2) === 34) {
+          rawValue += body.slice(chunkStart, position);
+          return new Tok(TokenKind.BLOCK_STRING, start, position + 3, line, col, prev, dedentBlockStringValue(rawValue));
+        } // SourceCharacter
+
+
+        if (code < 0x0020 && code !== 0x0009 && code !== 0x000a && code !== 0x000d) {
+          throw syntaxError(source, position, "Invalid character within String: ".concat(printCharCode(code), "."));
+        }
+
+        if (code === 10) {
+          // new line
+          ++position;
+          ++lexer.line;
+          lexer.lineStart = position;
+        } else if (code === 13) {
+          // carriage return
+          if (body.charCodeAt(position + 1) === 10) {
+            position += 2;
+          } else {
+            ++position;
+          }
+
+          ++lexer.line;
+          lexer.lineStart = position;
+        } else if ( // Escape Triple-Quote (\""")
+        code === 92 && body.charCodeAt(position + 1) === 34 && body.charCodeAt(position + 2) === 34 && body.charCodeAt(position + 3) === 34) {
+          rawValue += body.slice(chunkStart, position) + '"""';
+          position += 4;
+          chunkStart = position;
+        } else {
+          ++position;
+        }
+      }
+
+      throw syntaxError(source, position, 'Unterminated string.');
+    }
+    /**
+     * Converts four hexadecimal chars to the integer that the
+     * string represents. For example, uniCharCode('0','0','0','f')
+     * will return 15, and uniCharCode('0','0','f','f') returns 255.
+     *
+     * Returns a negative number on error, if a char was invalid.
+     *
+     * This is implemented by noting that char2hex() returns -1 on error,
+     * which means the result of ORing the char2hex() will also be negative.
+     */
+
+
+    function uniCharCode(a, b, c, d) {
+      return char2hex(a) << 12 | char2hex(b) << 8 | char2hex(c) << 4 | char2hex(d);
+    }
+    /**
+     * Converts a hex character to its integer value.
+     * '0' becomes 0, '9' becomes 9
+     * 'A' becomes 10, 'F' becomes 15
+     * 'a' becomes 10, 'f' becomes 15
+     *
+     * Returns -1 on error.
+     */
+
+
+    function char2hex(a) {
+      return a >= 48 && a <= 57 ? a - 48 // 0-9
+      : a >= 65 && a <= 70 ? a - 55 // A-F
+      : a >= 97 && a <= 102 ? a - 87 // a-f
+      : -1;
+    }
+    /**
+     * Reads an alphanumeric + underscore name from the source.
+     *
+     * [_A-Za-z][_0-9A-Za-z]*
+     */
+
+
+    function readName(source, start, line, col, prev) {
+      var body = source.body;
+      var bodyLength = body.length;
+      var position = start + 1;
+      var code = 0;
+
+      while (position !== bodyLength && !isNaN(code = body.charCodeAt(position)) && (code === 95 || // _
+      code >= 48 && code <= 57 || // 0-9
+      code >= 65 && code <= 90 || // A-Z
+      code >= 97 && code <= 122) // a-z
+      ) {
+        ++position;
+      }
+
+      return new Tok(TokenKind.NAME, start, position, line, col, prev, body.slice(start, position));
+    }
+
+    /**
+     * The set of allowed kind values for AST nodes.
+     */
+    var Kind = Object.freeze({
+      // Name
+      NAME: 'Name',
+      // Document
+      DOCUMENT: 'Document',
+      OPERATION_DEFINITION: 'OperationDefinition',
+      VARIABLE_DEFINITION: 'VariableDefinition',
+      SELECTION_SET: 'SelectionSet',
+      FIELD: 'Field',
+      ARGUMENT: 'Argument',
+      // Fragments
+      FRAGMENT_SPREAD: 'FragmentSpread',
+      INLINE_FRAGMENT: 'InlineFragment',
+      FRAGMENT_DEFINITION: 'FragmentDefinition',
+      // Values
+      VARIABLE: 'Variable',
+      INT: 'IntValue',
+      FLOAT: 'FloatValue',
+      STRING: 'StringValue',
+      BOOLEAN: 'BooleanValue',
+      NULL: 'NullValue',
+      ENUM: 'EnumValue',
+      LIST: 'ListValue',
+      OBJECT: 'ObjectValue',
+      OBJECT_FIELD: 'ObjectField',
+      // Directives
+      DIRECTIVE: 'Directive',
+      // Types
+      NAMED_TYPE: 'NamedType',
+      LIST_TYPE: 'ListType',
+      NON_NULL_TYPE: 'NonNullType',
+      // Type System Definitions
+      SCHEMA_DEFINITION: 'SchemaDefinition',
+      OPERATION_TYPE_DEFINITION: 'OperationTypeDefinition',
+      // Type Definitions
+      SCALAR_TYPE_DEFINITION: 'ScalarTypeDefinition',
+      OBJECT_TYPE_DEFINITION: 'ObjectTypeDefinition',
+      FIELD_DEFINITION: 'FieldDefinition',
+      INPUT_VALUE_DEFINITION: 'InputValueDefinition',
+      INTERFACE_TYPE_DEFINITION: 'InterfaceTypeDefinition',
+      UNION_TYPE_DEFINITION: 'UnionTypeDefinition',
+      ENUM_TYPE_DEFINITION: 'EnumTypeDefinition',
+      ENUM_VALUE_DEFINITION: 'EnumValueDefinition',
+      INPUT_OBJECT_TYPE_DEFINITION: 'InputObjectTypeDefinition',
+      // Directive Definitions
+      DIRECTIVE_DEFINITION: 'DirectiveDefinition',
+      // Type System Extensions
+      SCHEMA_EXTENSION: 'SchemaExtension',
+      // Type Extensions
+      SCALAR_TYPE_EXTENSION: 'ScalarTypeExtension',
+      OBJECT_TYPE_EXTENSION: 'ObjectTypeExtension',
+      INTERFACE_TYPE_EXTENSION: 'InterfaceTypeExtension',
+      UNION_TYPE_EXTENSION: 'UnionTypeExtension',
+      ENUM_TYPE_EXTENSION: 'EnumTypeExtension',
+      INPUT_OBJECT_TYPE_EXTENSION: 'InputObjectTypeExtension'
+    });
+    /**
+     * The enum type representing the possible kind values of AST nodes.
+     */
+
+    /**
+     * The set of allowed directive location values.
+     */
+    var DirectiveLocation = Object.freeze({
+      // Request Definitions
+      QUERY: 'QUERY',
+      MUTATION: 'MUTATION',
+      SUBSCRIPTION: 'SUBSCRIPTION',
+      FIELD: 'FIELD',
+      FRAGMENT_DEFINITION: 'FRAGMENT_DEFINITION',
+      FRAGMENT_SPREAD: 'FRAGMENT_SPREAD',
+      INLINE_FRAGMENT: 'INLINE_FRAGMENT',
+      VARIABLE_DEFINITION: 'VARIABLE_DEFINITION',
+      // Type System Definitions
+      SCHEMA: 'SCHEMA',
+      SCALAR: 'SCALAR',
+      OBJECT: 'OBJECT',
+      FIELD_DEFINITION: 'FIELD_DEFINITION',
+      ARGUMENT_DEFINITION: 'ARGUMENT_DEFINITION',
+      INTERFACE: 'INTERFACE',
+      UNION: 'UNION',
+      ENUM: 'ENUM',
+      ENUM_VALUE: 'ENUM_VALUE',
+      INPUT_OBJECT: 'INPUT_OBJECT',
+      INPUT_FIELD_DEFINITION: 'INPUT_FIELD_DEFINITION'
+    });
+    /**
+     * The enum type representing the directive location values.
+     */
+
+    /**
+     * Configuration options to control parser behavior
+     */
+
+    /**
+     * Given a GraphQL source, parses it into a Document.
+     * Throws GraphQLError if a syntax error is encountered.
+     */
+    function parse(source, options) {
+      var sourceObj = typeof source === 'string' ? new Source(source) : source;
+
+      if (!(sourceObj instanceof Source)) {
+        throw new TypeError("Must provide Source. Received: ".concat(inspect(sourceObj)));
+      }
+
+      var lexer = createLexer(sourceObj, options || {});
+      return parseDocument(lexer);
+    }
+    /**
+     * Given a string containing a GraphQL value (ex. `[42]`), parse the AST for
+     * that value.
+     * Throws GraphQLError if a syntax error is encountered.
+     *
+     * This is useful within tools that operate upon GraphQL Values directly and
+     * in isolation of complete GraphQL documents.
+     *
+     * Consider providing the results to the utility function: valueFromAST().
+     */
+
+    function parseValue(source, options) {
+      var sourceObj = typeof source === 'string' ? new Source(source) : source;
+      var lexer = createLexer(sourceObj, options || {});
+      expectToken(lexer, TokenKind.SOF);
+      var value = parseValueLiteral(lexer, false);
+      expectToken(lexer, TokenKind.EOF);
+      return value;
+    }
+    /**
+     * Given a string containing a GraphQL Type (ex. `[Int!]`), parse the AST for
+     * that type.
+     * Throws GraphQLError if a syntax error is encountered.
+     *
+     * This is useful within tools that operate upon GraphQL Types directly and
+     * in isolation of complete GraphQL documents.
+     *
+     * Consider providing the results to the utility function: typeFromAST().
+     */
+
+    function parseType(source, options) {
+      var sourceObj = typeof source === 'string' ? new Source(source) : source;
+      var lexer = createLexer(sourceObj, options || {});
+      expectToken(lexer, TokenKind.SOF);
+      var type = parseTypeReference(lexer);
+      expectToken(lexer, TokenKind.EOF);
+      return type;
+    }
+    /**
+     * Converts a name lex token into a name parse node.
+     */
+
+    function parseName(lexer) {
+      var token = expectToken(lexer, TokenKind.NAME);
+      return {
+        kind: Kind.NAME,
+        value: token.value,
+        loc: loc(lexer, token)
+      };
+    } // Implements the parsing rules in the Document section.
+
+    /**
+     * Document : Definition+
+     */
+
+
+    function parseDocument(lexer) {
+      var start = lexer.token;
+      return {
+        kind: Kind.DOCUMENT,
+        definitions: many(lexer, TokenKind.SOF, parseDefinition, TokenKind.EOF),
+        loc: loc(lexer, start)
+      };
+    }
+    /**
+     * Definition :
+     *   - ExecutableDefinition
+     *   - TypeSystemDefinition
+     *   - TypeSystemExtension
+     */
+
+
+    function parseDefinition(lexer) {
+      if (peek(lexer, TokenKind.NAME)) {
+        switch (lexer.token.value) {
+          case 'query':
+          case 'mutation':
+          case 'subscription':
+          case 'fragment':
+            return parseExecutableDefinition(lexer);
+
+          case 'schema':
+          case 'scalar':
+          case 'type':
+          case 'interface':
+          case 'union':
+          case 'enum':
+          case 'input':
+          case 'directive':
+            return parseTypeSystemDefinition(lexer);
+
+          case 'extend':
+            return parseTypeSystemExtension(lexer);
+        }
+      } else if (peek(lexer, TokenKind.BRACE_L)) {
+        return parseExecutableDefinition(lexer);
+      } else if (peekDescription(lexer)) {
+        return parseTypeSystemDefinition(lexer);
+      }
+
+      throw unexpected(lexer);
+    }
+    /**
+     * ExecutableDefinition :
+     *   - OperationDefinition
+     *   - FragmentDefinition
+     */
+
+
+    function parseExecutableDefinition(lexer) {
+      if (peek(lexer, TokenKind.NAME)) {
+        switch (lexer.token.value) {
+          case 'query':
+          case 'mutation':
+          case 'subscription':
+            return parseOperationDefinition(lexer);
+
+          case 'fragment':
+            return parseFragmentDefinition(lexer);
+        }
+      } else if (peek(lexer, TokenKind.BRACE_L)) {
+        return parseOperationDefinition(lexer);
+      }
+
+      throw unexpected(lexer);
+    } // Implements the parsing rules in the Operations section.
+
+    /**
+     * OperationDefinition :
+     *  - SelectionSet
+     *  - OperationType Name? VariableDefinitions? Directives? SelectionSet
+     */
+
+
+    function parseOperationDefinition(lexer) {
+      var start = lexer.token;
+
+      if (peek(lexer, TokenKind.BRACE_L)) {
+        return {
+          kind: Kind.OPERATION_DEFINITION,
+          operation: 'query',
+          name: undefined,
+          variableDefinitions: [],
+          directives: [],
+          selectionSet: parseSelectionSet(lexer),
+          loc: loc(lexer, start)
+        };
+      }
+
+      var operation = parseOperationType(lexer);
+      var name;
+
+      if (peek(lexer, TokenKind.NAME)) {
+        name = parseName(lexer);
+      }
+
+      return {
+        kind: Kind.OPERATION_DEFINITION,
+        operation: operation,
+        name: name,
+        variableDefinitions: parseVariableDefinitions(lexer),
+        directives: parseDirectives(lexer, false),
+        selectionSet: parseSelectionSet(lexer),
+        loc: loc(lexer, start)
+      };
+    }
+    /**
+     * OperationType : one of query mutation subscription
+     */
+
+
+    function parseOperationType(lexer) {
+      var operationToken = expectToken(lexer, TokenKind.NAME);
+
+      switch (operationToken.value) {
+        case 'query':
+          return 'query';
+
+        case 'mutation':
+          return 'mutation';
+
+        case 'subscription':
+          return 'subscription';
+      }
+
+      throw unexpected(lexer, operationToken);
+    }
+    /**
+     * VariableDefinitions : ( VariableDefinition+ )
+     */
+
+
+    function parseVariableDefinitions(lexer) {
+      return peek(lexer, TokenKind.PAREN_L) ? many(lexer, TokenKind.PAREN_L, parseVariableDefinition, TokenKind.PAREN_R) : [];
+    }
+    /**
+     * VariableDefinition : Variable : Type DefaultValue? Directives[Const]?
+     */
+
+
+    function parseVariableDefinition(lexer) {
+      var start = lexer.token;
+      return {
+        kind: Kind.VARIABLE_DEFINITION,
+        variable: parseVariable(lexer),
+        type: (expectToken(lexer, TokenKind.COLON), parseTypeReference(lexer)),
+        defaultValue: expectOptionalToken(lexer, TokenKind.EQUALS) ? parseValueLiteral(lexer, true) : undefined,
+        directives: parseDirectives(lexer, true),
+        loc: loc(lexer, start)
+      };
+    }
+    /**
+     * Variable : $ Name
+     */
+
+
+    function parseVariable(lexer) {
+      var start = lexer.token;
+      expectToken(lexer, TokenKind.DOLLAR);
+      return {
+        kind: Kind.VARIABLE,
+        name: parseName(lexer),
+        loc: loc(lexer, start)
+      };
+    }
+    /**
+     * SelectionSet : { Selection+ }
+     */
+
+
+    function parseSelectionSet(lexer) {
+      var start = lexer.token;
+      return {
+        kind: Kind.SELECTION_SET,
+        selections: many(lexer, TokenKind.BRACE_L, parseSelection, TokenKind.BRACE_R),
+        loc: loc(lexer, start)
+      };
+    }
+    /**
+     * Selection :
+     *   - Field
+     *   - FragmentSpread
+     *   - InlineFragment
+     */
+
+
+    function parseSelection(lexer) {
+      return peek(lexer, TokenKind.SPREAD) ? parseFragment(lexer) : parseField(lexer);
+    }
+    /**
+     * Field : Alias? Name Arguments? Directives? SelectionSet?
+     *
+     * Alias : Name :
+     */
+
+
+    function parseField(lexer) {
+      var start = lexer.token;
+      var nameOrAlias = parseName(lexer);
+      var alias;
+      var name;
+
+      if (expectOptionalToken(lexer, TokenKind.COLON)) {
+        alias = nameOrAlias;
+        name = parseName(lexer);
+      } else {
+        name = nameOrAlias;
+      }
+
+      return {
+        kind: Kind.FIELD,
+        alias: alias,
+        name: name,
+        arguments: parseArguments(lexer, false),
+        directives: parseDirectives(lexer, false),
+        selectionSet: peek(lexer, TokenKind.BRACE_L) ? parseSelectionSet(lexer) : undefined,
+        loc: loc(lexer, start)
+      };
+    }
+    /**
+     * Arguments[Const] : ( Argument[?Const]+ )
+     */
+
+
+    function parseArguments(lexer, isConst) {
+      var item = isConst ? parseConstArgument : parseArgument;
+      return peek(lexer, TokenKind.PAREN_L) ? many(lexer, TokenKind.PAREN_L, item, TokenKind.PAREN_R) : [];
+    }
+    /**
+     * Argument[Const] : Name : Value[?Const]
+     */
+
+
+    function parseArgument(lexer) {
+      var start = lexer.token;
+      var name = parseName(lexer);
+      expectToken(lexer, TokenKind.COLON);
+      return {
+        kind: Kind.ARGUMENT,
+        name: name,
+        value: parseValueLiteral(lexer, false),
+        loc: loc(lexer, start)
+      };
+    }
+
+    function parseConstArgument(lexer) {
+      var start = lexer.token;
+      return {
+        kind: Kind.ARGUMENT,
+        name: parseName(lexer),
+        value: (expectToken(lexer, TokenKind.COLON), parseConstValue(lexer)),
+        loc: loc(lexer, start)
+      };
+    } // Implements the parsing rules in the Fragments section.
+
+    /**
+     * Corresponds to both FragmentSpread and InlineFragment in the spec.
+     *
+     * FragmentSpread : ... FragmentName Directives?
+     *
+     * InlineFragment : ... TypeCondition? Directives? SelectionSet
+     */
+
+
+    function parseFragment(lexer) {
+      var start = lexer.token;
+      expectToken(lexer, TokenKind.SPREAD);
+      var hasTypeCondition = expectOptionalKeyword(lexer, 'on');
+
+      if (!hasTypeCondition && peek(lexer, TokenKind.NAME)) {
+        return {
+          kind: Kind.FRAGMENT_SPREAD,
+          name: parseFragmentName(lexer),
+          directives: parseDirectives(lexer, false),
+          loc: loc(lexer, start)
+        };
+      }
+
+      return {
+        kind: Kind.INLINE_FRAGMENT,
+        typeCondition: hasTypeCondition ? parseNamedType(lexer) : undefined,
+        directives: parseDirectives(lexer, false),
+        selectionSet: parseSelectionSet(lexer),
+        loc: loc(lexer, start)
+      };
+    }
+    /**
+     * FragmentDefinition :
+     *   - fragment FragmentName on TypeCondition Directives? SelectionSet
+     *
+     * TypeCondition : NamedType
+     */
+
+
+    function parseFragmentDefinition(lexer) {
+      var start = lexer.token;
+      expectKeyword(lexer, 'fragment'); // Experimental support for defining variables within fragments changes
+      // the grammar of FragmentDefinition:
+      //   - fragment FragmentName VariableDefinitions? on TypeCondition Directives? SelectionSet
+
+      if (lexer.options.experimentalFragmentVariables) {
+        return {
+          kind: Kind.FRAGMENT_DEFINITION,
+          name: parseFragmentName(lexer),
+          variableDefinitions: parseVariableDefinitions(lexer),
+          typeCondition: (expectKeyword(lexer, 'on'), parseNamedType(lexer)),
+          directives: parseDirectives(lexer, false),
+          selectionSet: parseSelectionSet(lexer),
+          loc: loc(lexer, start)
+        };
+      }
+
+      return {
+        kind: Kind.FRAGMENT_DEFINITION,
+        name: parseFragmentName(lexer),
+        typeCondition: (expectKeyword(lexer, 'on'), parseNamedType(lexer)),
+        directives: parseDirectives(lexer, false),
+        selectionSet: parseSelectionSet(lexer),
+        loc: loc(lexer, start)
+      };
+    }
+    /**
+     * FragmentName : Name but not `on`
+     */
+
+
+    function parseFragmentName(lexer) {
+      if (lexer.token.value === 'on') {
+        throw unexpected(lexer);
+      }
+
+      return parseName(lexer);
+    } // Implements the parsing rules in the Values section.
+
+    /**
+     * Value[Const] :
+     *   - [~Const] Variable
+     *   - IntValue
+     *   - FloatValue
+     *   - StringValue
+     *   - BooleanValue
+     *   - NullValue
+     *   - EnumValue
+     *   - ListValue[?Const]
+     *   - ObjectValue[?Const]
+     *
+     * BooleanValue : one of `true` `false`
+     *
+     * NullValue : `null`
+     *
+     * EnumValue : Name but not `true`, `false` or `null`
+     */
+
+
+    function parseValueLiteral(lexer, isConst) {
+      var token = lexer.token;
+
+      switch (token.kind) {
+        case TokenKind.BRACKET_L:
+          return parseList(lexer, isConst);
+
+        case TokenKind.BRACE_L:
+          return parseObject(lexer, isConst);
+
+        case TokenKind.INT:
+          lexer.advance();
+          return {
+            kind: Kind.INT,
+            value: token.value,
+            loc: loc(lexer, token)
+          };
+
+        case TokenKind.FLOAT:
+          lexer.advance();
+          return {
+            kind: Kind.FLOAT,
+            value: token.value,
+            loc: loc(lexer, token)
+          };
+
+        case TokenKind.STRING:
+        case TokenKind.BLOCK_STRING:
+          return parseStringLiteral(lexer);
+
+        case TokenKind.NAME:
+          if (token.value === 'true' || token.value === 'false') {
+            lexer.advance();
+            return {
+              kind: Kind.BOOLEAN,
+              value: token.value === 'true',
+              loc: loc(lexer, token)
+            };
+          } else if (token.value === 'null') {
+            lexer.advance();
+            return {
+              kind: Kind.NULL,
+              loc: loc(lexer, token)
+            };
+          }
+
+          lexer.advance();
+          return {
+            kind: Kind.ENUM,
+            value: token.value,
+            loc: loc(lexer, token)
+          };
+
+        case TokenKind.DOLLAR:
+          if (!isConst) {
+            return parseVariable(lexer);
+          }
+
+          break;
+      }
+
+      throw unexpected(lexer);
+    }
+
+    function parseStringLiteral(lexer) {
+      var token = lexer.token;
+      lexer.advance();
+      return {
+        kind: Kind.STRING,
+        value: token.value,
+        block: token.kind === TokenKind.BLOCK_STRING,
+        loc: loc(lexer, token)
+      };
+    }
+
+    function parseConstValue(lexer) {
+      return parseValueLiteral(lexer, true);
+    }
+
+    function parseValueValue(lexer) {
+      return parseValueLiteral(lexer, false);
+    }
+    /**
+     * ListValue[Const] :
+     *   - [ ]
+     *   - [ Value[?Const]+ ]
+     */
+
+
+    function parseList(lexer, isConst) {
+      var start = lexer.token;
+      var item = isConst ? parseConstValue : parseValueValue;
+      return {
+        kind: Kind.LIST,
+        values: any(lexer, TokenKind.BRACKET_L, item, TokenKind.BRACKET_R),
+        loc: loc(lexer, start)
+      };
+    }
+    /**
+     * ObjectValue[Const] :
+     *   - { }
+     *   - { ObjectField[?Const]+ }
+     */
+
+
+    function parseObject(lexer, isConst) {
+      var start = lexer.token;
+
+      var item = function item() {
+        return parseObjectField(lexer, isConst);
+      };
+
+      return {
+        kind: Kind.OBJECT,
+        fields: any(lexer, TokenKind.BRACE_L, item, TokenKind.BRACE_R),
+        loc: loc(lexer, start)
+      };
+    }
+    /**
+     * ObjectField[Const] : Name : Value[?Const]
+     */
+
+
+    function parseObjectField(lexer, isConst) {
+      var start = lexer.token;
+      var name = parseName(lexer);
+      expectToken(lexer, TokenKind.COLON);
+      return {
+        kind: Kind.OBJECT_FIELD,
+        name: name,
+        value: parseValueLiteral(lexer, isConst),
+        loc: loc(lexer, start)
+      };
+    } // Implements the parsing rules in the Directives section.
+
+    /**
+     * Directives[Const] : Directive[?Const]+
+     */
+
+
+    function parseDirectives(lexer, isConst) {
+      var directives = [];
+
+      while (peek(lexer, TokenKind.AT)) {
+        directives.push(parseDirective(lexer, isConst));
+      }
+
+      return directives;
+    }
+    /**
+     * Directive[Const] : @ Name Arguments[?Const]?
+     */
+
+
+    function parseDirective(lexer, isConst) {
+      var start = lexer.token;
+      expectToken(lexer, TokenKind.AT);
+      return {
+        kind: Kind.DIRECTIVE,
+        name: parseName(lexer),
+        arguments: parseArguments(lexer, isConst),
+        loc: loc(lexer, start)
+      };
+    } // Implements the parsing rules in the Types section.
+
+    /**
+     * Type :
+     *   - NamedType
+     *   - ListType
+     *   - NonNullType
+     */
+
+
+    function parseTypeReference(lexer) {
+      var start = lexer.token;
+      var type;
+
+      if (expectOptionalToken(lexer, TokenKind.BRACKET_L)) {
+        type = parseTypeReference(lexer);
+        expectToken(lexer, TokenKind.BRACKET_R);
+        type = {
+          kind: Kind.LIST_TYPE,
+          type: type,
+          loc: loc(lexer, start)
+        };
+      } else {
+        type = parseNamedType(lexer);
+      }
+
+      if (expectOptionalToken(lexer, TokenKind.BANG)) {
+        return {
+          kind: Kind.NON_NULL_TYPE,
+          type: type,
+          loc: loc(lexer, start)
+        };
+      }
+
+      return type;
+    }
+    /**
+     * NamedType : Name
+     */
+
+    function parseNamedType(lexer) {
+      var start = lexer.token;
+      return {
+        kind: Kind.NAMED_TYPE,
+        name: parseName(lexer),
+        loc: loc(lexer, start)
+      };
+    } // Implements the parsing rules in the Type Definition section.
+
+    /**
+     * TypeSystemDefinition :
+     *   - SchemaDefinition
+     *   - TypeDefinition
+     *   - DirectiveDefinition
+     *
+     * TypeDefinition :
+     *   - ScalarTypeDefinition
+     *   - ObjectTypeDefinition
+     *   - InterfaceTypeDefinition
+     *   - UnionTypeDefinition
+     *   - EnumTypeDefinition
+     *   - InputObjectTypeDefinition
+     */
+
+    function parseTypeSystemDefinition(lexer) {
+      // Many definitions begin with a description and require a lookahead.
+      var keywordToken = peekDescription(lexer) ? lexer.lookahead() : lexer.token;
+
+      if (keywordToken.kind === TokenKind.NAME) {
+        switch (keywordToken.value) {
+          case 'schema':
+            return parseSchemaDefinition(lexer);
+
+          case 'scalar':
+            return parseScalarTypeDefinition(lexer);
+
+          case 'type':
+            return parseObjectTypeDefinition(lexer);
+
+          case 'interface':
+            return parseInterfaceTypeDefinition(lexer);
+
+          case 'union':
+            return parseUnionTypeDefinition(lexer);
+
+          case 'enum':
+            return parseEnumTypeDefinition(lexer);
+
+          case 'input':
+            return parseInputObjectTypeDefinition(lexer);
+
+          case 'directive':
+            return parseDirectiveDefinition(lexer);
+        }
+      }
+
+      throw unexpected(lexer, keywordToken);
+    }
+
+    function peekDescription(lexer) {
+      return peek(lexer, TokenKind.STRING) || peek(lexer, TokenKind.BLOCK_STRING);
+    }
+    /**
+     * Description : StringValue
+     */
+
+
+    function parseDescription(lexer) {
+      if (peekDescription(lexer)) {
+        return parseStringLiteral(lexer);
+      }
+    }
+    /**
+     * SchemaDefinition : schema Directives[Const]? { OperationTypeDefinition+ }
+     */
+
+
+    function parseSchemaDefinition(lexer) {
+      var start = lexer.token;
+      expectKeyword(lexer, 'schema');
+      var directives = parseDirectives(lexer, true);
+      var operationTypes = many(lexer, TokenKind.BRACE_L, parseOperationTypeDefinition, TokenKind.BRACE_R);
+      return {
+        kind: Kind.SCHEMA_DEFINITION,
+        directives: directives,
+        operationTypes: operationTypes,
+        loc: loc(lexer, start)
+      };
+    }
+    /**
+     * OperationTypeDefinition : OperationType : NamedType
+     */
+
+
+    function parseOperationTypeDefinition(lexer) {
+      var start = lexer.token;
+      var operation = parseOperationType(lexer);
+      expectToken(lexer, TokenKind.COLON);
+      var type = parseNamedType(lexer);
+      return {
+        kind: Kind.OPERATION_TYPE_DEFINITION,
+        operation: operation,
+        type: type,
+        loc: loc(lexer, start)
+      };
+    }
+    /**
+     * ScalarTypeDefinition : Description? scalar Name Directives[Const]?
+     */
+
+
+    function parseScalarTypeDefinition(lexer) {
+      var start = lexer.token;
+      var description = parseDescription(lexer);
+      expectKeyword(lexer, 'scalar');
+      var name = parseName(lexer);
+      var directives = parseDirectives(lexer, true);
+      return {
+        kind: Kind.SCALAR_TYPE_DEFINITION,
+        description: description,
+        name: name,
+        directives: directives,
+        loc: loc(lexer, start)
+      };
+    }
+    /**
+     * ObjectTypeDefinition :
+     *   Description?
+     *   type Name ImplementsInterfaces? Directives[Const]? FieldsDefinition?
+     */
+
+
+    function parseObjectTypeDefinition(lexer) {
+      var start = lexer.token;
+      var description = parseDescription(lexer);
+      expectKeyword(lexer, 'type');
+      var name = parseName(lexer);
+      var interfaces = parseImplementsInterfaces(lexer);
+      var directives = parseDirectives(lexer, true);
+      var fields = parseFieldsDefinition(lexer);
+      return {
+        kind: Kind.OBJECT_TYPE_DEFINITION,
+        description: description,
+        name: name,
+        interfaces: interfaces,
+        directives: directives,
+        fields: fields,
+        loc: loc(lexer, start)
+      };
+    }
+    /**
+     * ImplementsInterfaces :
+     *   - implements `&`? NamedType
+     *   - ImplementsInterfaces & NamedType
+     */
+
+
+    function parseImplementsInterfaces(lexer) {
+      var types = [];
+
+      if (expectOptionalKeyword(lexer, 'implements')) {
+        // Optional leading ampersand
+        expectOptionalToken(lexer, TokenKind.AMP);
+
+        do {
+          types.push(parseNamedType(lexer));
+        } while (expectOptionalToken(lexer, TokenKind.AMP) || // Legacy support for the SDL?
+        lexer.options.allowLegacySDLImplementsInterfaces && peek(lexer, TokenKind.NAME));
+      }
+
+      return types;
+    }
+    /**
+     * FieldsDefinition : { FieldDefinition+ }
+     */
+
+
+    function parseFieldsDefinition(lexer) {
+      // Legacy support for the SDL?
+      if (lexer.options.allowLegacySDLEmptyFields && peek(lexer, TokenKind.BRACE_L) && lexer.lookahead().kind === TokenKind.BRACE_R) {
+        lexer.advance();
+        lexer.advance();
+        return [];
+      }
+
+      return peek(lexer, TokenKind.BRACE_L) ? many(lexer, TokenKind.BRACE_L, parseFieldDefinition, TokenKind.BRACE_R) : [];
+    }
+    /**
+     * FieldDefinition :
+     *   - Description? Name ArgumentsDefinition? : Type Directives[Const]?
+     */
+
+
+    function parseFieldDefinition(lexer) {
+      var start = lexer.token;
+      var description = parseDescription(lexer);
+      var name = parseName(lexer);
+      var args = parseArgumentDefs(lexer);
+      expectToken(lexer, TokenKind.COLON);
+      var type = parseTypeReference(lexer);
+      var directives = parseDirectives(lexer, true);
+      return {
+        kind: Kind.FIELD_DEFINITION,
+        description: description,
+        name: name,
+        arguments: args,
+        type: type,
+        directives: directives,
+        loc: loc(lexer, start)
+      };
+    }
+    /**
+     * ArgumentsDefinition : ( InputValueDefinition+ )
+     */
+
+
+    function parseArgumentDefs(lexer) {
+      if (!peek(lexer, TokenKind.PAREN_L)) {
+        return [];
+      }
+
+      return many(lexer, TokenKind.PAREN_L, parseInputValueDef, TokenKind.PAREN_R);
+    }
+    /**
+     * InputValueDefinition :
+     *   - Description? Name : Type DefaultValue? Directives[Const]?
+     */
+
+
+    function parseInputValueDef(lexer) {
+      var start = lexer.token;
+      var description = parseDescription(lexer);
+      var name = parseName(lexer);
+      expectToken(lexer, TokenKind.COLON);
+      var type = parseTypeReference(lexer);
+      var defaultValue;
+
+      if (expectOptionalToken(lexer, TokenKind.EQUALS)) {
+        defaultValue = parseConstValue(lexer);
+      }
+
+      var directives = parseDirectives(lexer, true);
+      return {
+        kind: Kind.INPUT_VALUE_DEFINITION,
+        description: description,
+        name: name,
+        type: type,
+        defaultValue: defaultValue,
+        directives: directives,
+        loc: loc(lexer, start)
+      };
+    }
+    /**
+     * InterfaceTypeDefinition :
+     *   - Description? interface Name Directives[Const]? FieldsDefinition?
+     */
+
+
+    function parseInterfaceTypeDefinition(lexer) {
+      var start = lexer.token;
+      var description = parseDescription(lexer);
+      expectKeyword(lexer, 'interface');
+      var name = parseName(lexer);
+      var directives = parseDirectives(lexer, true);
+      var fields = parseFieldsDefinition(lexer);
+      return {
+        kind: Kind.INTERFACE_TYPE_DEFINITION,
+        description: description,
+        name: name,
+        directives: directives,
+        fields: fields,
+        loc: loc(lexer, start)
+      };
+    }
+    /**
+     * UnionTypeDefinition :
+     *   - Description? union Name Directives[Const]? UnionMemberTypes?
+     */
+
+
+    function parseUnionTypeDefinition(lexer) {
+      var start = lexer.token;
+      var description = parseDescription(lexer);
+      expectKeyword(lexer, 'union');
+      var name = parseName(lexer);
+      var directives = parseDirectives(lexer, true);
+      var types = parseUnionMemberTypes(lexer);
+      return {
+        kind: Kind.UNION_TYPE_DEFINITION,
+        description: description,
+        name: name,
+        directives: directives,
+        types: types,
+        loc: loc(lexer, start)
+      };
+    }
+    /**
+     * UnionMemberTypes :
+     *   - = `|`? NamedType
+     *   - UnionMemberTypes | NamedType
+     */
+
+
+    function parseUnionMemberTypes(lexer) {
+      var types = [];
+
+      if (expectOptionalToken(lexer, TokenKind.EQUALS)) {
+        // Optional leading pipe
+        expectOptionalToken(lexer, TokenKind.PIPE);
+
+        do {
+          types.push(parseNamedType(lexer));
+        } while (expectOptionalToken(lexer, TokenKind.PIPE));
+      }
+
+      return types;
+    }
+    /**
+     * EnumTypeDefinition :
+     *   - Description? enum Name Directives[Const]? EnumValuesDefinition?
+     */
+
+
+    function parseEnumTypeDefinition(lexer) {
+      var start = lexer.token;
+      var description = parseDescription(lexer);
+      expectKeyword(lexer, 'enum');
+      var name = parseName(lexer);
+      var directives = parseDirectives(lexer, true);
+      var values = parseEnumValuesDefinition(lexer);
+      return {
+        kind: Kind.ENUM_TYPE_DEFINITION,
+        description: description,
+        name: name,
+        directives: directives,
+        values: values,
+        loc: loc(lexer, start)
+      };
+    }
+    /**
+     * EnumValuesDefinition : { EnumValueDefinition+ }
+     */
+
+
+    function parseEnumValuesDefinition(lexer) {
+      return peek(lexer, TokenKind.BRACE_L) ? many(lexer, TokenKind.BRACE_L, parseEnumValueDefinition, TokenKind.BRACE_R) : [];
+    }
+    /**
+     * EnumValueDefinition : Description? EnumValue Directives[Const]?
+     *
+     * EnumValue : Name
+     */
+
+
+    function parseEnumValueDefinition(lexer) {
+      var start = lexer.token;
+      var description = parseDescription(lexer);
+      var name = parseName(lexer);
+      var directives = parseDirectives(lexer, true);
+      return {
+        kind: Kind.ENUM_VALUE_DEFINITION,
+        description: description,
+        name: name,
+        directives: directives,
+        loc: loc(lexer, start)
+      };
+    }
+    /**
+     * InputObjectTypeDefinition :
+     *   - Description? input Name Directives[Const]? InputFieldsDefinition?
+     */
+
+
+    function parseInputObjectTypeDefinition(lexer) {
+      var start = lexer.token;
+      var description = parseDescription(lexer);
+      expectKeyword(lexer, 'input');
+      var name = parseName(lexer);
+      var directives = parseDirectives(lexer, true);
+      var fields = parseInputFieldsDefinition(lexer);
+      return {
+        kind: Kind.INPUT_OBJECT_TYPE_DEFINITION,
+        description: description,
+        name: name,
+        directives: directives,
+        fields: fields,
+        loc: loc(lexer, start)
+      };
+    }
+    /**
+     * InputFieldsDefinition : { InputValueDefinition+ }
+     */
+
+
+    function parseInputFieldsDefinition(lexer) {
+      return peek(lexer, TokenKind.BRACE_L) ? many(lexer, TokenKind.BRACE_L, parseInputValueDef, TokenKind.BRACE_R) : [];
+    }
+    /**
+     * TypeSystemExtension :
+     *   - SchemaExtension
+     *   - TypeExtension
+     *
+     * TypeExtension :
+     *   - ScalarTypeExtension
+     *   - ObjectTypeExtension
+     *   - InterfaceTypeExtension
+     *   - UnionTypeExtension
+     *   - EnumTypeExtension
+     *   - InputObjectTypeDefinition
+     */
+
+
+    function parseTypeSystemExtension(lexer) {
+      var keywordToken = lexer.lookahead();
+
+      if (keywordToken.kind === TokenKind.NAME) {
+        switch (keywordToken.value) {
+          case 'schema':
+            return parseSchemaExtension(lexer);
+
+          case 'scalar':
+            return parseScalarTypeExtension(lexer);
+
+          case 'type':
+            return parseObjectTypeExtension(lexer);
+
+          case 'interface':
+            return parseInterfaceTypeExtension(lexer);
+
+          case 'union':
+            return parseUnionTypeExtension(lexer);
+
+          case 'enum':
+            return parseEnumTypeExtension(lexer);
+
+          case 'input':
+            return parseInputObjectTypeExtension(lexer);
+        }
+      }
+
+      throw unexpected(lexer, keywordToken);
+    }
+    /**
+     * SchemaExtension :
+     *  - extend schema Directives[Const]? { OperationTypeDefinition+ }
+     *  - extend schema Directives[Const]
+     */
+
+
+    function parseSchemaExtension(lexer) {
+      var start = lexer.token;
+      expectKeyword(lexer, 'extend');
+      expectKeyword(lexer, 'schema');
+      var directives = parseDirectives(lexer, true);
+      var operationTypes = peek(lexer, TokenKind.BRACE_L) ? many(lexer, TokenKind.BRACE_L, parseOperationTypeDefinition, TokenKind.BRACE_R) : [];
+
+      if (directives.length === 0 && operationTypes.length === 0) {
+        throw unexpected(lexer);
+      }
+
+      return {
+        kind: Kind.SCHEMA_EXTENSION,
+        directives: directives,
+        operationTypes: operationTypes,
+        loc: loc(lexer, start)
+      };
+    }
+    /**
+     * ScalarTypeExtension :
+     *   - extend scalar Name Directives[Const]
+     */
+
+
+    function parseScalarTypeExtension(lexer) {
+      var start = lexer.token;
+      expectKeyword(lexer, 'extend');
+      expectKeyword(lexer, 'scalar');
+      var name = parseName(lexer);
+      var directives = parseDirectives(lexer, true);
+
+      if (directives.length === 0) {
+        throw unexpected(lexer);
+      }
+
+      return {
+        kind: Kind.SCALAR_TYPE_EXTENSION,
+        name: name,
+        directives: directives,
+        loc: loc(lexer, start)
+      };
+    }
+    /**
+     * ObjectTypeExtension :
+     *  - extend type Name ImplementsInterfaces? Directives[Const]? FieldsDefinition
+     *  - extend type Name ImplementsInterfaces? Directives[Const]
+     *  - extend type Name ImplementsInterfaces
+     */
+
+
+    function parseObjectTypeExtension(lexer) {
+      var start = lexer.token;
+      expectKeyword(lexer, 'extend');
+      expectKeyword(lexer, 'type');
+      var name = parseName(lexer);
+      var interfaces = parseImplementsInterfaces(lexer);
+      var directives = parseDirectives(lexer, true);
+      var fields = parseFieldsDefinition(lexer);
+
+      if (interfaces.length === 0 && directives.length === 0 && fields.length === 0) {
+        throw unexpected(lexer);
+      }
+
+      return {
+        kind: Kind.OBJECT_TYPE_EXTENSION,
+        name: name,
+        interfaces: interfaces,
+        directives: directives,
+        fields: fields,
+        loc: loc(lexer, start)
+      };
+    }
+    /**
+     * InterfaceTypeExtension :
+     *   - extend interface Name Directives[Const]? FieldsDefinition
+     *   - extend interface Name Directives[Const]
+     */
+
+
+    function parseInterfaceTypeExtension(lexer) {
+      var start = lexer.token;
+      expectKeyword(lexer, 'extend');
+      expectKeyword(lexer, 'interface');
+      var name = parseName(lexer);
+      var directives = parseDirectives(lexer, true);
+      var fields = parseFieldsDefinition(lexer);
+
+      if (directives.length === 0 && fields.length === 0) {
+        throw unexpected(lexer);
+      }
+
+      return {
+        kind: Kind.INTERFACE_TYPE_EXTENSION,
+        name: name,
+        directives: directives,
+        fields: fields,
+        loc: loc(lexer, start)
+      };
+    }
+    /**
+     * UnionTypeExtension :
+     *   - extend union Name Directives[Const]? UnionMemberTypes
+     *   - extend union Name Directives[Const]
+     */
+
+
+    function parseUnionTypeExtension(lexer) {
+      var start = lexer.token;
+      expectKeyword(lexer, 'extend');
+      expectKeyword(lexer, 'union');
+      var name = parseName(lexer);
+      var directives = parseDirectives(lexer, true);
+      var types = parseUnionMemberTypes(lexer);
+
+      if (directives.length === 0 && types.length === 0) {
+        throw unexpected(lexer);
+      }
+
+      return {
+        kind: Kind.UNION_TYPE_EXTENSION,
+        name: name,
+        directives: directives,
+        types: types,
+        loc: loc(lexer, start)
+      };
+    }
+    /**
+     * EnumTypeExtension :
+     *   - extend enum Name Directives[Const]? EnumValuesDefinition
+     *   - extend enum Name Directives[Const]
+     */
+
+
+    function parseEnumTypeExtension(lexer) {
+      var start = lexer.token;
+      expectKeyword(lexer, 'extend');
+      expectKeyword(lexer, 'enum');
+      var name = parseName(lexer);
+      var directives = parseDirectives(lexer, true);
+      var values = parseEnumValuesDefinition(lexer);
+
+      if (directives.length === 0 && values.length === 0) {
+        throw unexpected(lexer);
+      }
+
+      return {
+        kind: Kind.ENUM_TYPE_EXTENSION,
+        name: name,
+        directives: directives,
+        values: values,
+        loc: loc(lexer, start)
+      };
+    }
+    /**
+     * InputObjectTypeExtension :
+     *   - extend input Name Directives[Const]? InputFieldsDefinition
+     *   - extend input Name Directives[Const]
+     */
+
+
+    function parseInputObjectTypeExtension(lexer) {
+      var start = lexer.token;
+      expectKeyword(lexer, 'extend');
+      expectKeyword(lexer, 'input');
+      var name = parseName(lexer);
+      var directives = parseDirectives(lexer, true);
+      var fields = parseInputFieldsDefinition(lexer);
+
+      if (directives.length === 0 && fields.length === 0) {
+        throw unexpected(lexer);
+      }
+
+      return {
+        kind: Kind.INPUT_OBJECT_TYPE_EXTENSION,
+        name: name,
+        directives: directives,
+        fields: fields,
+        loc: loc(lexer, start)
+      };
+    }
+    /**
+     * DirectiveDefinition :
+     *   - Description? directive @ Name ArgumentsDefinition? `repeatable`? on DirectiveLocations
+     */
+
+
+    function parseDirectiveDefinition(lexer) {
+      var start = lexer.token;
+      var description = parseDescription(lexer);
+      expectKeyword(lexer, 'directive');
+      expectToken(lexer, TokenKind.AT);
+      var name = parseName(lexer);
+      var args = parseArgumentDefs(lexer);
+      var repeatable = expectOptionalKeyword(lexer, 'repeatable');
+      expectKeyword(lexer, 'on');
+      var locations = parseDirectiveLocations(lexer);
+      return {
+        kind: Kind.DIRECTIVE_DEFINITION,
+        description: description,
+        name: name,
+        arguments: args,
+        repeatable: repeatable,
+        locations: locations,
+        loc: loc(lexer, start)
+      };
+    }
+    /**
+     * DirectiveLocations :
+     *   - `|`? DirectiveLocation
+     *   - DirectiveLocations | DirectiveLocation
+     */
+
+
+    function parseDirectiveLocations(lexer) {
+      // Optional leading pipe
+      expectOptionalToken(lexer, TokenKind.PIPE);
+      var locations = [];
+
+      do {
+        locations.push(parseDirectiveLocation(lexer));
+      } while (expectOptionalToken(lexer, TokenKind.PIPE));
+
+      return locations;
+    }
+    /*
+     * DirectiveLocation :
+     *   - ExecutableDirectiveLocation
+     *   - TypeSystemDirectiveLocation
+     *
+     * ExecutableDirectiveLocation : one of
+     *   `QUERY`
+     *   `MUTATION`
+     *   `SUBSCRIPTION`
+     *   `FIELD`
+     *   `FRAGMENT_DEFINITION`
+     *   `FRAGMENT_SPREAD`
+     *   `INLINE_FRAGMENT`
+     *
+     * TypeSystemDirectiveLocation : one of
+     *   `SCHEMA`
+     *   `SCALAR`
+     *   `OBJECT`
+     *   `FIELD_DEFINITION`
+     *   `ARGUMENT_DEFINITION`
+     *   `INTERFACE`
+     *   `UNION`
+     *   `ENUM`
+     *   `ENUM_VALUE`
+     *   `INPUT_OBJECT`
+     *   `INPUT_FIELD_DEFINITION`
+     */
+
+
+    function parseDirectiveLocation(lexer) {
+      var start = lexer.token;
+      var name = parseName(lexer);
+
+      if (DirectiveLocation[name.value] !== undefined) {
+        return name;
+      }
+
+      throw unexpected(lexer, start);
+    } // Core parsing utility functions
+
+    /**
+     * Returns a location object, used to identify the place in
+     * the source that created a given parsed object.
+     */
+
+
+    function loc(lexer, startToken) {
+      if (!lexer.options.noLocation) {
+        return new Loc(startToken, lexer.lastToken, lexer.source);
+      }
+    }
+
+    function Loc(startToken, endToken, source) {
+      this.start = startToken.start;
+      this.end = endToken.end;
+      this.startToken = startToken;
+      this.endToken = endToken;
+      this.source = source;
+    } // Print a simplified form when appearing in JSON/util.inspect.
+
+
+    defineToJSON(Loc, function () {
+      return {
+        start: this.start,
+        end: this.end
+      };
+    });
+    /**
+     * Determines if the next token is of a given kind
+     */
+
+    function peek(lexer, kind) {
+      return lexer.token.kind === kind;
+    }
+    /**
+     * If the next token is of the given kind, return that token after advancing
+     * the lexer. Otherwise, do not change the parser state and throw an error.
+     */
+
+
+    function expectToken(lexer, kind) {
+      var token = lexer.token;
+
+      if (token.kind === kind) {
+        lexer.advance();
+        return token;
+      }
+
+      throw syntaxError(lexer.source, token.start, "Expected ".concat(kind, ", found ").concat(getTokenDesc(token)));
+    }
+    /**
+     * If the next token is of the given kind, return that token after advancing
+     * the lexer. Otherwise, do not change the parser state and return undefined.
+     */
+
+
+    function expectOptionalToken(lexer, kind) {
+      var token = lexer.token;
+
+      if (token.kind === kind) {
+        lexer.advance();
+        return token;
+      }
+
+      return undefined;
+    }
+    /**
+     * If the next token is a given keyword, advance the lexer.
+     * Otherwise, do not change the parser state and throw an error.
+     */
+
+
+    function expectKeyword(lexer, value) {
+      var token = lexer.token;
+
+      if (token.kind === TokenKind.NAME && token.value === value) {
+        lexer.advance();
+      } else {
+        throw syntaxError(lexer.source, token.start, "Expected \"".concat(value, "\", found ").concat(getTokenDesc(token)));
+      }
+    }
+    /**
+     * If the next token is a given keyword, return "true" after advancing
+     * the lexer. Otherwise, do not change the parser state and return "false".
+     */
+
+
+    function expectOptionalKeyword(lexer, value) {
+      var token = lexer.token;
+
+      if (token.kind === TokenKind.NAME && token.value === value) {
+        lexer.advance();
+        return true;
+      }
+
+      return false;
+    }
+    /**
+     * Helper function for creating an error when an unexpected lexed token
+     * is encountered.
+     */
+
+
+    function unexpected(lexer, atToken) {
+      var token = atToken || lexer.token;
+      return syntaxError(lexer.source, token.start, "Unexpected ".concat(getTokenDesc(token)));
+    }
+    /**
+     * Returns a possibly empty list of parse nodes, determined by
+     * the parseFn. This list begins with a lex token of openKind
+     * and ends with a lex token of closeKind. Advances the parser
+     * to the next lex token after the closing token.
+     */
+
+
+    function any(lexer, openKind, parseFn, closeKind) {
+      expectToken(lexer, openKind);
+      var nodes = [];
+
+      while (!expectOptionalToken(lexer, closeKind)) {
+        nodes.push(parseFn(lexer));
+      }
+
+      return nodes;
+    }
+    /**
+     * Returns a non-empty list of parse nodes, determined by
+     * the parseFn. This list begins with a lex token of openKind
+     * and ends with a lex token of closeKind. Advances the parser
+     * to the next lex token after the closing token.
+     */
+
+
+    function many(lexer, openKind, parseFn, closeKind) {
+      expectToken(lexer, openKind);
+      var nodes = [parseFn(lexer)];
+
+      while (!expectOptionalToken(lexer, closeKind)) {
+        nodes.push(parseFn(lexer));
+      }
+
+      return nodes;
+    }
+
+    var parser = /*#__PURE__*/Object.freeze({
+        parse: parse,
+        parseValue: parseValue,
+        parseType: parseType,
+        parseConstValue: parseConstValue,
+        parseTypeReference: parseTypeReference,
+        parseNamedType: parseNamedType
+    });
+
+    var parser$1 = getCjsExportFromNamespace(parser);
+
+    var parse$1 = parser$1.parse;
+
+    // Strip insignificant whitespace
+    // Note that this could do a lot more, such as reorder fields etc.
+    function normalize(string) {
+      return string.replace(/[\s,]+/g, ' ').trim();
+    }
+
+    // A map docString -> graphql document
+    var docCache = {};
+
+    // A map fragmentName -> [normalized source]
+    var fragmentSourceMap = {};
+
+    function cacheKeyFromLoc(loc) {
+      return normalize(loc.source.body.substring(loc.start, loc.end));
+    }
+
+    // For testing.
+    function resetCaches() {
+      docCache = {};
+      fragmentSourceMap = {};
+    }
+
+    // Take a unstripped parsed document (query/mutation or even fragment), and
+    // check all fragment definitions, checking for name->source uniqueness.
+    // We also want to make sure only unique fragments exist in the document.
+    var printFragmentWarnings = true;
+    function processFragments(ast) {
+      var astFragmentMap = {};
+      var definitions = [];
+
+      for (var i = 0; i < ast.definitions.length; i++) {
+        var fragmentDefinition = ast.definitions[i];
+
+        if (fragmentDefinition.kind === 'FragmentDefinition') {
+          var fragmentName = fragmentDefinition.name.value;
+          var sourceKey = cacheKeyFromLoc(fragmentDefinition.loc);
+
+          // We know something about this fragment
+          if (fragmentSourceMap.hasOwnProperty(fragmentName) && !fragmentSourceMap[fragmentName][sourceKey]) {
+
+            // this is a problem because the app developer is trying to register another fragment with
+            // the same name as one previously registered. So, we tell them about it.
+            if (printFragmentWarnings) {
+              console.warn("Warning: fragment with name " + fragmentName + " already exists.\n"
+                + "graphql-tag enforces all fragment names across your application to be unique; read more about\n"
+                + "this in the docs: http://dev.apollodata.com/core/fragments.html#unique-names");
+            }
+
+            fragmentSourceMap[fragmentName][sourceKey] = true;
+
+          } else if (!fragmentSourceMap.hasOwnProperty(fragmentName)) {
+            fragmentSourceMap[fragmentName] = {};
+            fragmentSourceMap[fragmentName][sourceKey] = true;
+          }
+
+          if (!astFragmentMap[sourceKey]) {
+            astFragmentMap[sourceKey] = true;
+            definitions.push(fragmentDefinition);
+          }
+        } else {
+          definitions.push(fragmentDefinition);
+        }
+      }
+
+      ast.definitions = definitions;
+      return ast;
+    }
+
+    function disableFragmentWarnings() {
+      printFragmentWarnings = false;
+    }
+
+    function stripLoc(doc, removeLocAtThisLevel) {
+      var docType = Object.prototype.toString.call(doc);
+
+      if (docType === '[object Array]') {
+        return doc.map(function (d) {
+          return stripLoc(d, removeLocAtThisLevel);
+        });
+      }
+
+      if (docType !== '[object Object]') {
+        throw new Error('Unexpected input.');
+      }
+
+      // We don't want to remove the root loc field so we can use it
+      // for fragment substitution (see below)
+      if (removeLocAtThisLevel && doc.loc) {
+        delete doc.loc;
+      }
+
+      // https://github.com/apollographql/graphql-tag/issues/40
+      if (doc.loc) {
+        delete doc.loc.startToken;
+        delete doc.loc.endToken;
+      }
+
+      var keys = Object.keys(doc);
+      var key;
+      var value;
+      var valueType;
+
+      for (key in keys) {
+        if (keys.hasOwnProperty(key)) {
+          value = doc[keys[key]];
+          valueType = Object.prototype.toString.call(value);
+
+          if (valueType === '[object Object]' || valueType === '[object Array]') {
+            doc[keys[key]] = stripLoc(value, true);
+          }
+        }
+      }
+
+      return doc;
+    }
+
+    var experimentalFragmentVariables = false;
+    function parseDocument$1(doc) {
+      var cacheKey = normalize(doc);
+
+      if (docCache[cacheKey]) {
+        return docCache[cacheKey];
+      }
+
+      var parsed = parse$1(doc, { experimentalFragmentVariables: experimentalFragmentVariables });
+      if (!parsed || parsed.kind !== 'Document') {
+        throw new Error('Not a valid GraphQL document.');
+      }
+
+      // check that all "new" fragments inside the documents are consistent with
+      // existing fragments of the same name
+      parsed = processFragments(parsed);
+      parsed = stripLoc(parsed, false);
+      docCache[cacheKey] = parsed;
+
+      return parsed;
+    }
+
+    function enableExperimentalFragmentVariables() {
+      experimentalFragmentVariables = true;
+    }
+
+    function disableExperimentalFragmentVariables() {
+      experimentalFragmentVariables = false;
+    }
+
+    // XXX This should eventually disallow arbitrary string interpolation, like Relay does
+    function gql(/* arguments */) {
+      var args = Array.prototype.slice.call(arguments);
+
+      var literals = args[0];
+
+      // We always get literals[0] and then matching post literals for each arg given
+      var result = (typeof(literals) === "string") ? literals : literals[0];
+
+      for (var i = 1; i < args.length; i++) {
+        if (args[i] && args[i].kind && args[i].kind === 'Document') {
+          result += args[i].loc.source.body;
+        } else {
+          result += args[i];
+        }
+
+        result += literals[i];
+      }
+
+      return parseDocument$1(result);
+    }
+
+    // Support typescript, which isn't as nice as Babel about default exports
+    gql.default = gql;
+    gql.resetCaches = resetCaches;
+    gql.disableFragmentWarnings = disableFragmentWarnings;
+    gql.enableExperimentalFragmentVariables = enableExperimentalFragmentVariables;
+    gql.disableExperimentalFragmentVariables = disableExperimentalFragmentVariables;
+
+    var src = gql;
+
+    var PRESET_CONFIG_KEYS = [
+        'request',
+        'uri',
+        'credentials',
+        'headers',
+        'fetch',
+        'fetchOptions',
+        'clientState',
+        'onError',
+        'cacheRedirects',
+        'cache',
+        'name',
+        'version',
+        'resolvers',
+        'typeDefs',
+        'fragmentMatcher',
+    ];
+    var DefaultClient = (function (_super) {
+        __extends(DefaultClient, _super);
+        function DefaultClient(config) {
+            if (config === void 0) { config = {}; }
+            var _this = this;
+            if (config) {
+                var diff = Object.keys(config).filter(function (key) { return PRESET_CONFIG_KEYS.indexOf(key) === -1; });
+                if (diff.length > 0) {
+                    process.env.NODE_ENV === "production" || invariant.warn('ApolloBoost was initialized with unsupported options: ' +
+                        ("" + diff.join(' ')));
+                }
+            }
+            var request = config.request, uri = config.uri, credentials = config.credentials, headers = config.headers, fetch = config.fetch, fetchOptions = config.fetchOptions, clientState = config.clientState, cacheRedirects = config.cacheRedirects, errorCallback = config.onError, name = config.name, version = config.version, resolvers = config.resolvers, typeDefs = config.typeDefs, fragmentMatcher = config.fragmentMatcher;
+            var cache = config.cache;
+            process.env.NODE_ENV === "production" ? invariant(!cache || !cacheRedirects, 1) : invariant(!cache || !cacheRedirects, 'Incompatible cache configuration. When not providing `cache`, ' +
+                'configure the provided instance with `cacheRedirects` instead.');
+            if (!cache) {
+                cache = cacheRedirects
+                    ? new InMemoryCache({ cacheRedirects: cacheRedirects })
+                    : new InMemoryCache();
+            }
+            var errorLink = errorCallback
+                ? onError(errorCallback)
+                : onError(function (_a) {
+                    var graphQLErrors = _a.graphQLErrors, networkError = _a.networkError;
+                    if (graphQLErrors) {
+                        graphQLErrors.map(function (_a) {
+                            var message = _a.message, locations = _a.locations, path = _a.path;
+                            return process.env.NODE_ENV === "production" || invariant.warn("[GraphQL error]: Message: " + message + ", Location: " +
+                                (locations + ", Path: " + path));
+                        });
+                    }
+                    if (networkError) {
+                        process.env.NODE_ENV === "production" || invariant.warn("[Network error]: " + networkError);
+                    }
+                });
+            var requestHandler = request
+                ? new ApolloLink(function (operation, forward) {
+                    return new Observable(function (observer) {
+                        var handle;
+                        Promise.resolve(operation)
+                            .then(function (oper) { return request(oper); })
+                            .then(function () {
+                            handle = forward(operation).subscribe({
+                                next: observer.next.bind(observer),
+                                error: observer.error.bind(observer),
+                                complete: observer.complete.bind(observer),
+                            });
+                        })
+                            .catch(observer.error.bind(observer));
+                        return function () {
+                            if (handle) {
+                                handle.unsubscribe();
+                            }
+                        };
+                    });
+                })
+                : false;
+            var httpLink = new HttpLink({
+                uri: uri || '/graphql',
+                fetch: fetch,
+                fetchOptions: fetchOptions || {},
+                credentials: credentials || 'same-origin',
+                headers: headers || {},
+            });
+            var link = ApolloLink.from([errorLink, requestHandler, httpLink].filter(function (x) { return !!x; }));
+            var activeResolvers = resolvers;
+            var activeTypeDefs = typeDefs;
+            var activeFragmentMatcher = fragmentMatcher;
+            if (clientState) {
+                if (clientState.defaults) {
+                    cache.writeData({
+                        data: clientState.defaults,
+                    });
+                }
+                activeResolvers = clientState.resolvers;
+                activeTypeDefs = clientState.typeDefs;
+                activeFragmentMatcher = clientState.fragmentMatcher;
+            }
+            _this = _super.call(this, {
+                cache: cache,
+                link: link,
+                name: name,
+                version: version,
+                resolvers: activeResolvers,
+                typeDefs: activeTypeDefs,
+                fragmentMatcher: activeFragmentMatcher,
+            }) || this;
+            return _this;
+        }
+        return DefaultClient;
+    }(ApolloClient));
+    //# sourceMappingURL=bundle.esm.js.map
+
+    const client = new DefaultClient({
+      uri: 'http://localhost:4040/graphql'
+    });
+
+    const LevelsQuery = src`
+  query {
+    levels {
+      title
+      colors
+      solution
+    }
+  }
+`;
+
+    const DEFAULT_CONFIG = {
+      // minimum relative difference between two compared values,
+      // used by all comparison functions
+      epsilon: 1e-12,
+
+      // type of default matrix output. Choose 'matrix' (default) or 'array'
+      matrix: 'Matrix',
+
+      // type of default number output. Choose 'number' (default) 'BigNumber', or 'Fraction
+      number: 'number',
+
+      // number of significant digits in BigNumbers
+      precision: 64,
+
+      // predictable output type of functions. When true, output type depends only
+      // on the input types. When false (default), output type can vary depending
+      // on input values. For example `math.sqrt(-4)` returns `complex('2i')` when
+      // predictable is false, and returns `NaN` when true.
+      predictable: false,
+
+      // random seed for seeded pseudo random number generation
+      // null = randomly seed
+      randomSeed: null
+    };
+
+    // type checks for all known types
+    //
+    // note that:
+    //
+    // - check by duck-typing on a property like `isUnit`, instead of checking instanceof.
+    //   instanceof cannot be used because that would not allow to pass data from
+    //   one instance of math.js to another since each has it's own instance of Unit.
+    // - check the `isUnit` property via the constructor, so there will be no
+    //   matches for "fake" instances like plain objects with a property `isUnit`.
+    //   That is important for security reasons.
+    // - It must not be possible to override the type checks used internally,
+    //   for security reasons, so these functions are not exposed in the expression
+    //   parser.
+
+    function isNumber (x) {
+      return typeof x === 'number'
+    }
+
+    function isBigNumber (x) {
+      return (x && x.constructor.prototype.isBigNumber === true) || false
+    }
+
+    function isComplex (x) {
+      return (x && typeof x === 'object' && Object.getPrototypeOf(x).isComplex === true) || false
+    }
+
+    function isFraction (x) {
+      return (x && typeof x === 'object' && Object.getPrototypeOf(x).isFraction === true) || false
+    }
+
+    function isUnit (x) {
+      return (x && x.constructor.prototype.isUnit === true) || false
+    }
+
+    function isString (x) {
+      return typeof x === 'string'
+    }
+
+    const isArray = Array.isArray;
+
+    function isMatrix (x) {
+      return (x && x.constructor.prototype.isMatrix === true) || false
+    }
+
+    function isDenseMatrix (x) {
+      return (x && x.isDenseMatrix && x.constructor.prototype.isMatrix === true) || false
+    }
+
+    function isSparseMatrix (x) {
+      return (x && x.isSparseMatrix && x.constructor.prototype.isMatrix === true) || false
+    }
+
+    function isRange (x) {
+      return (x && x.constructor.prototype.isRange === true) || false
+    }
+
+    function isIndex (x) {
+      return (x && x.constructor.prototype.isIndex === true) || false
+    }
+
+    function isBoolean (x) {
+      return typeof x === 'boolean'
+    }
+
+    function isResultSet (x) {
+      return (x && x.constructor.prototype.isResultSet === true) || false
+    }
+
+    function isHelp (x) {
+      return (x && x.constructor.prototype.isHelp === true) || false
+    }
+
+    function isFunction (x) {
+      return typeof x === 'function'
+    }
+
+    function isDate (x) {
+      return x instanceof Date
+    }
+
+    function isRegExp (x) {
+      return x instanceof RegExp
+    }
+
+    function isObject$1 (x) {
+      return !!(x &&
+        typeof x === 'object' &&
+        x.constructor === Object &&
+        !isComplex(x) &&
+        !isFraction(x))
+    }
+
+    function isNull (x) {
+      return x === null
+    }
+
+    function isUndefined (x) {
+      return x === undefined
+    }
+
+    function isAccessorNode (x) {
+      return (x && x.isAccessorNode === true && x.constructor.prototype.isNode === true) || false
+    }
+
+    function isArrayNode (x) {
+      return (x && x.isArrayNode === true && x.constructor.prototype.isNode === true) || false
+    }
+
+    function isAssignmentNode (x) {
+      return (x && x.isAssignmentNode === true && x.constructor.prototype.isNode === true) || false
+    }
+
+    function isBlockNode (x) {
+      return (x && x.isBlockNode === true && x.constructor.prototype.isNode === true) || false
+    }
+
+    function isConditionalNode (x) {
+      return (x && x.isConditionalNode === true && x.constructor.prototype.isNode === true) || false
+    }
+
+    function isConstantNode (x) {
+      return (x && x.isConstantNode === true && x.constructor.prototype.isNode === true) || false
+    }
+
+    function isFunctionAssignmentNode (x) {
+      return (x && x.isFunctionAssignmentNode === true && x.constructor.prototype.isNode === true) || false
+    }
+
+    function isFunctionNode (x) {
+      return (x && x.isFunctionNode === true && x.constructor.prototype.isNode === true) || false
+    }
+
+    function isIndexNode (x) {
+      return (x && x.isIndexNode === true && x.constructor.prototype.isNode === true) || false
+    }
+
+    function isNode$1 (x) {
+      return (x && x.isNode === true && x.constructor.prototype.isNode === true) || false
+    }
+
+    function isObjectNode (x) {
+      return (x && x.isObjectNode === true && x.constructor.prototype.isNode === true) || false
+    }
+
+    function isOperatorNode (x) {
+      return (x && x.isOperatorNode === true && x.constructor.prototype.isNode === true) || false
+    }
+
+    function isParenthesisNode (x) {
+      return (x && x.isParenthesisNode === true && x.constructor.prototype.isNode === true) || false
+    }
+
+    function isRangeNode (x) {
+      return (x && x.isRangeNode === true && x.constructor.prototype.isNode === true) || false
+    }
+
+    function isSymbolNode (x) {
+      return (x && x.isSymbolNode === true && x.constructor.prototype.isNode === true) || false
+    }
+
+    function isChain (x) {
+      return (x && x.constructor.prototype.isChain === true) || false
+    }
+
+    function typeOf (x) {
+      const t = typeof x;
+
+      if (t === 'object') {
+        // JavaScript types
+        if (x === null) return 'null'
+        if (Array.isArray(x)) return 'Array'
+        if (x instanceof Date) return 'Date'
+        if (x instanceof RegExp) return 'RegExp'
+
+        // math.js types
+        if (isBigNumber(x)) return 'BigNumber'
+        if (isComplex(x)) return 'Complex'
+        if (isFraction(x)) return 'Fraction'
+        if (isMatrix(x)) return 'Matrix'
+        if (isUnit(x)) return 'Unit'
+        if (isIndex(x)) return 'Index'
+        if (isRange(x)) return 'Range'
+        if (isResultSet(x)) return 'ResultSet'
+        if (isNode$1(x)) return x.type
+        if (isChain(x)) return 'Chain'
+        if (isHelp(x)) return 'Help'
+
+        return 'Object'
+      }
+
+      if (t === 'function') return 'Function'
+
+      return t // can be 'string', 'number', 'boolean', ...
+    }
+
+    /**
+     * Clone an object
+     *
+     *     clone(x)
+     *
+     * Can clone any primitive type, array, and object.
+     * If x has a function clone, this function will be invoked to clone the object.
+     *
+     * @param {*} x
+     * @return {*} clone
+     */
+    function clone (x) {
+      const type = typeof x;
+
+      // immutable primitive types
+      if (type === 'number' || type === 'string' || type === 'boolean' ||
+          x === null || x === undefined) {
+        return x
+      }
+
+      // use clone function of the object when available
+      if (typeof x.clone === 'function') {
+        return x.clone()
+      }
+
+      // array
+      if (Array.isArray(x)) {
+        return x.map(function (value) {
+          return clone(value)
+        })
+      }
+
+      if (x instanceof Date) return new Date(x.valueOf())
+      if (isBigNumber(x)) return x // bignumbers are immutable
+      if (x instanceof RegExp) throw new TypeError('Cannot clone ' + x) // TODO: clone a RegExp
+
+      // object
+      return mapObject(x, clone)
+    }
+
+    /**
+     * Apply map to all properties of an object
+     * @param {Object} object
+     * @param {function} callback
+     * @return {Object} Returns a copy of the object with mapped properties
+     */
+    function mapObject (object, callback) {
+      const clone = {};
+
+      for (const key in object) {
+        if (hasOwnProperty$3(object, key)) {
+          clone[key] = callback(object[key]);
+        }
+      }
+
+      return clone
+    }
+
+    /**
+     * Deep test equality of all fields in two pairs of arrays or objects.
+     * Compares values and functions strictly (ie. 2 is not the same as '2').
+     * @param {Array | Object} a
+     * @param {Array | Object} b
+     * @returns {boolean}
+     */
+    function deepStrictEqual (a, b) {
+      let prop, i, len;
+      if (Array.isArray(a)) {
+        if (!Array.isArray(b)) {
+          return false
+        }
+
+        if (a.length !== b.length) {
+          return false
+        }
+
+        for (i = 0, len = a.length; i < len; i++) {
+          if (!deepStrictEqual(a[i], b[i])) {
+            return false
+          }
+        }
+        return true
+      } else if (typeof a === 'function') {
+        return (a === b)
+      } else if (a instanceof Object) {
+        if (Array.isArray(b) || !(b instanceof Object)) {
+          return false
+        }
+
+        for (prop in a) {
+          // noinspection JSUnfilteredForInLoop
+          if (!(prop in b) || !deepStrictEqual(a[prop], b[prop])) {
+            return false
+          }
+        }
+        for (prop in b) {
+          // noinspection JSUnfilteredForInLoop
+          if (!(prop in a) || !deepStrictEqual(a[prop], b[prop])) {
+            return false
+          }
+        }
+        return true
+      } else {
+        return (a === b)
+      }
+    }
+
+    /**
+     * A safe hasOwnProperty
+     * @param {Object} object
+     * @param {string} property
+     */
+    function hasOwnProperty$3 (object, property) {
+      return object && Object.hasOwnProperty.call(object, property)
+    }
+
+    /**
+     * Shallow version of pick, creating an object composed of the picked object properties
+     * but not for nested properties
+     * @param {Object} object
+     * @param {string[]} properties
+     * @return {Object}
+     */
+    function pickShallow (object, properties) {
+      const copy = {};
+
+      for (let i = 0; i < properties.length; i++) {
+        const key = properties[i];
+        const value = object[key];
+        if (value !== undefined) {
+          copy[key] = value;
+        }
+      }
+
+      return copy
+    }
+
+    const MATRIX_OPTIONS = ['Matrix', 'Array']; // valid values for option matrix
+    const NUMBER_OPTIONS = ['number', 'BigNumber', 'Fraction']; // valid values for option number
+
+    // create a read-only version of config
+    const config = /* #__PURE__ */ function (options) {
+      if (options) {
+        throw new Error('The global config is readonly. \n' +
+          'Please create a mathjs instance if you want to change the default configuration. \n' +
+          'Example:\n' +
+          '\n' +
+          '  import { create, all } from \'mathjs\';\n' +
+          '  const mathjs = create(all);\n' +
+          '  mathjs.config({ number: \'BigNumber\' });\n')
+      }
+
+      return Object.freeze(DEFAULT_CONFIG)
+    };
+    Object.assign(config, DEFAULT_CONFIG, { MATRIX_OPTIONS, NUMBER_OPTIONS });
+
+    var typedFunction = createCommonjsModule(function (module, exports) {
+
+    (function (root, factory) {
+      {
+        // OldNode. Does not work with strict CommonJS, but
+        // only CommonJS-like environments that support module.exports,
+        // like OldNode.
+        module.exports = factory();
+      }
+    }(commonjsGlobal, function () {
+
+      function ok () {
+        return true;
+      }
+
+      function notOk () {
+        return false;
+      }
+
+      function undef () {
+        return undefined;
+      }
+
+      /**
+       * @typedef {{
+       *   params: Param[],
+       *   fn: function
+       * }} Signature
+       *
+       * @typedef {{
+       *   types: Type[],
+       *   restParam: boolean
+       * }} Param
+       *
+       * @typedef {{
+       *   name: string,
+       *   typeIndex: number,
+       *   test: function,
+       *   conversion?: ConversionDef,
+       *   conversionIndex: number,
+       * }} Type
+       *
+       * @typedef {{
+       *   from: string,
+       *   to: string,
+       *   convert: function (*) : *
+       * }} ConversionDef
+       *
+       * @typedef {{
+       *   name: string,
+       *   test: function(*) : boolean
+       * }} TypeDef
+       */
+
+      // create a new instance of typed-function
+      function create () {
+        // data type tests
+        var _types = [
+          { name: 'number',    test: function (x) { return typeof x === 'number' } },
+          { name: 'string',    test: function (x) { return typeof x === 'string' } },
+          { name: 'boolean',   test: function (x) { return typeof x === 'boolean' } },
+          { name: 'Function',  test: function (x) { return typeof x === 'function'} },
+          { name: 'Array',     test: Array.isArray },
+          { name: 'Date',      test: function (x) { return x instanceof Date } },
+          { name: 'RegExp',    test: function (x) { return x instanceof RegExp } },
+          { name: 'Object',    test: function (x) {
+            return typeof x === 'object' && x.constructor === Object
+          }},
+          { name: 'null',      test: function (x) { return x === null } },
+          { name: 'undefined', test: function (x) { return x === undefined } }
+        ];
+
+        var anyType = {
+          name: 'any',
+          test: ok
+        };
+
+        // types which need to be ignored
+        var _ignore = [];
+
+        // type conversions
+        var _conversions = [];
+
+        // This is a temporary object, will be replaced with a typed function at the end
+        var typed = {
+          types: _types,
+          conversions: _conversions,
+          ignore: _ignore
+        };
+
+        /**
+         * Find the test function for a type
+         * @param {String} typeName
+         * @return {TypeDef} Returns the type definition when found,
+         *                    Throws a TypeError otherwise
+         */
+        function findTypeByName (typeName) {
+          var entry = findInArray(typed.types, function (entry) {
+            return entry.name === typeName;
+          });
+
+          if (entry) {
+            return entry;
+          }
+
+          if (typeName === 'any') { // special baked-in case 'any'
+            return anyType;
+          }
+
+          var hint = findInArray(typed.types, function (entry) {
+            return entry.name.toLowerCase() === typeName.toLowerCase();
+          });
+
+          throw new TypeError('Unknown type "' + typeName + '"' +
+              (hint ? ('. Did you mean "' + hint.name + '"?') : ''));
+        }
+
+        /**
+         * Find the index of a type definition. Handles special case 'any'
+         * @param {TypeDef} type
+         * @return {number}
+         */
+        function findTypeIndex(type) {
+          if (type === anyType) {
+            return 999;
+          }
+
+          return typed.types.indexOf(type);
+        }
+
+        /**
+         * Find a type that matches a value.
+         * @param {*} value
+         * @return {string} Returns the name of the first type for which
+         *                  the type test matches the value.
+         */
+        function findTypeName(value) {
+          var entry = findInArray(typed.types, function (entry) {
+            return entry.test(value);
+          });
+
+          if (entry) {
+            return entry.name;
+          }
+
+          throw new TypeError('Value has unknown type. Value: ' + value);
+        }
+
+        /**
+         * Find a specific signature from a (composed) typed function, for example:
+         *
+         *   typed.find(fn, ['number', 'string'])
+         *   typed.find(fn, 'number, string')
+         *
+         * Function find only only works for exact matches.
+         *
+         * @param {Function} fn                   A typed-function
+         * @param {string | string[]} signature   Signature to be found, can be
+         *                                        an array or a comma separated string.
+         * @return {Function}                     Returns the matching signature, or
+         *                                        throws an error when no signature
+         *                                        is found.
+         */
+        function find (fn, signature) {
+          if (!fn.signatures) {
+            throw new TypeError('Function is no typed-function');
+          }
+
+          // normalize input
+          var arr;
+          if (typeof signature === 'string') {
+            arr = signature.split(',');
+            for (var i = 0; i < arr.length; i++) {
+              arr[i] = arr[i].trim();
+            }
+          }
+          else if (Array.isArray(signature)) {
+            arr = signature;
+          }
+          else {
+            throw new TypeError('String array or a comma separated string expected');
+          }
+
+          var str = arr.join(',');
+
+          // find an exact match
+          var match = fn.signatures[str];
+          if (match) {
+            return match;
+          }
+
+          // TODO: extend find to match non-exact signatures
+
+          throw new TypeError('Signature not found (signature: ' + (fn.name || 'unnamed') + '(' + arr.join(', ') + '))');
+        }
+
+        /**
+         * Convert a given value to another data type.
+         * @param {*} value
+         * @param {string} type
+         */
+        function convert (value, type) {
+          var from = findTypeName(value);
+
+          // check conversion is needed
+          if (type === from) {
+            return value;
+          }
+
+          for (var i = 0; i < typed.conversions.length; i++) {
+            var conversion = typed.conversions[i];
+            if (conversion.from === from && conversion.to === type) {
+              return conversion.convert(value);
+            }
+          }
+
+          throw new Error('Cannot convert from ' + from + ' to ' + type);
+        }
+        
+        /**
+         * Stringify parameters in a normalized way
+         * @param {Param[]} params
+         * @return {string}
+         */
+        function stringifyParams (params) {
+          return params
+              .map(function (param) {
+                var typeNames = param.types.map(getTypeName);
+
+                return (param.restParam ? '...' : '') + typeNames.join('|');
+              })
+              .join(',');
+        }
+
+        /**
+         * Parse a parameter, like "...number | boolean"
+         * @param {string} param
+         * @param {ConversionDef[]} conversions
+         * @return {Param} param
+         */
+        function parseParam (param, conversions) {
+          var restParam = param.indexOf('...') === 0;
+          var types = (!restParam)
+              ? param
+              : (param.length > 3)
+                  ? param.slice(3)
+                  : 'any';
+
+          var typeNames = types.split('|').map(trim)
+              .filter(notEmpty)
+              .filter(notIgnore);
+
+          var matchingConversions = filterConversions(conversions, typeNames);
+
+          var exactTypes = typeNames.map(function (typeName) {
+            var type = findTypeByName(typeName);
+
+            return {
+              name: typeName,
+              typeIndex: findTypeIndex(type),
+              test: type.test,
+              conversion: null,
+              conversionIndex: -1
+            };
+          });
+
+          var convertibleTypes = matchingConversions.map(function (conversion) {
+            var type = findTypeByName(conversion.from);
+
+            return {
+              name: conversion.from,
+              typeIndex: findTypeIndex(type),
+              test: type.test,
+              conversion: conversion,
+              conversionIndex: conversions.indexOf(conversion)
+            };
+          });
+
+          return {
+            types: exactTypes.concat(convertibleTypes),
+            restParam: restParam
+          };
+        }
+
+        /**
+         * Parse a signature with comma separated parameters,
+         * like "number | boolean, ...string"
+         * @param {string} signature
+         * @param {function} fn
+         * @param {ConversionDef[]} conversions
+         * @return {Signature | null} signature
+         */
+        function parseSignature (signature, fn, conversions) {
+          var params = [];
+
+          if (signature.trim() !== '') {
+            params = signature
+                .split(',')
+                .map(trim)
+                .map(function (param, index, array) {
+                  var parsedParam = parseParam(param, conversions);
+
+                  if (parsedParam.restParam && (index !== array.length - 1)) {
+                    throw new SyntaxError('Unexpected rest parameter "' + param + '": ' +
+                        'only allowed for the last parameter');
+                  }
+
+                  return parsedParam;
+              });
+          }
+
+          if (params.some(isInvalidParam)) {
+            // invalid signature: at least one parameter has no types
+            // (they may have been filtered)
+            return null;
+          }
+
+          return {
+            params: params,
+            fn: fn
+          };
+        }
+
+        /**
+         * Test whether a set of params contains a restParam
+         * @param {Param[]} params
+         * @return {boolean} Returns true when the last parameter is a restParam
+         */
+        function hasRestParam(params) {
+          var param = last(params);
+          return param ? param.restParam : false;
+        }
+
+        /**
+         * Test whether a parameter contains conversions
+         * @param {Param} param
+         * @return {boolean} Returns true when at least one of the parameters
+         *                   contains a conversion.
+         */
+        function hasConversions(param) {
+          return param.types.some(function (type) {
+            return type.conversion != null;
+          });
+        }
+
+        /**
+         * Create a type test for a single parameter, which can have one or multiple
+         * types.
+         * @param {Param} param
+         * @return {function(x: *) : boolean} Returns a test function
+         */
+        function compileTest(param) {
+          if (!param || param.types.length === 0) {
+            // nothing to do
+            return ok;
+          }
+          else if (param.types.length === 1) {
+            return findTypeByName(param.types[0].name).test;
+          }
+          else if (param.types.length === 2) {
+            var test0 = findTypeByName(param.types[0].name).test;
+            var test1 = findTypeByName(param.types[1].name).test;
+            return function or(x) {
+              return test0(x) || test1(x);
+            }
+          }
+          else { // param.types.length > 2
+            var tests = param.types.map(function (type) {
+              return findTypeByName(type.name).test;
+            });
+            return function or(x) {
+              for (var i = 0; i < tests.length; i++) {
+                if (tests[i](x)) {
+                  return true;
+                }
+              }
+              return false;
+            }
+          }
+        }
+
+        /**
+         * Create a test for all parameters of a signature
+         * @param {Param[]} params
+         * @return {function(args: Array<*>) : boolean}
+         */
+        function compileTests(params) {
+          var tests, test0, test1;
+
+          if (hasRestParam(params)) {
+            // variable arguments like '...number'
+            tests = initial(params).map(compileTest);
+            var varIndex = tests.length;
+            var lastTest = compileTest(last(params));
+            var testRestParam = function (args) {
+              for (var i = varIndex; i < args.length; i++) {
+                if (!lastTest(args[i])) {
+                  return false;
+                }
+              }
+              return true;
+            };
+
+            return function testArgs(args) {
+              for (var i = 0; i < tests.length; i++) {
+                if (!tests[i](args[i])) {
+                  return false;
+                }
+              }
+              return testRestParam(args) && (args.length >= varIndex + 1);
+            };
+          }
+          else {
+            // no variable arguments
+            if (params.length === 0) {
+              return function testArgs(args) {
+                return args.length === 0;
+              };
+            }
+            else if (params.length === 1) {
+              test0 = compileTest(params[0]);
+              return function testArgs(args) {
+                return test0(args[0]) && args.length === 1;
+              };
+            }
+            else if (params.length === 2) {
+              test0 = compileTest(params[0]);
+              test1 = compileTest(params[1]);
+              return function testArgs(args) {
+                return test0(args[0]) && test1(args[1]) && args.length === 2;
+              };
+            }
+            else { // arguments.length > 2
+              tests = params.map(compileTest);
+              return function testArgs(args) {
+                for (var i = 0; i < tests.length; i++) {
+                  if (!tests[i](args[i])) {
+                    return false;
+                  }
+                }
+                return args.length === tests.length;
+              };
+            }
+          }
+        }
+
+        /**
+         * Find the parameter at a specific index of a signature.
+         * Handles rest parameters.
+         * @param {Signature} signature
+         * @param {number} index
+         * @return {Param | null} Returns the matching parameter when found,
+         *                        null otherwise.
+         */
+        function getParamAtIndex(signature, index) {
+          return index < signature.params.length
+              ? signature.params[index]
+              : hasRestParam(signature.params)
+                  ? last(signature.params)
+                  : null
+        }
+
+        /**
+         * Get all type names of a parameter
+         * @param {Signature} signature
+         * @param {number} index
+         * @param {boolean} excludeConversions
+         * @return {string[]} Returns an array with type names
+         */
+        function getExpectedTypeNames (signature, index, excludeConversions) {
+          var param = getParamAtIndex(signature, index);
+          var types = param
+              ? excludeConversions
+                      ? param.types.filter(isExactType)
+                      : param.types
+              : [];
+
+          return types.map(getTypeName);
+        }
+
+        /**
+         * Returns the name of a type
+         * @param {Type} type
+         * @return {string} Returns the type name
+         */
+        function getTypeName(type) {
+          return type.name;
+        }
+
+        /**
+         * Test whether a type is an exact type or conversion
+         * @param {Type} type
+         * @return {boolean} Returns true when
+         */
+        function isExactType(type) {
+          return type.conversion === null || type.conversion === undefined;
+        }
+
+        /**
+         * Helper function for creating error messages: create an array with
+         * all available types on a specific argument index.
+         * @param {Signature[]} signatures
+         * @param {number} index
+         * @return {string[]} Returns an array with available types
+         */
+        function mergeExpectedParams(signatures, index) {
+          var typeNames = uniq(flatMap(signatures, function (signature) {
+            return getExpectedTypeNames(signature, index, false);
+          }));
+
+          return (typeNames.indexOf('any') !== -1) ? ['any'] : typeNames;
+        }
+
+        /**
+         * Create
+         * @param {string} name             The name of the function
+         * @param {array.<*>} args          The actual arguments passed to the function
+         * @param {Signature[]} signatures  A list with available signatures
+         * @return {TypeError} Returns a type error with additional data
+         *                     attached to it in the property `data`
+         */
+        function createError(name, args, signatures) {
+          var err, expected;
+          var _name = name || 'unnamed';
+
+          // test for wrong type at some index
+          var matchingSignatures = signatures;
+          var index;
+          for (index = 0; index < args.length; index++) {
+            var nextMatchingDefs = matchingSignatures.filter(function (signature) {
+              var test = compileTest(getParamAtIndex(signature, index));
+              return (index < signature.params.length || hasRestParam(signature.params)) &&
+                  test(args[index]);
+            });
+
+            if (nextMatchingDefs.length === 0) {
+              // no matching signatures anymore, throw error "wrong type"
+              expected = mergeExpectedParams(matchingSignatures, index);
+              if (expected.length > 0) {
+                var actualType = findTypeName(args[index]);
+
+                err = new TypeError('Unexpected type of argument in function ' + _name +
+                    ' (expected: ' + expected.join(' or ') +
+                    ', actual: ' + actualType + ', index: ' + index + ')');
+                err.data = {
+                  category: 'wrongType',
+                  fn: _name,
+                  index: index,
+                  actual: actualType,
+                  expected: expected
+                };
+                return err;
+              }
+            }
+            else {
+              matchingSignatures = nextMatchingDefs;
+            }
+          }
+
+          // test for too few arguments
+          var lengths = matchingSignatures.map(function (signature) {
+            return hasRestParam(signature.params) ? Infinity : signature.params.length;
+          });
+          if (args.length < Math.min.apply(null, lengths)) {
+            expected = mergeExpectedParams(matchingSignatures, index);
+            err = new TypeError('Too few arguments in function ' + _name +
+                ' (expected: ' + expected.join(' or ') +
+                ', index: ' + args.length + ')');
+            err.data = {
+              category: 'tooFewArgs',
+              fn: _name,
+              index: args.length,
+              expected: expected
+            };
+            return err;
+          }
+
+          // test for too many arguments
+          var maxLength = Math.max.apply(null, lengths);
+          if (args.length > maxLength) {
+            err = new TypeError('Too many arguments in function ' + _name +
+                ' (expected: ' + maxLength + ', actual: ' + args.length + ')');
+            err.data = {
+              category: 'tooManyArgs',
+              fn: _name,
+              index: args.length,
+              expectedLength: maxLength
+            };
+            return err;
+          }
+
+          err = new TypeError('Arguments of type "' + args.join(', ') +
+              '" do not match any of the defined signatures of function ' + _name + '.');
+          err.data = {
+            category: 'mismatch',
+            actual: args.map(findTypeName)
+          };
+          return err;
+        }
+
+        /**
+         * Find the lowest index of all exact types of a parameter (no conversions)
+         * @param {Param} param
+         * @return {number} Returns the index of the lowest type in typed.types
+         */
+        function getLowestTypeIndex (param) {
+          var min = 999;
+
+          for (var i = 0; i < param.types.length; i++) {
+            if (isExactType(param.types[i])) {
+              min = Math.min(min, param.types[i].typeIndex);
+            }
+          }
+
+          return min;
+        }
+
+        /**
+         * Find the lowest index of the conversion of all types of the parameter
+         * having a conversion
+         * @param {Param} param
+         * @return {number} Returns the lowest index of the conversions of this type
+         */
+        function getLowestConversionIndex (param) {
+          var min = 999;
+
+          for (var i = 0; i < param.types.length; i++) {
+            if (!isExactType(param.types[i])) {
+              min = Math.min(min, param.types[i].conversionIndex);
+            }
+          }
+
+          return min;
+        }
+
+        /**
+         * Compare two params
+         * @param {Param} param1
+         * @param {Param} param2
+         * @return {number} returns a negative number when param1 must get a lower
+         *                  index than param2, a positive number when the opposite,
+         *                  or zero when both are equal
+         */
+        function compareParams (param1, param2) {
+          var c;
+
+          // compare having a rest parameter or not
+          c = param1.restParam - param2.restParam;
+          if (c !== 0) {
+            return c;
+          }
+
+          // compare having conversions or not
+          c = hasConversions(param1) - hasConversions(param2);
+          if (c !== 0) {
+            return c;
+          }
+
+          // compare the index of the types
+          c = getLowestTypeIndex(param1) - getLowestTypeIndex(param2);
+          if (c !== 0) {
+            return c;
+          }
+
+          // compare the index of any conversion
+          return getLowestConversionIndex(param1) - getLowestConversionIndex(param2);
+        }
+
+        /**
+         * Compare two signatures
+         * @param {Signature} signature1
+         * @param {Signature} signature2
+         * @return {number} returns a negative number when param1 must get a lower
+         *                  index than param2, a positive number when the opposite,
+         *                  or zero when both are equal
+         */
+        function compareSignatures (signature1, signature2) {
+          var len = Math.min(signature1.params.length, signature2.params.length);
+          var i;
+          var c;
+
+          // compare whether the params have conversions at all or not
+          c = signature1.params.some(hasConversions) - signature2.params.some(hasConversions);
+          if (c !== 0) {
+            return c;
+          }
+
+          // next compare whether the params have conversions one by one
+          for (i = 0; i < len; i++) {
+            c = hasConversions(signature1.params[i]) - hasConversions(signature2.params[i]);
+            if (c !== 0) {
+              return c;
+            }
+          }
+
+          // compare the types of the params one by one
+          for (i = 0; i < len; i++) {
+            c = compareParams(signature1.params[i], signature2.params[i]);
+            if (c !== 0) {
+              return c;
+            }
+          }
+
+          // compare the number of params
+          return signature1.params.length - signature2.params.length;
+        }
+
+        /**
+         * Get params containing all types that can be converted to the defined types.
+         *
+         * @param {ConversionDef[]} conversions
+         * @param {string[]} typeNames
+         * @return {ConversionDef[]} Returns the conversions that are available
+         *                        for every type (if any)
+         */
+        function filterConversions(conversions, typeNames) {
+          var matches = {};
+
+          conversions.forEach(function (conversion) {
+            if (typeNames.indexOf(conversion.from) === -1 &&
+                typeNames.indexOf(conversion.to) !== -1 &&
+                !matches[conversion.from]) {
+              matches[conversion.from] = conversion;
+            }
+          });
+
+          return Object.keys(matches).map(function (from) {
+            return matches[from];
+          });
+        }
+
+        /**
+         * Preprocess arguments before calling the original function:
+         * - if needed convert the parameters
+         * - in case of rest parameters, move the rest parameters into an Array
+         * @param {Param[]} params
+         * @param {function} fn
+         * @return {function} Returns a wrapped function
+         */
+        function compileArgsPreprocessing(params, fn) {
+          var fnConvert = fn;
+
+          // TODO: can we make this wrapper function smarter/simpler?
+
+          if (params.some(hasConversions)) {
+            var restParam = hasRestParam(params);
+            var compiledConversions = params.map(compileArgConversion);
+
+            fnConvert = function convertArgs() {
+              var args = [];
+              var last = restParam ? arguments.length - 1 : arguments.length;
+              for (var i = 0; i < last; i++) {
+                args[i] = compiledConversions[i](arguments[i]);
+              }
+              if (restParam) {
+                args[last] = arguments[last].map(compiledConversions[last]);
+              }
+
+              return fn.apply(null, args);
+            };
+          }
+
+          var fnPreprocess = fnConvert;
+          if (hasRestParam(params)) {
+            var offset = params.length - 1;
+
+            fnPreprocess = function preprocessRestParams () {
+              return fnConvert.apply(null,
+                  slice(arguments, 0, offset).concat([slice(arguments, offset)]));
+            };
+          }
+
+          return fnPreprocess;
+        }
+
+        /**
+         * Compile conversion for a parameter to the right type
+         * @param {Param} param
+         * @return {function} Returns the wrapped function that will convert arguments
+         *
+         */
+        function compileArgConversion(param) {
+          var test0, test1, conversion0, conversion1;
+          var tests = [];
+          var conversions = [];
+
+          param.types.forEach(function (type) {
+            if (type.conversion) {
+              tests.push(findTypeByName(type.conversion.from).test);
+              conversions.push(type.conversion.convert);
+            }
+          });
+
+          // create optimized conversion functions depending on the number of conversions
+          switch (conversions.length) {
+            case 0:
+              return function convertArg(arg) {
+                return arg;
+              }
+
+            case 1:
+              test0 = tests[0];
+              conversion0 = conversions[0];
+              return function convertArg(arg) {
+                if (test0(arg)) {
+                  return conversion0(arg)
+                }
+                return arg;
+              }
+
+            case 2:
+              test0 = tests[0];
+              test1 = tests[1];
+              conversion0 = conversions[0];
+              conversion1 = conversions[1];
+              return function convertArg(arg) {
+                if (test0(arg)) {
+                  return conversion0(arg)
+                }
+                if (test1(arg)) {
+                  return conversion1(arg)
+                }
+                return arg;
+              }
+
+            default:
+              return function convertArg(arg) {
+                for (var i = 0; i < conversions.length; i++) {
+                  if (tests[i](arg)) {
+                    return conversions[i](arg);
+                  }
+                }
+                return arg;
+              }
+          }
+        }
+
+        /**
+         * Convert an array with signatures into a map with signatures,
+         * where signatures with union types are split into separate signatures
+         *
+         * Throws an error when there are conflicting types
+         *
+         * @param {Signature[]} signatures
+         * @return {Object.<string, function>}  Returns a map with signatures
+         *                                      as key and the original function
+         *                                      of this signature as value.
+         */
+        function createSignaturesMap(signatures) {
+          var signaturesMap = {};
+          signatures.forEach(function (signature) {
+            if (!signature.params.some(hasConversions)) {
+              splitParams(signature.params, true).forEach(function (params) {
+                signaturesMap[stringifyParams(params)] = signature.fn;
+              });
+            }
+          });
+
+          return signaturesMap;
+        }
+
+        /**
+         * Split params with union types in to separate params.
+         *
+         * For example:
+         *
+         *     splitParams([['Array', 'Object'], ['string', 'RegExp'])
+         *     // returns:
+         *     // [
+         *     //   ['Array', 'string'],
+         *     //   ['Array', 'RegExp'],
+         *     //   ['Object', 'string'],
+         *     //   ['Object', 'RegExp']
+         *     // ]
+         *
+         * @param {Param[]} params
+         * @param {boolean} ignoreConversionTypes
+         * @return {Param[]}
+         */
+        function splitParams(params, ignoreConversionTypes) {
+          function _splitParams(params, index, types) {
+            if (index < params.length) {
+              var param = params[index];
+              var filteredTypes = ignoreConversionTypes
+                  ? param.types.filter(isExactType)
+                  : param.types;
+              var typeGroups;
+
+              if (param.restParam) {
+                // split the types of a rest parameter in two:
+                // one with only exact types, and one with exact types and conversions
+                var exactTypes = filteredTypes.filter(isExactType);
+                typeGroups = exactTypes.length < filteredTypes.length
+                    ? [exactTypes, filteredTypes]
+                    : [filteredTypes];
+
+              }
+              else {
+                // split all the types of a regular parameter into one type per group
+                typeGroups = filteredTypes.map(function (type) {
+                  return [type]
+                });
+              }
+
+              // recurse over the groups with types
+              return flatMap(typeGroups, function (typeGroup) {
+                return _splitParams(params, index + 1, types.concat([typeGroup]));
+              });
+
+            }
+            else {
+              // we've reached the end of the parameters. Now build a new Param
+              var splittedParams = types.map(function (type, typeIndex) {
+                return {
+                  types: type,
+                  restParam: (typeIndex === params.length - 1) && hasRestParam(params)
+                }
+              });
+
+              return [splittedParams];
+            }
+          }
+
+          return _splitParams(params, 0, []);
+        }
+
+        /**
+         * Test whether two signatures have a conflicting signature
+         * @param {Signature} signature1
+         * @param {Signature} signature2
+         * @return {boolean} Returns true when the signatures conflict, false otherwise.
+         */
+        function hasConflictingParams(signature1, signature2) {
+          var ii = Math.max(signature1.params.length, signature2.params.length);
+
+          for (var i = 0; i < ii; i++) {
+            var typesNames1 = getExpectedTypeNames(signature1, i, true);
+            var typesNames2 = getExpectedTypeNames(signature2, i, true);
+
+            if (!hasOverlap(typesNames1, typesNames2)) {
+              return false;
+            }
+          }
+
+          var len1 = signature1.params.length;
+          var len2 = signature2.params.length;
+          var restParam1 = hasRestParam(signature1.params);
+          var restParam2 = hasRestParam(signature2.params);
+
+          return restParam1
+              ? restParam2 ? (len1 === len2) : (len2 >= len1)
+              : restParam2 ? (len1 >= len2)  : (len1 === len2)
+        }
+
+        /**
+         * Create a typed function
+         * @param {String} name               The name for the typed function
+         * @param {Object.<string, function>} signaturesMap
+         *                                    An object with one or
+         *                                    multiple signatures as key, and the
+         *                                    function corresponding to the
+         *                                    signature as value.
+         * @return {function}  Returns the created typed function.
+         */
+        function createTypedFunction(name, signaturesMap) {
+          if (Object.keys(signaturesMap).length === 0) {
+            throw new SyntaxError('No signatures provided');
+          }
+
+          // parse the signatures, and check for conflicts
+          var parsedSignatures = [];
+          Object.keys(signaturesMap)
+              .map(function (signature) {
+                return parseSignature(signature, signaturesMap[signature], typed.conversions);
+              })
+              .filter(notNull)
+              .forEach(function (parsedSignature) {
+                // check whether this parameter conflicts with already parsed signatures
+                var conflictingSignature = findInArray(parsedSignatures, function (s) {
+                  return hasConflictingParams(s, parsedSignature)
+                });
+                if (conflictingSignature) {
+                  throw new TypeError('Conflicting signatures "' +
+                      stringifyParams(conflictingSignature.params) + '" and "' +
+                      stringifyParams(parsedSignature.params) + '".');
+                }
+
+                parsedSignatures.push(parsedSignature);
+              });
+
+          // split and filter the types of the signatures, and then order them
+          var signatures = flatMap(parsedSignatures, function (parsedSignature) {
+            var params = parsedSignature ? splitParams(parsedSignature.params, false) : [];
+
+            return params.map(function (params) {
+              return {
+                params: params,
+                fn: parsedSignature.fn
+              };
+            });
+          }).filter(notNull);
+
+          signatures.sort(compareSignatures);
+
+          // we create a highly optimized checks for the first couple of signatures with max 2 arguments
+          var ok0 = signatures[0] && signatures[0].params.length <= 2 && !hasRestParam(signatures[0].params);
+          var ok1 = signatures[1] && signatures[1].params.length <= 2 && !hasRestParam(signatures[1].params);
+          var ok2 = signatures[2] && signatures[2].params.length <= 2 && !hasRestParam(signatures[2].params);
+          var ok3 = signatures[3] && signatures[3].params.length <= 2 && !hasRestParam(signatures[3].params);
+          var ok4 = signatures[4] && signatures[4].params.length <= 2 && !hasRestParam(signatures[4].params);
+          var ok5 = signatures[5] && signatures[5].params.length <= 2 && !hasRestParam(signatures[5].params);
+          var allOk = ok0 && ok1 && ok2 && ok3 && ok4 && ok5;
+
+          // compile the tests
+          var tests = signatures.map(function (signature) {
+            return compileTests(signature.params);
+          });
+
+          var test00 = ok0 ? compileTest(signatures[0].params[0]) : notOk;
+          var test10 = ok1 ? compileTest(signatures[1].params[0]) : notOk;
+          var test20 = ok2 ? compileTest(signatures[2].params[0]) : notOk;
+          var test30 = ok3 ? compileTest(signatures[3].params[0]) : notOk;
+          var test40 = ok4 ? compileTest(signatures[4].params[0]) : notOk;
+          var test50 = ok5 ? compileTest(signatures[5].params[0]) : notOk;
+
+          var test01 = ok0 ? compileTest(signatures[0].params[1]) : notOk;
+          var test11 = ok1 ? compileTest(signatures[1].params[1]) : notOk;
+          var test21 = ok2 ? compileTest(signatures[2].params[1]) : notOk;
+          var test31 = ok3 ? compileTest(signatures[3].params[1]) : notOk;
+          var test41 = ok4 ? compileTest(signatures[4].params[1]) : notOk;
+          var test51 = ok5 ? compileTest(signatures[5].params[1]) : notOk;
+
+          // compile the functions
+          var fns = signatures.map(function(signature) {
+            return compileArgsPreprocessing(signature.params, signature.fn)
+          });
+
+          var fn0 = ok0 ? fns[0] : undef;
+          var fn1 = ok1 ? fns[1] : undef;
+          var fn2 = ok2 ? fns[2] : undef;
+          var fn3 = ok3 ? fns[3] : undef;
+          var fn4 = ok4 ? fns[4] : undef;
+          var fn5 = ok5 ? fns[5] : undef;
+
+          var len0 = ok0 ? signatures[0].params.length : -1;
+          var len1 = ok1 ? signatures[1].params.length : -1;
+          var len2 = ok2 ? signatures[2].params.length : -1;
+          var len3 = ok3 ? signatures[3].params.length : -1;
+          var len4 = ok4 ? signatures[4].params.length : -1;
+          var len5 = ok5 ? signatures[5].params.length : -1;
+
+          // simple and generic, but also slow
+          var iStart = allOk ? 6 : 0;
+          var iEnd = signatures.length;
+          var generic = function generic() {
+
+            for (var i = iStart; i < iEnd; i++) {
+              if (tests[i](arguments)) {
+                return fns[i].apply(null, arguments);
+              }
+            }
+
+            throw createError(name, arguments, signatures);
+          };
+
+          // create the typed function
+          // fast, specialized version. Falls back to the slower, generic one if needed
+          var fn = function fn(arg0, arg1) {
+
+            if (arguments.length === len0 && test00(arg0) && test01(arg1)) { return fn0.apply(null, arguments); }
+            if (arguments.length === len1 && test10(arg0) && test11(arg1)) { return fn1.apply(null, arguments); }
+            if (arguments.length === len2 && test20(arg0) && test21(arg1)) { return fn2.apply(null, arguments); }
+            if (arguments.length === len3 && test30(arg0) && test31(arg1)) { return fn3.apply(null, arguments); }
+            if (arguments.length === len4 && test40(arg0) && test41(arg1)) { return fn4.apply(null, arguments); }
+            if (arguments.length === len5 && test50(arg0) && test51(arg1)) { return fn5.apply(null, arguments); }
+
+            return generic.apply(null, arguments);
+          };
+
+          // attach name the typed function
+          try {
+            Object.defineProperty(fn, 'name', {value: name});
+          }
+          catch (err) {
+            // old browsers do not support Object.defineProperty and some don't support setting the name property
+            // the function name is not essential for the functioning, it's mostly useful for debugging,
+            // so it's fine to have unnamed functions.
+          }
+
+          // attach signatures to the function
+          fn.signatures = createSignaturesMap(signatures);
+
+          return fn;
+        }
+
+        /**
+         * Test whether a type should be NOT be ignored
+         * @param {string} typeName
+         * @return {boolean}
+         */
+        function notIgnore(typeName) {
+          return typed.ignore.indexOf(typeName) === -1;
+        }
+
+        /**
+         * trim a string
+         * @param {string} str
+         * @return {string}
+         */
+        function trim(str) {
+          return str.trim();
+        }
+
+        /**
+         * Test whether a string is not empty
+         * @param {string} str
+         * @return {boolean}
+         */
+        function notEmpty(str) {
+          return !!str;
+        }
+
+        /**
+         * test whether a value is not strict equal to null
+         * @param {*} value
+         * @return {boolean}
+         */
+        function notNull(value) {
+          return value !== null;
+        }
+
+        /**
+         * Test whether a parameter has no types defined
+         * @param {Param} param
+         * @return {boolean}
+         */
+        function isInvalidParam (param) {
+          return param.types.length === 0;
+        }
+
+        /**
+         * Return all but the last items of an array
+         * @param {Array} arr
+         * @return {Array}
+         */
+        function initial(arr) {
+          return arr.slice(0, arr.length - 1);
+        }
+
+        /**
+         * return the last item of an array
+         * @param {Array} arr
+         * @return {*}
+         */
+        function last(arr) {
+          return arr[arr.length - 1];
+        }
+
+        /**
+         * Slice an array or function Arguments
+         * @param {Array | Arguments | IArguments} arr
+         * @param {number} start
+         * @param {number} [end]
+         * @return {Array}
+         */
+        function slice(arr, start, end) {
+          return Array.prototype.slice.call(arr, start, end);
+        }
+
+        /**
+         * Test whether an array contains some item
+         * @param {Array} array
+         * @param {*} item
+         * @return {boolean} Returns true if array contains item, false if not.
+         */
+        function contains(array, item) {
+          return array.indexOf(item) !== -1;
+        }
+
+        /**
+         * Test whether two arrays have overlapping items
+         * @param {Array} array1
+         * @param {Array} array2
+         * @return {boolean} Returns true when at least one item exists in both arrays
+         */
+        function hasOverlap(array1, array2) {
+          for (var i = 0; i < array1.length; i++) {
+            if (contains(array2, array1[i])) {
+              return true;
+            }
+          }
+
+          return false;
+        }
+
+        /**
+         * Return the first item from an array for which test(arr[i]) returns true
+         * @param {Array} arr
+         * @param {function} test
+         * @return {* | undefined} Returns the first matching item
+         *                         or undefined when there is no match
+         */
+        function findInArray(arr, test) {
+          for (var i = 0; i < arr.length; i++) {
+            if (test(arr[i])) {
+              return arr[i];
+            }
+          }
+          return undefined;
+        }
+
+        /**
+         * Filter unique items of an array with strings
+         * @param {string[]} arr
+         * @return {string[]}
+         */
+        function uniq(arr) {
+          var entries = {};
+          for (var i = 0; i < arr.length; i++) {
+            entries[arr[i]] = true;
+          }
+          return Object.keys(entries);
+        }
+
+        /**
+         * Flat map the result invoking a callback for every item in an array.
+         * https://gist.github.com/samgiles/762ee337dff48623e729
+         * @param {Array} arr
+         * @param {function} callback
+         * @return {Array}
+         */
+        function flatMap(arr, callback) {
+          return Array.prototype.concat.apply([], arr.map(callback));
+        }
+
+        /**
+         * Retrieve the function name from a set of typed functions,
+         * and check whether the name of all functions match (if given)
+         * @param {function[]} fns
+         */
+        function getName (fns) {
+          var name = '';
+
+          for (var i = 0; i < fns.length; i++) {
+            var fn = fns[i];
+
+            // check whether the names are the same when defined
+            if ((typeof fn.signatures === 'object' || typeof fn.signature === 'string') && fn.name !== '') {
+              if (name === '') {
+                name = fn.name;
+              }
+              else if (name !== fn.name) {
+                var err = new Error('Function names do not match (expected: ' + name + ', actual: ' + fn.name + ')');
+                err.data = {
+                  actual: fn.name,
+                  expected: name
+                };
+                throw err;
+              }
+            }
+          }
+
+          return name;
+        }
+
+        // extract and merge all signatures of a list with typed functions
+        function extractSignatures(fns) {
+          var err;
+          var signaturesMap = {};
+
+          function validateUnique(_signature, _fn) {
+            if (signaturesMap.hasOwnProperty(_signature) && _fn !== signaturesMap[_signature]) {
+              err = new Error('Signature "' + _signature + '" is defined twice');
+              err.data = {signature: _signature};
+              throw err;
+              // else: both signatures point to the same function, that's fine
+            }
+          }
+
+          for (var i = 0; i < fns.length; i++) {
+            var fn = fns[i];
+
+            // test whether this is a typed-function
+            if (typeof fn.signatures === 'object') {
+              // merge the signatures
+              for (var signature in fn.signatures) {
+                if (fn.signatures.hasOwnProperty(signature)) {
+                  validateUnique(signature, fn.signatures[signature]);
+                  signaturesMap[signature] = fn.signatures[signature];
+                }
+              }
+            }
+            else if (typeof fn.signature === 'string') {
+              validateUnique(fn.signature, fn);
+              signaturesMap[fn.signature] = fn;
+            }
+            else {
+              err = new TypeError('Function is no typed-function (index: ' + i + ')');
+              err.data = {index: i};
+              throw err;
+            }
+          }
+
+          return signaturesMap;
+        }
+
+        typed = createTypedFunction('typed', {
+          'string, Object': createTypedFunction,
+          'Object': function (signaturesMap) {
+            // find existing name
+            var fns = [];
+            for (var signature in signaturesMap) {
+              if (signaturesMap.hasOwnProperty(signature)) {
+                fns.push(signaturesMap[signature]);
+              }
+            }
+            var name = getName(fns);
+            return createTypedFunction(name, signaturesMap);
+          },
+          '...Function': function (fns) {
+            return createTypedFunction(getName(fns), extractSignatures(fns));
+          },
+          'string, ...Function': function (name, fns) {
+            return createTypedFunction(name, extractSignatures(fns));
+          }
+        });
+
+        typed.create = create;
+        typed.types = _types;
+        typed.conversions = _conversions;
+        typed.ignore = _ignore;
+        typed.convert = convert;
+        typed.find = find;
+
+        /**
+         * add a type
+         * @param {{name: string, test: function}} type
+         * @param {boolean} [beforeObjectTest=true]
+         *                          If true, the new test will be inserted before
+         *                          the test with name 'Object' (if any), since
+         *                          tests for Object match Array and classes too.
+         */
+        typed.addType = function (type, beforeObjectTest) {
+          if (!type || typeof type.name !== 'string' || typeof type.test !== 'function') {
+            throw new TypeError('Object with properties {name: string, test: function} expected');
+          }
+
+          if (beforeObjectTest !== false) {
+            for (var i = 0; i < typed.types.length; i++) {
+              if (typed.types[i].name === 'Object') {
+                typed.types.splice(i, 0, type);
+                return
+              }
+            }
+          }
+
+          typed.types.push(type);
+        };
+
+        // add a conversion
+        typed.addConversion = function (conversion) {
+          if (!conversion
+              || typeof conversion.from !== 'string'
+              || typeof conversion.to !== 'string'
+              || typeof conversion.convert !== 'function') {
+            throw new TypeError('Object with properties {from: string, to: string, convert: function} expected');
+          }
+
+          typed.conversions.push(conversion);
+        };
+
+        return typed;
+      }
+
+      return create();
+    }));
+    });
+
+    /**
+     * @typedef {{sign: '+' | '-' | '', coefficients: number[], exponent: number}} SplitValue
+     */
+
+    /**
+     * Check if a number is integer
+     * @param {number | boolean} value
+     * @return {boolean} isInteger
+     */
+    function isInteger (value) {
+      if (typeof value === 'boolean') {
+        return true
+      }
+
+      return isFinite(value)
+        ? (value === Math.round(value))
+        : false
+      // Note: we use ==, not ===, as we can have Booleans as well
+    }
+
+    /**
+     * Convert a number to a formatted string representation.
+     *
+     * Syntax:
+     *
+     *    format(value)
+     *    format(value, options)
+     *    format(value, precision)
+     *    format(value, fn)
+     *
+     * Where:
+     *
+     *    {number} value   The value to be formatted
+     *    {Object} options An object with formatting options. Available options:
+     *                     {string} notation
+     *                         Number notation. Choose from:
+     *                         'fixed'          Always use regular number notation.
+     *                                          For example '123.40' and '14000000'
+     *                         'exponential'    Always use exponential notation.
+     *                                          For example '1.234e+2' and '1.4e+7'
+     *                         'engineering'    Always use engineering notation.
+     *                                          For example '123.4e+0' and '14.0e+6'
+     *                         'auto' (default) Regular number notation for numbers
+     *                                          having an absolute value between
+     *                                          `lowerExp` and `upperExp` bounds, and
+     *                                          uses exponential notation elsewhere.
+     *                                          Lower bound is included, upper bound
+     *                                          is excluded.
+     *                                          For example '123.4' and '1.4e7'.
+     *                     {number} precision   A number between 0 and 16 to round
+     *                                          the digits of the number.
+     *                                          In case of notations 'exponential',
+     *                                          'engineering', and 'auto',
+     *                                          `precision` defines the total
+     *                                          number of significant digits returned.
+     *                                          In case of notation 'fixed',
+     *                                          `precision` defines the number of
+     *                                          significant digits after the decimal
+     *                                          point.
+     *                                          `precision` is undefined by default,
+     *                                          not rounding any digits.
+     *                     {number} lowerExp    Exponent determining the lower boundary
+     *                                          for formatting a value with an exponent
+     *                                          when `notation='auto`.
+     *                                          Default value is `-3`.
+     *                     {number} upperExp    Exponent determining the upper boundary
+     *                                          for formatting a value with an exponent
+     *                                          when `notation='auto`.
+     *                                          Default value is `5`.
+     *    {Function} fn    A custom formatting function. Can be used to override the
+     *                     built-in notations. Function `fn` is called with `value` as
+     *                     parameter and must return a string. Is useful for example to
+     *                     format all values inside a matrix in a particular way.
+     *
+     * Examples:
+     *
+     *    format(6.4)                                        // '6.4'
+     *    format(1240000)                                    // '1.24e6'
+     *    format(1/3)                                        // '0.3333333333333333'
+     *    format(1/3, 3)                                     // '0.333'
+     *    format(21385, 2)                                   // '21000'
+     *    format(12.071, {notation: 'fixed'})                // '12'
+     *    format(2.3,    {notation: 'fixed', precision: 2})  // '2.30'
+     *    format(52.8,   {notation: 'exponential'})          // '5.28e+1'
+     *    format(12345678, {notation: 'engineering'})        // '12.345678e+6'
+     *
+     * @param {number} value
+     * @param {Object | Function | number} [options]
+     * @return {string} str The formatted value
+     */
+    function format (value, options) {
+      if (typeof options === 'function') {
+        // handle format(value, fn)
+        return options(value)
+      }
+
+      // handle special cases
+      if (value === Infinity) {
+        return 'Infinity'
+      } else if (value === -Infinity) {
+        return '-Infinity'
+      } else if (isNaN(value)) {
+        return 'NaN'
+      }
+
+      // default values for options
+      let notation = 'auto';
+      let precision;
+
+      if (options) {
+        // determine notation from options
+        if (options.notation) {
+          notation = options.notation;
+        }
+
+        // determine precision from options
+        if (isNumber(options)) {
+          precision = options;
+        } else if (isNumber(options.precision)) {
+          precision = options.precision;
+        }
+      }
+
+      // handle the various notations
+      switch (notation) {
+        case 'fixed':
+          return toFixed(value, precision)
+
+        case 'exponential':
+          return toExponential(value, precision)
+
+        case 'engineering':
+          return toEngineering(value, precision)
+
+        case 'auto':
+          // TODO: clean up some day. Deprecated since: 2018-01-24
+          // @deprecated upper and lower are replaced with upperExp and lowerExp since v4.0.0
+          if (options && options.exponential && (options.exponential.lower !== undefined || options.exponential.upper !== undefined)) {
+            const fixedOptions = mapObject(options, function (x) { return x });
+            fixedOptions.exponential = undefined;
+            if (options.exponential.lower !== undefined) {
+              fixedOptions.lowerExp = Math.round(Math.log(options.exponential.lower) / Math.LN10);
+            }
+            if (options.exponential.upper !== undefined) {
+              fixedOptions.upperExp = Math.round(Math.log(options.exponential.upper) / Math.LN10);
+            }
+
+            console.warn('Deprecation warning: Formatting options exponential.lower and exponential.upper ' +
+                '(minimum and maximum value) ' +
+                'are replaced with exponential.lowerExp and exponential.upperExp ' +
+                '(minimum and maximum exponent) since version 4.0.0. ' +
+                'Replace ' + JSON.stringify(options) + ' with ' + JSON.stringify(fixedOptions));
+
+            return toPrecision(value, precision, fixedOptions)
+          }
+
+          // remove trailing zeros after the decimal point
+          return toPrecision(value, precision, options && options)
+            .replace(/((\.\d*?)(0+))($|e)/, function () {
+              const digits = arguments[2];
+              const e = arguments[4];
+              return (digits !== '.') ? digits + e : e
+            })
+
+        default:
+          throw new Error('Unknown notation "' + notation + '". ' +
+              'Choose "auto", "exponential", or "fixed".')
+      }
+    }
+
+    /**
+     * Split a number into sign, coefficients, and exponent
+     * @param {number | string} value
+     * @return {SplitValue}
+     *              Returns an object containing sign, coefficients, and exponent
+     */
+    function splitNumber (value) {
+      // parse the input value
+      const match = String(value).toLowerCase().match(/^0*?(-?)(\d+\.?\d*)(e([+-]?\d+))?$/);
+      if (!match) {
+        throw new SyntaxError('Invalid number ' + value)
+      }
+
+      const sign = match[1];
+      const digits = match[2];
+      let exponent = parseFloat(match[4] || '0');
+
+      const dot = digits.indexOf('.');
+      exponent += (dot !== -1) ? (dot - 1) : (digits.length - 1);
+
+      const coefficients = digits
+        .replace('.', '') // remove the dot (must be removed before removing leading zeros)
+        .replace(/^0*/, function (zeros) {
+          // remove leading zeros, add their count to the exponent
+          exponent -= zeros.length;
+          return ''
+        })
+        .replace(/0*$/, '') // remove trailing zeros
+        .split('')
+        .map(function (d) {
+          return parseInt(d)
+        });
+
+      if (coefficients.length === 0) {
+        coefficients.push(0);
+        exponent++;
+      }
+
+      return {
+        sign: sign,
+        coefficients: coefficients,
+        exponent: exponent
+      }
+    }
+
+    /**
+     * Format a number in engineering notation. Like '1.23e+6', '2.3e+0', '3.500e-3'
+     * @param {number | string} value
+     * @param {number} [precision]        Optional number of significant figures to return.
+     */
+    function toEngineering (value, precision) {
+      if (isNaN(value) || !isFinite(value)) {
+        return String(value)
+      }
+
+      const rounded = roundDigits(splitNumber(value), precision);
+
+      const e = rounded.exponent;
+      let c = rounded.coefficients;
+
+      // find nearest lower multiple of 3 for exponent
+      const newExp = e % 3 === 0 ? e : (e < 0 ? (e - 3) - (e % 3) : e - (e % 3));
+
+      if (isNumber(precision)) {
+        // add zeroes to give correct sig figs
+        while (precision > c.length || (e - newExp) + 1 > c.length) {
+          c.push(0);
+        }
+      } else {
+        // concatenate coefficients with necessary zeros
+        const significandsDiff = e >= 0 ? e : Math.abs(newExp);
+
+        // add zeros if necessary (for ex: 1e+8)
+        while (c.length - 1 < significandsDiff) {
+          c.push(0);
+        }
+      }
+
+      // find difference in exponents
+      let expDiff = Math.abs(e - newExp);
+
+      let decimalIdx = 1;
+
+      // push decimal index over by expDiff times
+      while (expDiff > 0) {
+        decimalIdx++;
+        expDiff--;
+      }
+
+      // if all coefficient values are zero after the decimal point and precision is unset, don't add a decimal value.
+      // otherwise concat with the rest of the coefficients
+      const decimals = c.slice(decimalIdx).join('');
+      const decimalVal = ((isNumber(precision) && decimals.length) || decimals.match(/[1-9]/)) ? ('.' + decimals) : '';
+
+      const str = c.slice(0, decimalIdx).join('') +
+          decimalVal +
+          'e' + (e >= 0 ? '+' : '') + newExp.toString();
+      return rounded.sign + str
+    }
+
+    /**
+     * Format a number with fixed notation.
+     * @param {number | string} value
+     * @param {number} [precision=undefined]  Optional number of decimals after the
+     *                                        decimal point. null by default.
+     */
+    function toFixed (value, precision) {
+      if (isNaN(value) || !isFinite(value)) {
+        return String(value)
+      }
+
+      const splitValue = splitNumber(value);
+      const rounded = (typeof precision === 'number')
+        ? roundDigits(splitValue, splitValue.exponent + 1 + precision)
+        : splitValue;
+      let c = rounded.coefficients;
+      let p = rounded.exponent + 1; // exponent may have changed
+
+      // append zeros if needed
+      const pp = p + (precision || 0);
+      if (c.length < pp) {
+        c = c.concat(zeros(pp - c.length));
+      }
+
+      // prepend zeros if needed
+      if (p < 0) {
+        c = zeros(-p + 1).concat(c);
+        p = 1;
+      }
+
+      // insert a dot if needed
+      if (p < c.length) {
+        c.splice(p, 0, (p === 0) ? '0.' : '.');
+      }
+
+      return rounded.sign + c.join('')
+    }
+
+    /**
+     * Format a number in exponential notation. Like '1.23e+5', '2.3e+0', '3.500e-3'
+     * @param {number | string} value
+     * @param {number} [precision]  Number of digits in formatted output.
+     *                              If not provided, the maximum available digits
+     *                              is used.
+     */
+    function toExponential (value, precision) {
+      if (isNaN(value) || !isFinite(value)) {
+        return String(value)
+      }
+
+      // round if needed, else create a clone
+      const split = splitNumber(value);
+      const rounded = precision ? roundDigits(split, precision) : split;
+      let c = rounded.coefficients;
+      const e = rounded.exponent;
+
+      // append zeros if needed
+      if (c.length < precision) {
+        c = c.concat(zeros(precision - c.length));
+      }
+
+      // format as `C.CCCe+EEE` or `C.CCCe-EEE`
+      const first = c.shift();
+      return rounded.sign + first + (c.length > 0 ? ('.' + c.join('')) : '') +
+          'e' + (e >= 0 ? '+' : '') + e
+    }
+
+    /**
+     * Format a number with a certain precision
+     * @param {number | string} value
+     * @param {number} [precision=undefined] Optional number of digits.
+     * @param {{lowerExp: number | undefined, upperExp: number | undefined}} [options]
+     *                                       By default:
+     *                                         lowerExp = -3 (incl)
+     *                                         upper = +5 (excl)
+     * @return {string}
+     */
+    function toPrecision (value, precision, options) {
+      if (isNaN(value) || !isFinite(value)) {
+        return String(value)
+      }
+
+      // determine lower and upper bound for exponential notation.
+      const lowerExp = (options && options.lowerExp !== undefined) ? options.lowerExp : -3;
+      const upperExp = (options && options.upperExp !== undefined) ? options.upperExp : 5;
+
+      const split = splitNumber(value);
+      const rounded = precision ? roundDigits(split, precision) : split;
+      if (rounded.exponent < lowerExp || rounded.exponent >= upperExp) {
+        // exponential notation
+        return toExponential(value, precision)
+      } else {
+        let c = rounded.coefficients;
+        const e = rounded.exponent;
+
+        // append trailing zeros
+        if (c.length < precision) {
+          c = c.concat(zeros(precision - c.length));
+        }
+
+        // append trailing zeros
+        // TODO: simplify the next statement
+        c = c.concat(zeros(e - c.length + 1 +
+            (c.length < precision ? precision - c.length : 0)));
+
+        // prepend zeros
+        c = zeros(-e).concat(c);
+
+        const dot = e > 0 ? e : 0;
+        if (dot < c.length - 1) {
+          c.splice(dot + 1, 0, '.');
+        }
+
+        return rounded.sign + c.join('')
+      }
+    }
+
+    /**
+     * Round the number of digits of a number *
+     * @param {SplitValue} split       A value split with .splitNumber(value)
+     * @param {number} precision  A positive integer
+     * @return {SplitValue}
+     *              Returns an object containing sign, coefficients, and exponent
+     *              with rounded digits
+     */
+    function roundDigits (split, precision) {
+      // create a clone
+      const rounded = {
+        sign: split.sign,
+        coefficients: split.coefficients,
+        exponent: split.exponent
+      };
+      const c = rounded.coefficients;
+
+      // prepend zeros if needed
+      while (precision <= 0) {
+        c.unshift(0);
+        rounded.exponent++;
+        precision++;
+      }
+
+      if (c.length > precision) {
+        const removed = c.splice(precision, c.length - precision);
+
+        if (removed[0] >= 5) {
+          let i = precision - 1;
+          c[i]++;
+          while (c[i] === 10) {
+            c.pop();
+            if (i === 0) {
+              c.unshift(0);
+              rounded.exponent++;
+              i++;
+            }
+            i--;
+            c[i]++;
+          }
+        }
+      }
+
+      return rounded
+    }
+
+    /**
+     * Create an array filled with zeros.
+     * @param {number} length
+     * @return {Array}
+     */
+    function zeros (length) {
+      const arr = [];
+      for (let i = 0; i < length; i++) {
+        arr.push(0);
+      }
+      return arr
+    }
+
+    /**
+     * Count the number of significant digits of a number.
+     *
+     * For example:
+     *   2.34 returns 3
+     *   0.0034 returns 2
+     *   120.5e+30 returns 4
+     *
+     * @param {number} value
+     * @return {number} digits   Number of significant digits
+     */
+    function digits (value) {
+      return value
+        .toExponential()
+        .replace(/e.*$/, '') // remove exponential notation
+        .replace(/^0\.?0*|\./, '') // remove decimal point and leading zeros
+        .length
+    }
+
+    /**
+     * Minimum number added to one that makes the result different than one
+     */
+    const DBL_EPSILON = Number.EPSILON || 2.2204460492503130808472633361816E-16;
+
+    /**
+     * Compares two floating point numbers.
+     * @param {number} x          First value to compare
+     * @param {number} y          Second value to compare
+     * @param {number} [epsilon]  The maximum relative difference between x and y
+     *                            If epsilon is undefined or null, the function will
+     *                            test whether x and y are exactly equal.
+     * @return {boolean} whether the two numbers are nearly equal
+    */
+    function nearlyEqual (x, y, epsilon) {
+      // if epsilon is null or undefined, test whether x and y are exactly equal
+      if (epsilon === null || epsilon === undefined) {
+        return x === y
+      }
+
+      if (x === y) {
+        return true
+      }
+
+      // NaN
+      if (isNaN(x) || isNaN(y)) {
+        return false
+      }
+
+      // at this point x and y should be finite
+      if (isFinite(x) && isFinite(y)) {
+        // check numbers are very close, needed when comparing numbers near zero
+        const diff = Math.abs(x - y);
+        if (diff < DBL_EPSILON) {
+          return true
+        } else {
+          // use relative error
+          return diff <= Math.max(Math.abs(x), Math.abs(y)) * epsilon
+        }
+      }
+
+      // Infinite and Number or negative Infinite and positive Infinite cases
+      return false
+    }
+
+    /**
+     * Convert a BigNumber to a formatted string representation.
+     *
+     * Syntax:
+     *
+     *    format(value)
+     *    format(value, options)
+     *    format(value, precision)
+     *    format(value, fn)
+     *
+     * Where:
+     *
+     *    {number} value   The value to be formatted
+     *    {Object} options An object with formatting options. Available options:
+     *                     {string} notation
+     *                         Number notation. Choose from:
+     *                         'fixed'          Always use regular number notation.
+     *                                          For example '123.40' and '14000000'
+     *                         'exponential'    Always use exponential notation.
+     *                                          For example '1.234e+2' and '1.4e+7'
+     *                         'auto' (default) Regular number notation for numbers
+     *                                          having an absolute value between
+     *                                          `lower` and `upper` bounds, and uses
+     *                                          exponential notation elsewhere.
+     *                                          Lower bound is included, upper bound
+     *                                          is excluded.
+     *                                          For example '123.4' and '1.4e7'.
+     *                     {number} precision   A number between 0 and 16 to round
+     *                                          the digits of the number.
+     *                                          In case of notations 'exponential',
+     *                                          'engineering', and 'auto',
+     *                                          `precision` defines the total
+     *                                          number of significant digits returned.
+     *                                          In case of notation 'fixed',
+     *                                          `precision` defines the number of
+     *                                          significant digits after the decimal
+     *                                          point.
+     *                                          `precision` is undefined by default.
+     *                     {number} lowerExp    Exponent determining the lower boundary
+     *                                          for formatting a value with an exponent
+     *                                          when `notation='auto`.
+     *                                          Default value is `-3`.
+     *                     {number} upperExp    Exponent determining the upper boundary
+     *                                          for formatting a value with an exponent
+     *                                          when `notation='auto`.
+     *                                          Default value is `5`.
+     *    {Function} fn    A custom formatting function. Can be used to override the
+     *                     built-in notations. Function `fn` is called with `value` as
+     *                     parameter and must return a string. Is useful for example to
+     *                     format all values inside a matrix in a particular way.
+     *
+     * Examples:
+     *
+     *    format(6.4)                                        // '6.4'
+     *    format(1240000)                                    // '1.24e6'
+     *    format(1/3)                                        // '0.3333333333333333'
+     *    format(1/3, 3)                                     // '0.333'
+     *    format(21385, 2)                                   // '21000'
+     *    format(12e8, {notation: 'fixed'})                  // returns '1200000000'
+     *    format(2.3,    {notation: 'fixed', precision: 4})  // returns '2.3000'
+     *    format(52.8,   {notation: 'exponential'})          // returns '5.28e+1'
+     *    format(12400,  {notation: 'engineering'})          // returns '12.400e+3'
+     *
+     * @param {BigNumber} value
+     * @param {Object | Function | number} [options]
+     * @return {string} str The formatted value
+     */
+    function format$1 (value, options) {
+      if (typeof options === 'function') {
+        // handle format(value, fn)
+        return options(value)
+      }
+
+      // handle special cases
+      if (!value.isFinite()) {
+        return value.isNaN() ? 'NaN' : (value.gt(0) ? 'Infinity' : '-Infinity')
+      }
+
+      // default values for options
+      let notation = 'auto';
+      let precision;
+
+      if (options !== undefined) {
+        // determine notation from options
+        if (options.notation) {
+          notation = options.notation;
+        }
+
+        // determine precision from options
+        if (typeof options === 'number') {
+          precision = options;
+        } else if (options.precision) {
+          precision = options.precision;
+        }
+      }
+
+      // handle the various notations
+      switch (notation) {
+        case 'fixed':
+          return toFixed$1(value, precision)
+
+        case 'exponential':
+          return toExponential$1(value, precision)
+
+        case 'engineering':
+          return toEngineering$1(value, precision)
+
+        case 'auto':
+          // TODO: clean up some day. Deprecated since: 2018-01-24
+          // @deprecated upper and lower are replaced with upperExp and lowerExp since v4.0.0
+          if (options && options.exponential && (options.exponential.lower !== undefined || options.exponential.upper !== undefined)) {
+            const fixedOptions = mapObject(options, function (x) { return x });
+            fixedOptions.exponential = undefined;
+            if (options.exponential.lower !== undefined) {
+              fixedOptions.lowerExp = Math.round(Math.log(options.exponential.lower) / Math.LN10);
+            }
+            if (options.exponential.upper !== undefined) {
+              fixedOptions.upperExp = Math.round(Math.log(options.exponential.upper) / Math.LN10);
+            }
+
+            console.warn('Deprecation warning: Formatting options exponential.lower and exponential.upper ' +
+                '(minimum and maximum value) ' +
+                'are replaced with exponential.lowerExp and exponential.upperExp ' +
+                '(minimum and maximum exponent) since version 4.0.0. ' +
+                'Replace ' + JSON.stringify(options) + ' with ' + JSON.stringify(fixedOptions));
+
+            return format$1(value, fixedOptions)
+          }
+
+          // determine lower and upper bound for exponential notation.
+          // TODO: implement support for upper and lower to be BigNumbers themselves
+          const lowerExp = (options && options.lowerExp !== undefined) ? options.lowerExp : -3;
+          const upperExp = (options && options.upperExp !== undefined) ? options.upperExp : 5;
+
+          // handle special case zero
+          if (value.isZero()) return '0'
+
+          // determine whether or not to output exponential notation
+          let str;
+          const rounded = value.toSignificantDigits(precision);
+          const exp = rounded.e;
+          if (exp >= lowerExp && exp < upperExp) {
+            // normal number notation
+            str = rounded.toFixed();
+          } else {
+            // exponential notation
+            str = toExponential$1(value, precision);
+          }
+
+          // remove trailing zeros after the decimal point
+          return str.replace(/((\.\d*?)(0+))($|e)/, function () {
+            const digits = arguments[2];
+            const e = arguments[4];
+            return (digits !== '.') ? digits + e : e
+          })
+
+        default:
+          throw new Error('Unknown notation "' + notation + '". ' +
+              'Choose "auto", "exponential", or "fixed".')
+      }
+    }
+
+    /**
+     * Format a BigNumber in engineering notation. Like '1.23e+6', '2.3e+0', '3.500e-3'
+     * @param {BigNumber | string} value
+     * @param {number} [precision]        Optional number of significant figures to return.
+     */
+    function toEngineering$1 (value, precision) {
+      // find nearest lower multiple of 3 for exponent
+      const e = value.e;
+      const newExp = e % 3 === 0 ? e : (e < 0 ? (e - 3) - (e % 3) : e - (e % 3));
+
+      // find difference in exponents, and calculate the value without exponent
+      const valueWithoutExp = value.mul(Math.pow(10, -newExp));
+
+      let valueStr = valueWithoutExp.toPrecision(precision);
+      if (valueStr.indexOf('e') !== -1) {
+        valueStr = valueWithoutExp.toString();
+      }
+
+      return valueStr + 'e' + (e >= 0 ? '+' : '') + newExp.toString()
+    }
+
+    /**
+     * Format a number in exponential notation. Like '1.23e+5', '2.3e+0', '3.500e-3'
+     * @param {BigNumber} value
+     * @param {number} [precision]  Number of digits in formatted output.
+     *                              If not provided, the maximum available digits
+     *                              is used.
+     * @returns {string} str
+     */
+    function toExponential$1 (value, precision) {
+      if (precision !== undefined) {
+        return value.toExponential(precision - 1) // Note the offset of one
+      } else {
+        return value.toExponential()
+      }
+    }
+
+    /**
+     * Format a number with fixed notation.
+     * @param {BigNumber} value
+     * @param {number} [precision=undefined] Optional number of decimals after the
+     *                                       decimal point. Undefined by default.
+     */
+    function toFixed$1 (value, precision) {
+      return value.toFixed(precision)
+    }
+
+    /**
+     * Format a value of any type into a string.
+     *
+     * Usage:
+     *     math.format(value)
+     *     math.format(value, precision)
+     *
+     * When value is a function:
+     *
+     * - When the function has a property `syntax`, it returns this
+     *   syntax description.
+     * - In other cases, a string `'function'` is returned.
+     *
+     * When `value` is an Object:
+     *
+     * - When the object contains a property `format` being a function, this
+     *   function is invoked as `value.format(options)` and the result is returned.
+     * - When the object has its own `toString` method, this method is invoked
+     *   and the result is returned.
+     * - In other cases the function will loop over all object properties and
+     *   return JSON object notation like '{"a": 2, "b": 3}'.
+     *
+     * Example usage:
+     *     math.format(2/7)                // '0.2857142857142857'
+     *     math.format(math.pi, 3)         // '3.14'
+     *     math.format(new Complex(2, 3))  // '2 + 3i'
+     *     math.format('hello')            // '"hello"'
+     *
+     * @param {*} value             Value to be stringified
+     * @param {Object | number | Function} [options]  Formatting options. See
+     *                                                lib/utils/number:format for a
+     *                                                description of the available
+     *                                                options.
+     * @return {string} str
+     */
+    function format$2 (value, options) {
+      if (typeof value === 'number') {
+        return format(value, options)
+      }
+
+      if (isBigNumber(value)) {
+        return format$1(value, options)
+      }
+
+      // note: we use unsafe duck-typing here to check for Fractions, this is
+      // ok here since we're only invoking toString or concatenating its values
+      if (looksLikeFraction(value)) {
+        if (!options || options.fraction !== 'decimal') {
+          // output as ratio, like '1/3'
+          return (value.s * value.n) + '/' + value.d
+        } else {
+          // output as decimal, like '0.(3)'
+          return value.toString()
+        }
+      }
+
+      if (Array.isArray(value)) {
+        return formatArray$1(value, options)
+      }
+
+      if (isString(value)) {
+        return '"' + value + '"'
+      }
+
+      if (typeof value === 'function') {
+        return value.syntax ? String(value.syntax) : 'function'
+      }
+
+      if (value && typeof value === 'object') {
+        if (typeof value.format === 'function') {
+          return value.format(options)
+        } else if (value && value.toString() !== {}.toString()) {
+          // this object has a non-native toString method, use that one
+          return value.toString()
+        } else {
+          const entries = [];
+
+          for (const key in value) {
+            if (value.hasOwnProperty(key)) {
+              entries.push('"' + key + '": ' + format$2(value[key], options));
+            }
+          }
+
+          return '{' + entries.join(', ') + '}'
+        }
+      }
+
+      return String(value)
+    }
+
+    /**
+     * Recursively format an n-dimensional matrix
+     * Example output: "[[1, 2], [3, 4]]"
+     * @param {Array} array
+     * @param {Object | number | Function} [options]  Formatting options. See
+     *                                                lib/utils/number:format for a
+     *                                                description of the available
+     *                                                options.
+     * @returns {string} str
+     */
+    function formatArray$1 (array, options) {
+      if (Array.isArray(array)) {
+        let str = '[';
+        const len = array.length;
+        for (let i = 0; i < len; i++) {
+          if (i !== 0) {
+            str += ', ';
+          }
+          str += formatArray$1(array[i], options);
+        }
+        str += ']';
+        return str
+      } else {
+        return format$2(array, options)
+      }
+    }
+
+    /**
+     * Check whether a value looks like a Fraction (unsafe duck-type check)
+     * @param {*} value
+     * @return {boolean}
+     */
+    function looksLikeFraction (value) {
+      return (value &&
+          typeof value === 'object' &&
+          typeof value.s === 'number' &&
+          typeof value.n === 'number' &&
+          typeof value.d === 'number') || false
+    }
+
+    /**
+     * Create a range error with the message:
+     *     'Dimension mismatch (<actual size> != <expected size>)'
+     * @param {number | number[]} actual        The actual size
+     * @param {number | number[]} expected      The expected size
+     * @param {string} [relation='!=']          Optional relation between actual
+     *                                          and expected size: '!=', '<', etc.
+     * @extends RangeError
+     */
+    function DimensionError (actual, expected, relation) {
+      if (!(this instanceof DimensionError)) {
+        throw new SyntaxError('Constructor must be called with the new operator')
+      }
+
+      this.actual = actual;
+      this.expected = expected;
+      this.relation = relation;
+
+      this.message = 'Dimension mismatch (' +
+          (Array.isArray(actual) ? ('[' + actual.join(', ') + ']') : actual) +
+          ' ' + (this.relation || '!=') + ' ' +
+          (Array.isArray(expected) ? ('[' + expected.join(', ') + ']') : expected) +
+          ')';
+
+      this.stack = (new Error()).stack;
+    }
+
+    DimensionError.prototype = new RangeError();
+    DimensionError.prototype.constructor = RangeError;
+    DimensionError.prototype.name = 'DimensionError';
+    DimensionError.prototype.isDimensionError = true;
+
+    /**
+     * Create a range error with the message:
+     *     'Index out of range (index < min)'
+     *     'Index out of range (index < max)'
+     *
+     * @param {number} index     The actual index
+     * @param {number} [min=0]   Minimum index (included)
+     * @param {number} [max]     Maximum index (excluded)
+     * @extends RangeError
+     */
+    function IndexError (index, min, max) {
+      if (!(this instanceof IndexError)) {
+        throw new SyntaxError('Constructor must be called with the new operator')
+      }
+
+      this.index = index;
+      if (arguments.length < 3) {
+        this.min = 0;
+        this.max = min;
+      } else {
+        this.min = min;
+        this.max = max;
+      }
+
+      if (this.min !== undefined && this.index < this.min) {
+        this.message = 'Index out of range (' + this.index + ' < ' + this.min + ')';
+      } else if (this.max !== undefined && this.index >= this.max) {
+        this.message = 'Index out of range (' + this.index + ' > ' + (this.max - 1) + ')';
+      } else {
+        this.message = 'Index out of range (' + this.index + ')';
+      }
+
+      this.stack = (new Error()).stack;
+    }
+
+    IndexError.prototype = new RangeError();
+    IndexError.prototype.constructor = RangeError;
+    IndexError.prototype.name = 'IndexError';
+    IndexError.prototype.isIndexError = true;
+
+    /**
+     * Calculate the size of a multi dimensional array.
+     * This function checks the size of the first entry, it does not validate
+     * whether all dimensions match. (use function `validate` for that)
+     * @param {Array} x
+     * @Return {Number[]} size
+     */
+    function arraySize (x) {
+      let s = [];
+
+      while (Array.isArray(x)) {
+        s.push(x.length);
+        x = x[0];
+      }
+
+      return s
+    }
+
+    /**
+     * Recursively validate whether each element in a multi dimensional array
+     * has a size corresponding to the provided size array.
+     * @param {Array} array    Array to be validated
+     * @param {number[]} size  Array with the size of each dimension
+     * @param {number} dim   Current dimension
+     * @throws DimensionError
+     * @private
+     */
+    function _validate (array, size, dim) {
+      let i;
+      const len = array.length;
+
+      if (len !== size[dim]) {
+        throw new DimensionError(len, size[dim])
+      }
+
+      if (dim < size.length - 1) {
+        // recursively validate each child array
+        const dimNext = dim + 1;
+        for (i = 0; i < len; i++) {
+          const child = array[i];
+          if (!Array.isArray(child)) {
+            throw new DimensionError(size.length - 1, size.length, '<')
+          }
+          _validate(array[i], size, dimNext);
+        }
+      } else {
+        // last dimension. none of the childs may be an array
+        for (i = 0; i < len; i++) {
+          if (Array.isArray(array[i])) {
+            throw new DimensionError(size.length + 1, size.length, '>')
+          }
+        }
+      }
+    }
+
+    /**
+     * Validate whether each element in a multi dimensional array has
+     * a size corresponding to the provided size array.
+     * @param {Array} array    Array to be validated
+     * @param {number[]} size  Array with the size of each dimension
+     * @throws DimensionError
+     */
+    function validate (array, size) {
+      const isScalar = (size.length === 0);
+      if (isScalar) {
+        // scalar
+        if (Array.isArray(array)) {
+          throw new DimensionError(array.length, 0)
+        }
+      } else {
+        // array
+        _validate(array, size, 0);
+      }
+    }
+
+    /**
+     * Test whether index is an integer number with index >= 0 and index < length
+     * when length is provided
+     * @param {number} index    Zero-based index
+     * @param {number} [length] Length of the array
+     */
+    function validateIndex (index, length) {
+      if (!isNumber(index) || !isInteger(index)) {
+        throw new TypeError('Index must be an integer (value: ' + index + ')')
+      }
+      if (index < 0 || (typeof length === 'number' && index >= length)) {
+        throw new IndexError(index, length)
+      }
+    }
+
+    /**
+     * Resize a multi dimensional array. The resized array is returned.
+     * @param {Array} array         Array to be resized
+     * @param {Array.<number>} size Array with the size of each dimension
+     * @param {*} [defaultValue=0]  Value to be filled in in new entries,
+     *                              zero by default. Specify for example `null`,
+     *                              to clearly see entries that are not explicitly
+     *                              set.
+     * @return {Array} array         The resized array
+     */
+    function resize (array, size, defaultValue) {
+      // TODO: add support for scalars, having size=[] ?
+
+      // check the type of the arguments
+      if (!Array.isArray(array) || !Array.isArray(size)) {
+        throw new TypeError('Array expected')
+      }
+      if (size.length === 0) {
+        throw new Error('Resizing to scalar is not supported')
+      }
+
+      // check whether size contains positive integers
+      size.forEach(function (value) {
+        if (!isNumber(value) || !isInteger(value) || value < 0) {
+          throw new TypeError('Invalid size, must contain positive integers ' +
+              '(size: ' + format$2(size) + ')')
+        }
+      });
+
+      // recursively resize the array
+      const _defaultValue = (defaultValue !== undefined) ? defaultValue : 0;
+      _resize(array, size, 0, _defaultValue);
+
+      return array
+    }
+
+    /**
+     * Recursively resize a multi dimensional array
+     * @param {Array} array         Array to be resized
+     * @param {number[]} size       Array with the size of each dimension
+     * @param {number} dim          Current dimension
+     * @param {*} [defaultValue]    Value to be filled in in new entries,
+     *                              undefined by default.
+     * @private
+     */
+    function _resize (array, size, dim, defaultValue) {
+      let i;
+      let elem;
+      const oldLen = array.length;
+      const newLen = size[dim];
+      const minLen = Math.min(oldLen, newLen);
+
+      // apply new length
+      array.length = newLen;
+
+      if (dim < size.length - 1) {
+        // non-last dimension
+        const dimNext = dim + 1;
+
+        // resize existing child arrays
+        for (i = 0; i < minLen; i++) {
+          // resize child array
+          elem = array[i];
+          if (!Array.isArray(elem)) {
+            elem = [elem]; // add a dimension
+            array[i] = elem;
+          }
+          _resize(elem, size, dimNext, defaultValue);
+        }
+
+        // create new child arrays
+        for (i = minLen; i < newLen; i++) {
+          // get child array
+          elem = [];
+          array[i] = elem;
+
+          // resize new child array
+          _resize(elem, size, dimNext, defaultValue);
+        }
+      } else {
+        // last dimension
+
+        // remove dimensions of existing values
+        for (i = 0; i < minLen; i++) {
+          while (Array.isArray(array[i])) {
+            array[i] = array[i][0];
+          }
+        }
+
+        // fill new elements with the default value
+        for (i = minLen; i < newLen; i++) {
+          array[i] = defaultValue;
+        }
+      }
+    }
+
+    /**
+     * Re-shape a multi dimensional array to fit the specified dimensions
+     * @param {Array} array           Array to be reshaped
+     * @param {Array.<number>} sizes  List of sizes for each dimension
+     * @returns {Array}               Array whose data has been formatted to fit the
+     *                                specified dimensions
+     *
+     * @throws {DimensionError}       If the product of the new dimension sizes does
+     *                                not equal that of the old ones
+     */
+    function reshape (array, sizes) {
+      const flatArray = flatten(array);
+      let newArray;
+
+      function product (arr) {
+        return arr.reduce((prev, curr) => prev * curr)
+      }
+
+      if (!Array.isArray(array) || !Array.isArray(sizes)) {
+        throw new TypeError('Array expected')
+      }
+
+      if (sizes.length === 0) {
+        throw new DimensionError(0, product(arraySize(array)), '!=')
+      }
+
+      let totalSize = 1;
+      for (let sizeIndex = 0; sizeIndex < sizes.length; sizeIndex++) {
+        totalSize *= sizes[sizeIndex];
+      }
+
+      if (flatArray.length !== totalSize) {
+        throw new DimensionError(
+          product(sizes),
+          product(arraySize(array)),
+          '!='
+        )
+      }
+
+      try {
+        newArray = _reshape(flatArray, sizes);
+      } catch (e) {
+        if (e instanceof DimensionError) {
+          throw new DimensionError(
+            product(sizes),
+            product(arraySize(array)),
+            '!='
+          )
+        }
+        throw e
+      }
+
+      return newArray
+    }
+
+    /**
+     * Iteratively re-shape a multi dimensional array to fit the specified dimensions
+     * @param {Array} array           Array to be reshaped
+     * @param {Array.<number>} sizes  List of sizes for each dimension
+     * @returns {Array}               Array whose data has been formatted to fit the
+     *                                specified dimensions
+     */
+
+    function _reshape (array, sizes) {
+      // testing if there are enough elements for the requested shape
+      let tmpArray = array;
+      let tmpArray2;
+      // for each dimensions starting by the last one and ignoring the first one
+      for (let sizeIndex = sizes.length - 1; sizeIndex > 0; sizeIndex--) {
+        const size = sizes[sizeIndex];
+        tmpArray2 = [];
+
+        // aggregate the elements of the current tmpArray in elements of the requested size
+        const length = tmpArray.length / size;
+        for (let i = 0; i < length; i++) {
+          tmpArray2.push(tmpArray.slice(i * size, (i + 1) * size));
+        }
+        // set it as the new tmpArray for the next loop turn or for return
+        tmpArray = tmpArray2;
+      }
+
+      return tmpArray
+    }
+
+    /**
+     * Unsqueeze a multi dimensional array: add dimensions when missing
+     *
+     * Paramter `size` will be mutated to match the new, unqueezed matrix size.
+     *
+     * @param {Array} array
+     * @param {number} dims       Desired number of dimensions of the array
+     * @param {number} [outer]    Number of outer dimensions to be added
+     * @param {Array} [size] Current size of array.
+     * @returns {Array} returns the array itself
+     * @private
+     */
+    function unsqueeze (array, dims, outer, size) {
+      let s = size || arraySize(array);
+
+      // unsqueeze outer dimensions
+      if (outer) {
+        for (let i = 0; i < outer; i++) {
+          array = [array];
+          s.unshift(1);
+        }
+      }
+
+      // unsqueeze inner dimensions
+      array = _unsqueeze(array, dims, 0);
+      while (s.length < dims) {
+        s.push(1);
+      }
+
+      return array
+    }
+
+    /**
+     * Recursively unsqueeze a multi dimensional array
+     * @param {Array} array
+     * @param {number} dims Required number of dimensions
+     * @param {number} dim  Current dimension
+     * @returns {Array | *} Returns the squeezed array
+     * @private
+     */
+    function _unsqueeze (array, dims, dim) {
+      let i, ii;
+
+      if (Array.isArray(array)) {
+        const next = dim + 1;
+        for (i = 0, ii = array.length; i < ii; i++) {
+          array[i] = _unsqueeze(array[i], dims, next);
+        }
+      } else {
+        for (let d = dim; d < dims; d++) {
+          array = [array];
+        }
+      }
+
+      return array
+    }
+    /**
+     * Flatten a multi dimensional array, put all elements in a one dimensional
+     * array
+     * @param {Array} array   A multi dimensional array
+     * @return {Array}        The flattened array (1 dimensional)
+     */
+    function flatten (array) {
+      if (!Array.isArray(array)) {
+        // if not an array, return as is
+        return array
+      }
+      let flat = [];
+
+      array.forEach(function callback (value) {
+        if (Array.isArray(value)) {
+          value.forEach(callback); // traverse through sub-arrays recursively
+        } else {
+          flat.push(value);
+        }
+      });
+
+      return flat
+    }
+
+    /**
+     * Check the datatype of a given object
+     * This is a low level implementation that should only be used by
+     * parent Matrix classes such as SparseMatrix or DenseMatrix
+     * This method does not validate Array Matrix shape
+     * @param {Array} array
+     * @param {function} typeOf   Callback function to use to determine the type of a value
+     * @return string
+     */
+    function getArrayDataType (array, typeOf) {
+      let type; // to hold type info
+      let length = 0; // to hold length value to ensure it has consistent sizes
+
+      for (let i = 0; i < array.length; i++) {
+        const item = array[i];
+        const isArray = Array.isArray(item);
+
+        // Saving the target matrix row size
+        if (i === 0 && isArray) {
+          length = item.length;
+        }
+
+        // If the current item is an array but the length does not equal the targetVectorSize
+        if (isArray && item.length !== length) {
+          return undefined
+        }
+
+        const itemType = isArray
+          ? getArrayDataType(item, typeOf) // recurse into a nested array
+          : typeOf(item);
+
+        if (type === undefined) {
+          type = itemType; // first item
+        } else if (type !== itemType) {
+          return 'mixed'
+        }
+      }
+
+      return type
+    }
+
+    /**
+     * Create a factory function, which can be used to inject dependencies.
+     *
+     * The created functions are memoized, a consecutive call of the factory
+     * with the exact same inputs will return the same function instance.
+     * The memoized cache is exposed on `factory.cache` and can be cleared
+     * if needed.
+     *
+     * Example:
+     *
+     *     const name = 'log'
+     *     const dependencies = ['config', 'typed', 'divideScalar', 'Complex']
+     *
+     *     export const createLog = factory(name, dependencies, ({ typed, config, divideScalar, Complex }) => {
+     *       // ... create the function log here and return it
+     *     }
+     *
+     * @param {string} name           Name of the function to be created
+     * @param {string[]} dependencies The names of all required dependencies
+     * @param {function} create       Callback function called with an object with all dependencies
+     * @param {Object} [meta]         Optional object with meta information that will be attached
+     *                                to the created factory function as property `meta`.
+     * @returns {function}
+     */
+    function factory (name, dependencies, create, meta) {
+      function assertAndCreate (scope) {
+        // we only pass the requested dependencies to the factory function
+        // to prevent functions to rely on dependencies that are not explicitly
+        // requested.
+        const deps = pickShallow(scope, dependencies.map(stripOptionalNotation));
+
+        assertDependencies(name, dependencies, scope);
+
+        return create(deps)
+      }
+
+      assertAndCreate.isFactory = true;
+      assertAndCreate.fn = name;
+      assertAndCreate.dependencies = dependencies.slice().sort();
+      if (meta) {
+        assertAndCreate.meta = meta;
+      }
+
+      return assertAndCreate
+    }
+
+    /**
+     * Assert that all dependencies of a list with dependencies are available in the provided scope.
+     *
+     * Will throw an exception when there are dependencies missing.
+     *
+     * @param {string} name   Name for the function to be created. Used to generate a useful error message
+     * @param {string[]} dependencies
+     * @param {Object} scope
+     */
+    function assertDependencies (name, dependencies, scope) {
+      const allDefined = dependencies
+        .filter(dependency => !isOptionalDependency(dependency)) // filter optionals
+        .every(dependency => scope[dependency] !== undefined);
+
+      if (!allDefined) {
+        const missingDependencies = dependencies.filter(dependency => scope[dependency] === undefined);
+
+        // TODO: create a custom error class for this, a MathjsError or something like that
+        throw new Error(`Cannot create function "${name}", ` +
+          `some dependencies are missing: ${missingDependencies.map(d => `"${d}"`).join(', ')}.`)
+      }
+    }
+
+    function isOptionalDependency (dependency) {
+      return dependency && dependency[0] === '?'
+    }
+
+    function stripOptionalNotation (dependency) {
+      return dependency && dependency[0] === '?'
+        ? dependency.slice(1)
+        : dependency
+    }
+
+    /**
+     * Create a typed-function which checks the types of the arguments and
+     * can match them against multiple provided signatures. The typed-function
+     * automatically converts inputs in order to find a matching signature.
+     * Typed functions throw informative errors in case of wrong input arguments.
+     *
+     * See the library [typed-function](https://github.com/josdejong/typed-function)
+     * for detailed documentation.
+     *
+     * Syntax:
+     *
+     *     math.typed(name, signatures) : function
+     *     math.typed(signatures) : function
+     *
+     * Examples:
+     *
+     *     // create a typed function with multiple types per argument (type union)
+     *     const fn2 = typed({
+     *       'number | boolean': function (b) {
+     *         return 'b is a number or boolean'
+     *       },
+     *       'string, number | boolean': function (a, b) {
+     *         return 'a is a string, b is a number or boolean'
+     *       }
+     *     })
+     *
+     *     // create a typed function with an any type argument
+     *     const log = typed({
+     *       'string, any': function (event, data) {
+     *         console.log('event: ' + event + ', data: ' + JSON.stringify(data))
+     *       }
+     *     })
+     *
+     * @param {string} [name]                          Optional name for the typed-function
+     * @param {Object<string, function>} signatures   Object with one or multiple function signatures
+     * @returns {function} The created typed-function.
+     */
+
+    // returns a new instance of typed-function
+    let _createTyped = function () {
+      // initially, return the original instance of typed-function
+      // consecutively, return a new instance from typed.create.
+      _createTyped = typedFunction.create;
+      return typedFunction
+    };
+
+    const dependencies = [
+      '?BigNumber',
+      '?Complex',
+      '?DenseMatrix',
+      '?Fraction'
+    ];
+
+    /**
+     * Factory function for creating a new typed instance
+     * @param {Object} dependencies   Object with data types like Complex and BigNumber
+     * @returns {Function}
+     */
+    const createTyped = /* #__PURE__ */ factory('typed', dependencies, function createTyped ({ BigNumber, Complex, DenseMatrix, Fraction }) {
+      // TODO: typed-function must be able to silently ignore signatures with unknown data types
+
+      // get a new instance of typed-function
+      const typed = _createTyped();
+
+      // define all types. The order of the types determines in which order function
+      // arguments are type-checked (so for performance it's important to put the
+      // most used types first).
+      typed.types = [
+        { name: 'number', test: isNumber },
+        { name: 'Complex', test: isComplex },
+        { name: 'BigNumber', test: isBigNumber },
+        { name: 'Fraction', test: isFraction },
+        { name: 'Unit', test: isUnit },
+        { name: 'string', test: isString },
+        { name: 'Chain', test: isChain },
+        { name: 'Array', test: isArray },
+        { name: 'Matrix', test: isMatrix },
+        { name: 'DenseMatrix', test: isDenseMatrix },
+        { name: 'SparseMatrix', test: isSparseMatrix },
+        { name: 'Range', test: isRange },
+        { name: 'Index', test: isIndex },
+        { name: 'boolean', test: isBoolean },
+        { name: 'ResultSet', test: isResultSet },
+        { name: 'Help', test: isHelp },
+        { name: 'function', test: isFunction },
+        { name: 'Date', test: isDate },
+        { name: 'RegExp', test: isRegExp },
+        { name: 'null', test: isNull },
+        { name: 'undefined', test: isUndefined },
+
+        { name: 'AccessorNode', test: isAccessorNode },
+        { name: 'ArrayNode', test: isArrayNode },
+        { name: 'AssignmentNode', test: isAssignmentNode },
+        { name: 'BlockNode', test: isBlockNode },
+        { name: 'ConditionalNode', test: isConditionalNode },
+        { name: 'ConstantNode', test: isConstantNode },
+        { name: 'FunctionNode', test: isFunctionNode },
+        { name: 'FunctionAssignmentNode', test: isFunctionAssignmentNode },
+        { name: 'IndexNode', test: isIndexNode },
+        { name: 'Node', test: isNode$1 },
+        { name: 'ObjectNode', test: isObjectNode },
+        { name: 'OperatorNode', test: isOperatorNode },
+        { name: 'ParenthesisNode', test: isParenthesisNode },
+        { name: 'RangeNode', test: isRangeNode },
+        { name: 'SymbolNode', test: isSymbolNode },
+
+        { name: 'Object', test: isObject$1 } // order 'Object' last, it matches on other classes too
+      ];
+
+      typed.conversions = [
+        {
+          from: 'number',
+          to: 'BigNumber',
+          convert: function (x) {
+            if (!BigNumber) {
+              throwNoBignumber(x);
+            }
+
+            // note: conversion from number to BigNumber can fail if x has >15 digits
+            if (digits(x) > 15) {
+              throw new TypeError('Cannot implicitly convert a number with >15 significant digits to BigNumber ' +
+                '(value: ' + x + '). ' +
+                'Use function bignumber(x) to convert to BigNumber.')
+            }
+            return new BigNumber(x)
+          }
+        }, {
+          from: 'number',
+          to: 'Complex',
+          convert: function (x) {
+            if (!Complex) {
+              throwNoComplex(x);
+            }
+
+            return new Complex(x, 0)
+          }
+        }, {
+          from: 'number',
+          to: 'string',
+          convert: function (x) {
+            return x + ''
+          }
+        }, {
+          from: 'BigNumber',
+          to: 'Complex',
+          convert: function (x) {
+            if (!Complex) {
+              throwNoComplex(x);
+            }
+
+            return new Complex(x.toNumber(), 0)
+          }
+        }, {
+          from: 'Fraction',
+          to: 'BigNumber',
+          convert: function (x) {
+            throw new TypeError('Cannot implicitly convert a Fraction to BigNumber or vice versa. ' +
+              'Use function bignumber(x) to convert to BigNumber or fraction(x) to convert to Fraction.')
+          }
+        }, {
+          from: 'Fraction',
+          to: 'Complex',
+          convert: function (x) {
+            if (!Complex) {
+              throwNoComplex(x);
+            }
+
+            return new Complex(x.valueOf(), 0)
+          }
+        }, {
+          from: 'number',
+          to: 'Fraction',
+          convert: function (x) {
+            if (!Fraction) {
+              throwNoFraction(x);
+            }
+
+            const f = new Fraction(x);
+            if (f.valueOf() !== x) {
+              throw new TypeError('Cannot implicitly convert a number to a Fraction when there will be a loss of precision ' +
+                '(value: ' + x + '). ' +
+                'Use function fraction(x) to convert to Fraction.')
+            }
+            return f
+          }
+        }, {
+          // FIXME: add conversion from Fraction to number, for example for `sqrt(fraction(1,3))`
+          //  from: 'Fraction',
+          //  to: 'number',
+          //  convert: function (x) {
+          //    return x.valueOf()
+          //  }
+          // }, {
+          from: 'string',
+          to: 'number',
+          convert: function (x) {
+            const n = Number(x);
+            if (isNaN(n)) {
+              throw new Error('Cannot convert "' + x + '" to a number')
+            }
+            return n
+          }
+        }, {
+          from: 'string',
+          to: 'BigNumber',
+          convert: function (x) {
+            if (!BigNumber) {
+              throwNoBignumber(x);
+            }
+
+            try {
+              return new BigNumber(x)
+            } catch (err) {
+              throw new Error('Cannot convert "' + x + '" to BigNumber')
+            }
+          }
+        }, {
+          from: 'string',
+          to: 'Fraction',
+          convert: function (x) {
+            if (!Fraction) {
+              throwNoFraction(x);
+            }
+
+            try {
+              return new Fraction(x)
+            } catch (err) {
+              throw new Error('Cannot convert "' + x + '" to Fraction')
+            }
+          }
+        }, {
+          from: 'string',
+          to: 'Complex',
+          convert: function (x) {
+            if (!Complex) {
+              throwNoComplex(x);
+            }
+
+            try {
+              return new Complex(x)
+            } catch (err) {
+              throw new Error('Cannot convert "' + x + '" to Complex')
+            }
+          }
+        }, {
+          from: 'boolean',
+          to: 'number',
+          convert: function (x) {
+            return +x
+          }
+        }, {
+          from: 'boolean',
+          to: 'BigNumber',
+          convert: function (x) {
+            if (!BigNumber) {
+              throwNoBignumber(x);
+            }
+
+            return new BigNumber(+x)
+          }
+        }, {
+          from: 'boolean',
+          to: 'Fraction',
+          convert: function (x) {
+            if (!Fraction) {
+              throwNoFraction(x);
+            }
+
+            return new Fraction(+x)
+          }
+        }, {
+          from: 'boolean',
+          to: 'string',
+          convert: function (x) {
+            return String(x)
+          }
+        }, {
+          from: 'Array',
+          to: 'Matrix',
+          convert: function (array) {
+            if (!DenseMatrix) {
+              throwNoMatrix();
+            }
+
+            return new DenseMatrix(array)
+          }
+        }, {
+          from: 'Matrix',
+          to: 'Array',
+          convert: function (matrix) {
+            return matrix.valueOf()
+          }
+        }
+      ];
+
+      return typed
+    });
+
+    function throwNoBignumber (x) {
+      throw new Error(`Cannot convert value ${x} into a BigNumber: no class 'BigNumber' provided`)
+    }
+
+    function throwNoComplex (x) {
+      throw new Error(`Cannot convert value ${x} into a Complex number: no class 'Complex' provided`)
+    }
+
+    function throwNoMatrix () {
+      throw new Error(`Cannot convert array into a Matrix: no class 'DenseMatrix' provided`)
+    }
+
+    function throwNoFraction (x) {
+      throw new Error(`Cannot convert value ${x} into a Fraction, no class 'Fraction' provided.`)
+    }
+
+    var decimal = createCommonjsModule(function (module) {
+    (function (globalScope) {
+
+
+      /*
+       *  decimal.js v10.2.0
+       *  An arbitrary-precision Decimal type for JavaScript.
+       *  https://github.com/MikeMcl/decimal.js
+       *  Copyright (c) 2019 Michael Mclaughlin <M8ch88l@gmail.com>
+       *  MIT Licence
+       */
+
+
+      // -----------------------------------  EDITABLE DEFAULTS  ------------------------------------ //
+
+
+        // The maximum exponent magnitude.
+        // The limit on the value of `toExpNeg`, `toExpPos`, `minE` and `maxE`.
+      var EXP_LIMIT = 9e15,                      // 0 to 9e15
+
+        // The limit on the value of `precision`, and on the value of the first argument to
+        // `toDecimalPlaces`, `toExponential`, `toFixed`, `toPrecision` and `toSignificantDigits`.
+        MAX_DIGITS = 1e9,                        // 0 to 1e9
+
+        // Base conversion alphabet.
+        NUMERALS = '0123456789abcdef',
+
+        // The natural logarithm of 10 (1025 digits).
+        LN10 = '2.3025850929940456840179914546843642076011014886287729760333279009675726096773524802359972050895982983419677840422862486334095254650828067566662873690987816894829072083255546808437998948262331985283935053089653777326288461633662222876982198867465436674744042432743651550489343149393914796194044002221051017141748003688084012647080685567743216228355220114804663715659121373450747856947683463616792101806445070648000277502684916746550586856935673420670581136429224554405758925724208241314695689016758940256776311356919292033376587141660230105703089634572075440370847469940168269282808481184289314848524948644871927809676271275775397027668605952496716674183485704422507197965004714951050492214776567636938662976979522110718264549734772662425709429322582798502585509785265383207606726317164309505995087807523710333101197857547331541421808427543863591778117054309827482385045648019095610299291824318237525357709750539565187697510374970888692180205189339507238539205144634197265287286965110862571492198849978748873771345686209167058',
+
+        // Pi (1025 digits).
+        PI = '3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679821480865132823066470938446095505822317253594081284811174502841027019385211055596446229489549303819644288109756659334461284756482337867831652712019091456485669234603486104543266482133936072602491412737245870066063155881748815209209628292540917153643678925903600113305305488204665213841469519415116094330572703657595919530921861173819326117931051185480744623799627495673518857527248912279381830119491298336733624406566430860213949463952247371907021798609437027705392171762931767523846748184676694051320005681271452635608277857713427577896091736371787214684409012249534301465495853710507922796892589235420199561121290219608640344181598136297747713099605187072113499999983729780499510597317328160963185950244594553469083026425223082533446850352619311881710100031378387528865875332083814206171776691473035982534904287554687311595628638823537875937519577818577805321712268066130019278766111959092164201989380952572010654858632789',
+
+
+        // The initial configuration properties of the Decimal constructor.
+        DEFAULTS = {
+
+          // These values must be integers within the stated ranges (inclusive).
+          // Most of these values can be changed at run-time using the `Decimal.config` method.
+
+          // The maximum number of significant digits of the result of a calculation or base conversion.
+          // E.g. `Decimal.config({ precision: 20 });`
+          precision: 20,                         // 1 to MAX_DIGITS
+
+          // The rounding mode used when rounding to `precision`.
+          //
+          // ROUND_UP         0 Away from zero.
+          // ROUND_DOWN       1 Towards zero.
+          // ROUND_CEIL       2 Towards +Infinity.
+          // ROUND_FLOOR      3 Towards -Infinity.
+          // ROUND_HALF_UP    4 Towards nearest neighbour. If equidistant, up.
+          // ROUND_HALF_DOWN  5 Towards nearest neighbour. If equidistant, down.
+          // ROUND_HALF_EVEN  6 Towards nearest neighbour. If equidistant, towards even neighbour.
+          // ROUND_HALF_CEIL  7 Towards nearest neighbour. If equidistant, towards +Infinity.
+          // ROUND_HALF_FLOOR 8 Towards nearest neighbour. If equidistant, towards -Infinity.
+          //
+          // E.g.
+          // `Decimal.rounding = 4;`
+          // `Decimal.rounding = Decimal.ROUND_HALF_UP;`
+          rounding: 4,                           // 0 to 8
+
+          // The modulo mode used when calculating the modulus: a mod n.
+          // The quotient (q = a / n) is calculated according to the corresponding rounding mode.
+          // The remainder (r) is calculated as: r = a - n * q.
+          //
+          // UP         0 The remainder is positive if the dividend is negative, else is negative.
+          // DOWN       1 The remainder has the same sign as the dividend (JavaScript %).
+          // FLOOR      3 The remainder has the same sign as the divisor (Python %).
+          // HALF_EVEN  6 The IEEE 754 remainder function.
+          // EUCLID     9 Euclidian division. q = sign(n) * floor(a / abs(n)). Always positive.
+          //
+          // Truncated division (1), floored division (3), the IEEE 754 remainder (6), and Euclidian
+          // division (9) are commonly used for the modulus operation. The other rounding modes can also
+          // be used, but they may not give useful results.
+          modulo: 1,                             // 0 to 9
+
+          // The exponent value at and beneath which `toString` returns exponential notation.
+          // JavaScript numbers: -7
+          toExpNeg: -7,                          // 0 to -EXP_LIMIT
+
+          // The exponent value at and above which `toString` returns exponential notation.
+          // JavaScript numbers: 21
+          toExpPos:  21,                         // 0 to EXP_LIMIT
+
+          // The minimum exponent value, beneath which underflow to zero occurs.
+          // JavaScript numbers: -324  (5e-324)
+          minE: -EXP_LIMIT,                      // -1 to -EXP_LIMIT
+
+          // The maximum exponent value, above which overflow to Infinity occurs.
+          // JavaScript numbers: 308  (1.7976931348623157e+308)
+          maxE: EXP_LIMIT,                       // 1 to EXP_LIMIT
+
+          // Whether to use cryptographically-secure random number generation, if available.
+          crypto: false                          // true/false
+        },
+
+
+      // ----------------------------------- END OF EDITABLE DEFAULTS ------------------------------- //
+
+
+        Decimal, inexact, noConflict, quadrant,
+        external = true,
+
+        decimalError = '[DecimalError] ',
+        invalidArgument = decimalError + 'Invalid argument: ',
+        precisionLimitExceeded = decimalError + 'Precision limit exceeded',
+        cryptoUnavailable = decimalError + 'crypto unavailable',
+
+        mathfloor = Math.floor,
+        mathpow = Math.pow,
+
+        isBinary = /^0b([01]+(\.[01]*)?|\.[01]+)(p[+-]?\d+)?$/i,
+        isHex = /^0x([0-9a-f]+(\.[0-9a-f]*)?|\.[0-9a-f]+)(p[+-]?\d+)?$/i,
+        isOctal = /^0o([0-7]+(\.[0-7]*)?|\.[0-7]+)(p[+-]?\d+)?$/i,
+        isDecimal = /^(\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?$/i,
+
+        BASE = 1e7,
+        LOG_BASE = 7,
+        MAX_SAFE_INTEGER = 9007199254740991,
+
+        LN10_PRECISION = LN10.length - 1,
+        PI_PRECISION = PI.length - 1,
+
+        // Decimal.prototype object
+        P = { name: '[object Decimal]' };
+
+
+      // Decimal prototype methods
+
+
+      /*
+       *  absoluteValue             abs
+       *  ceil
+       *  comparedTo                cmp
+       *  cosine                    cos
+       *  cubeRoot                  cbrt
+       *  decimalPlaces             dp
+       *  dividedBy                 div
+       *  dividedToIntegerBy        divToInt
+       *  equals                    eq
+       *  floor
+       *  greaterThan               gt
+       *  greaterThanOrEqualTo      gte
+       *  hyperbolicCosine          cosh
+       *  hyperbolicSine            sinh
+       *  hyperbolicTangent         tanh
+       *  inverseCosine             acos
+       *  inverseHyperbolicCosine   acosh
+       *  inverseHyperbolicSine     asinh
+       *  inverseHyperbolicTangent  atanh
+       *  inverseSine               asin
+       *  inverseTangent            atan
+       *  isFinite
+       *  isInteger                 isInt
+       *  isNaN
+       *  isNegative                isNeg
+       *  isPositive                isPos
+       *  isZero
+       *  lessThan                  lt
+       *  lessThanOrEqualTo         lte
+       *  logarithm                 log
+       *  [maximum]                 [max]
+       *  [minimum]                 [min]
+       *  minus                     sub
+       *  modulo                    mod
+       *  naturalExponential        exp
+       *  naturalLogarithm          ln
+       *  negated                   neg
+       *  plus                      add
+       *  precision                 sd
+       *  round
+       *  sine                      sin
+       *  squareRoot                sqrt
+       *  tangent                   tan
+       *  times                     mul
+       *  toBinary
+       *  toDecimalPlaces           toDP
+       *  toExponential
+       *  toFixed
+       *  toFraction
+       *  toHexadecimal             toHex
+       *  toNearest
+       *  toNumber
+       *  toOctal
+       *  toPower                   pow
+       *  toPrecision
+       *  toSignificantDigits       toSD
+       *  toString
+       *  truncated                 trunc
+       *  valueOf                   toJSON
+       */
+
+
+      /*
+       * Return a new Decimal whose value is the absolute value of this Decimal.
+       *
+       */
+      P.absoluteValue = P.abs = function () {
+        var x = new this.constructor(this);
+        if (x.s < 0) x.s = 1;
+        return finalise(x);
+      };
+
+
+      /*
+       * Return a new Decimal whose value is the value of this Decimal rounded to a whole number in the
+       * direction of positive Infinity.
+       *
+       */
+      P.ceil = function () {
+        return finalise(new this.constructor(this), this.e + 1, 2);
+      };
+
+
+      /*
+       * Return
+       *   1    if the value of this Decimal is greater than the value of `y`,
+       *  -1    if the value of this Decimal is less than the value of `y`,
+       *   0    if they have the same value,
+       *   NaN  if the value of either Decimal is NaN.
+       *
+       */
+      P.comparedTo = P.cmp = function (y) {
+        var i, j, xdL, ydL,
+          x = this,
+          xd = x.d,
+          yd = (y = new x.constructor(y)).d,
+          xs = x.s,
+          ys = y.s;
+
+        // Either NaN or ±Infinity?
+        if (!xd || !yd) {
+          return !xs || !ys ? NaN : xs !== ys ? xs : xd === yd ? 0 : !xd ^ xs < 0 ? 1 : -1;
+        }
+
+        // Either zero?
+        if (!xd[0] || !yd[0]) return xd[0] ? xs : yd[0] ? -ys : 0;
+
+        // Signs differ?
+        if (xs !== ys) return xs;
+
+        // Compare exponents.
+        if (x.e !== y.e) return x.e > y.e ^ xs < 0 ? 1 : -1;
+
+        xdL = xd.length;
+        ydL = yd.length;
+
+        // Compare digit by digit.
+        for (i = 0, j = xdL < ydL ? xdL : ydL; i < j; ++i) {
+          if (xd[i] !== yd[i]) return xd[i] > yd[i] ^ xs < 0 ? 1 : -1;
+        }
+
+        // Compare lengths.
+        return xdL === ydL ? 0 : xdL > ydL ^ xs < 0 ? 1 : -1;
+      };
+
+
+      /*
+       * Return a new Decimal whose value is the cosine of the value in radians of this Decimal.
+       *
+       * Domain: [-Infinity, Infinity]
+       * Range: [-1, 1]
+       *
+       * cos(0)         = 1
+       * cos(-0)        = 1
+       * cos(Infinity)  = NaN
+       * cos(-Infinity) = NaN
+       * cos(NaN)       = NaN
+       *
+       */
+      P.cosine = P.cos = function () {
+        var pr, rm,
+          x = this,
+          Ctor = x.constructor;
+
+        if (!x.d) return new Ctor(NaN);
+
+        // cos(0) = cos(-0) = 1
+        if (!x.d[0]) return new Ctor(1);
+
+        pr = Ctor.precision;
+        rm = Ctor.rounding;
+        Ctor.precision = pr + Math.max(x.e, x.sd()) + LOG_BASE;
+        Ctor.rounding = 1;
+
+        x = cosine(Ctor, toLessThanHalfPi(Ctor, x));
+
+        Ctor.precision = pr;
+        Ctor.rounding = rm;
+
+        return finalise(quadrant == 2 || quadrant == 3 ? x.neg() : x, pr, rm, true);
+      };
+
+
+      /*
+       *
+       * Return a new Decimal whose value is the cube root of the value of this Decimal, rounded to
+       * `precision` significant digits using rounding mode `rounding`.
+       *
+       *  cbrt(0)  =  0
+       *  cbrt(-0) = -0
+       *  cbrt(1)  =  1
+       *  cbrt(-1) = -1
+       *  cbrt(N)  =  N
+       *  cbrt(-I) = -I
+       *  cbrt(I)  =  I
+       *
+       * Math.cbrt(x) = (x < 0 ? -Math.pow(-x, 1/3) : Math.pow(x, 1/3))
+       *
+       */
+      P.cubeRoot = P.cbrt = function () {
+        var e, m, n, r, rep, s, sd, t, t3, t3plusx,
+          x = this,
+          Ctor = x.constructor;
+
+        if (!x.isFinite() || x.isZero()) return new Ctor(x);
+        external = false;
+
+        // Initial estimate.
+        s = x.s * mathpow(x.s * x, 1 / 3);
+
+         // Math.cbrt underflow/overflow?
+         // Pass x to Math.pow as integer, then adjust the exponent of the result.
+        if (!s || Math.abs(s) == 1 / 0) {
+          n = digitsToString(x.d);
+          e = x.e;
+
+          // Adjust n exponent so it is a multiple of 3 away from x exponent.
+          if (s = (e - n.length + 1) % 3) n += (s == 1 || s == -2 ? '0' : '00');
+          s = mathpow(n, 1 / 3);
+
+          // Rarely, e may be one less than the result exponent value.
+          e = mathfloor((e + 1) / 3) - (e % 3 == (e < 0 ? -1 : 2));
+
+          if (s == 1 / 0) {
+            n = '5e' + e;
+          } else {
+            n = s.toExponential();
+            n = n.slice(0, n.indexOf('e') + 1) + e;
+          }
+
+          r = new Ctor(n);
+          r.s = x.s;
+        } else {
+          r = new Ctor(s.toString());
+        }
+
+        sd = (e = Ctor.precision) + 3;
+
+        // Halley's method.
+        // TODO? Compare Newton's method.
+        for (;;) {
+          t = r;
+          t3 = t.times(t).times(t);
+          t3plusx = t3.plus(x);
+          r = divide(t3plusx.plus(x).times(t), t3plusx.plus(t3), sd + 2, 1);
+
+          // TODO? Replace with for-loop and checkRoundingDigits.
+          if (digitsToString(t.d).slice(0, sd) === (n = digitsToString(r.d)).slice(0, sd)) {
+            n = n.slice(sd - 3, sd + 1);
+
+            // The 4th rounding digit may be in error by -1 so if the 4 rounding digits are 9999 or 4999
+            // , i.e. approaching a rounding boundary, continue the iteration.
+            if (n == '9999' || !rep && n == '4999') {
+
+              // On the first iteration only, check to see if rounding up gives the exact result as the
+              // nines may infinitely repeat.
+              if (!rep) {
+                finalise(t, e + 1, 0);
+
+                if (t.times(t).times(t).eq(x)) {
+                  r = t;
+                  break;
+                }
+              }
+
+              sd += 4;
+              rep = 1;
+            } else {
+
+              // If the rounding digits are null, 0{0,4} or 50{0,3}, check for an exact result.
+              // If not, then there are further digits and m will be truthy.
+              if (!+n || !+n.slice(1) && n.charAt(0) == '5') {
+
+                // Truncate to the first rounding digit.
+                finalise(r, e + 1, 1);
+                m = !r.times(r).times(r).eq(x);
+              }
+
+              break;
+            }
+          }
+        }
+
+        external = true;
+
+        return finalise(r, e, Ctor.rounding, m);
+      };
+
+
+      /*
+       * Return the number of decimal places of the value of this Decimal.
+       *
+       */
+      P.decimalPlaces = P.dp = function () {
+        var w,
+          d = this.d,
+          n = NaN;
+
+        if (d) {
+          w = d.length - 1;
+          n = (w - mathfloor(this.e / LOG_BASE)) * LOG_BASE;
+
+          // Subtract the number of trailing zeros of the last word.
+          w = d[w];
+          if (w) for (; w % 10 == 0; w /= 10) n--;
+          if (n < 0) n = 0;
+        }
+
+        return n;
+      };
+
+
+      /*
+       *  n / 0 = I
+       *  n / N = N
+       *  n / I = 0
+       *  0 / n = 0
+       *  0 / 0 = N
+       *  0 / N = N
+       *  0 / I = 0
+       *  N / n = N
+       *  N / 0 = N
+       *  N / N = N
+       *  N / I = N
+       *  I / n = I
+       *  I / 0 = I
+       *  I / N = N
+       *  I / I = N
+       *
+       * Return a new Decimal whose value is the value of this Decimal divided by `y`, rounded to
+       * `precision` significant digits using rounding mode `rounding`.
+       *
+       */
+      P.dividedBy = P.div = function (y) {
+        return divide(this, new this.constructor(y));
+      };
+
+
+      /*
+       * Return a new Decimal whose value is the integer part of dividing the value of this Decimal
+       * by the value of `y`, rounded to `precision` significant digits using rounding mode `rounding`.
+       *
+       */
+      P.dividedToIntegerBy = P.divToInt = function (y) {
+        var x = this,
+          Ctor = x.constructor;
+        return finalise(divide(x, new Ctor(y), 0, 1, 1), Ctor.precision, Ctor.rounding);
+      };
+
+
+      /*
+       * Return true if the value of this Decimal is equal to the value of `y`, otherwise return false.
+       *
+       */
+      P.equals = P.eq = function (y) {
+        return this.cmp(y) === 0;
+      };
+
+
+      /*
+       * Return a new Decimal whose value is the value of this Decimal rounded to a whole number in the
+       * direction of negative Infinity.
+       *
+       */
+      P.floor = function () {
+        return finalise(new this.constructor(this), this.e + 1, 3);
+      };
+
+
+      /*
+       * Return true if the value of this Decimal is greater than the value of `y`, otherwise return
+       * false.
+       *
+       */
+      P.greaterThan = P.gt = function (y) {
+        return this.cmp(y) > 0;
+      };
+
+
+      /*
+       * Return true if the value of this Decimal is greater than or equal to the value of `y`,
+       * otherwise return false.
+       *
+       */
+      P.greaterThanOrEqualTo = P.gte = function (y) {
+        var k = this.cmp(y);
+        return k == 1 || k === 0;
+      };
+
+
+      /*
+       * Return a new Decimal whose value is the hyperbolic cosine of the value in radians of this
+       * Decimal.
+       *
+       * Domain: [-Infinity, Infinity]
+       * Range: [1, Infinity]
+       *
+       * cosh(x) = 1 + x^2/2! + x^4/4! + x^6/6! + ...
+       *
+       * cosh(0)         = 1
+       * cosh(-0)        = 1
+       * cosh(Infinity)  = Infinity
+       * cosh(-Infinity) = Infinity
+       * cosh(NaN)       = NaN
+       *
+       *  x        time taken (ms)   result
+       * 1000      9                 9.8503555700852349694e+433
+       * 10000     25                4.4034091128314607936e+4342
+       * 100000    171               1.4033316802130615897e+43429
+       * 1000000   3817              1.5166076984010437725e+434294
+       * 10000000  abandoned after 2 minute wait
+       *
+       * TODO? Compare performance of cosh(x) = 0.5 * (exp(x) + exp(-x))
+       *
+       */
+      P.hyperbolicCosine = P.cosh = function () {
+        var k, n, pr, rm, len,
+          x = this,
+          Ctor = x.constructor,
+          one = new Ctor(1);
+
+        if (!x.isFinite()) return new Ctor(x.s ? 1 / 0 : NaN);
+        if (x.isZero()) return one;
+
+        pr = Ctor.precision;
+        rm = Ctor.rounding;
+        Ctor.precision = pr + Math.max(x.e, x.sd()) + 4;
+        Ctor.rounding = 1;
+        len = x.d.length;
+
+        // Argument reduction: cos(4x) = 1 - 8cos^2(x) + 8cos^4(x) + 1
+        // i.e. cos(x) = 1 - cos^2(x/4)(8 - 8cos^2(x/4))
+
+        // Estimate the optimum number of times to use the argument reduction.
+        // TODO? Estimation reused from cosine() and may not be optimal here.
+        if (len < 32) {
+          k = Math.ceil(len / 3);
+          n = (1 / tinyPow(4, k)).toString();
+        } else {
+          k = 16;
+          n = '2.3283064365386962890625e-10';
+        }
+
+        x = taylorSeries(Ctor, 1, x.times(n), new Ctor(1), true);
+
+        // Reverse argument reduction
+        var cosh2_x,
+          i = k,
+          d8 = new Ctor(8);
+        for (; i--;) {
+          cosh2_x = x.times(x);
+          x = one.minus(cosh2_x.times(d8.minus(cosh2_x.times(d8))));
+        }
+
+        return finalise(x, Ctor.precision = pr, Ctor.rounding = rm, true);
+      };
+
+
+      /*
+       * Return a new Decimal whose value is the hyperbolic sine of the value in radians of this
+       * Decimal.
+       *
+       * Domain: [-Infinity, Infinity]
+       * Range: [-Infinity, Infinity]
+       *
+       * sinh(x) = x + x^3/3! + x^5/5! + x^7/7! + ...
+       *
+       * sinh(0)         = 0
+       * sinh(-0)        = -0
+       * sinh(Infinity)  = Infinity
+       * sinh(-Infinity) = -Infinity
+       * sinh(NaN)       = NaN
+       *
+       * x        time taken (ms)
+       * 10       2 ms
+       * 100      5 ms
+       * 1000     14 ms
+       * 10000    82 ms
+       * 100000   886 ms            1.4033316802130615897e+43429
+       * 200000   2613 ms
+       * 300000   5407 ms
+       * 400000   8824 ms
+       * 500000   13026 ms          8.7080643612718084129e+217146
+       * 1000000  48543 ms
+       *
+       * TODO? Compare performance of sinh(x) = 0.5 * (exp(x) - exp(-x))
+       *
+       */
+      P.hyperbolicSine = P.sinh = function () {
+        var k, pr, rm, len,
+          x = this,
+          Ctor = x.constructor;
+
+        if (!x.isFinite() || x.isZero()) return new Ctor(x);
+
+        pr = Ctor.precision;
+        rm = Ctor.rounding;
+        Ctor.precision = pr + Math.max(x.e, x.sd()) + 4;
+        Ctor.rounding = 1;
+        len = x.d.length;
+
+        if (len < 3) {
+          x = taylorSeries(Ctor, 2, x, x, true);
+        } else {
+
+          // Alternative argument reduction: sinh(3x) = sinh(x)(3 + 4sinh^2(x))
+          // i.e. sinh(x) = sinh(x/3)(3 + 4sinh^2(x/3))
+          // 3 multiplications and 1 addition
+
+          // Argument reduction: sinh(5x) = sinh(x)(5 + sinh^2(x)(20 + 16sinh^2(x)))
+          // i.e. sinh(x) = sinh(x/5)(5 + sinh^2(x/5)(20 + 16sinh^2(x/5)))
+          // 4 multiplications and 2 additions
+
+          // Estimate the optimum number of times to use the argument reduction.
+          k = 1.4 * Math.sqrt(len);
+          k = k > 16 ? 16 : k | 0;
+
+          x = x.times(1 / tinyPow(5, k));
+          x = taylorSeries(Ctor, 2, x, x, true);
+
+          // Reverse argument reduction
+          var sinh2_x,
+            d5 = new Ctor(5),
+            d16 = new Ctor(16),
+            d20 = new Ctor(20);
+          for (; k--;) {
+            sinh2_x = x.times(x);
+            x = x.times(d5.plus(sinh2_x.times(d16.times(sinh2_x).plus(d20))));
+          }
+        }
+
+        Ctor.precision = pr;
+        Ctor.rounding = rm;
+
+        return finalise(x, pr, rm, true);
+      };
+
+
+      /*
+       * Return a new Decimal whose value is the hyperbolic tangent of the value in radians of this
+       * Decimal.
+       *
+       * Domain: [-Infinity, Infinity]
+       * Range: [-1, 1]
+       *
+       * tanh(x) = sinh(x) / cosh(x)
+       *
+       * tanh(0)         = 0
+       * tanh(-0)        = -0
+       * tanh(Infinity)  = 1
+       * tanh(-Infinity) = -1
+       * tanh(NaN)       = NaN
+       *
+       */
+      P.hyperbolicTangent = P.tanh = function () {
+        var pr, rm,
+          x = this,
+          Ctor = x.constructor;
+
+        if (!x.isFinite()) return new Ctor(x.s);
+        if (x.isZero()) return new Ctor(x);
+
+        pr = Ctor.precision;
+        rm = Ctor.rounding;
+        Ctor.precision = pr + 7;
+        Ctor.rounding = 1;
+
+        return divide(x.sinh(), x.cosh(), Ctor.precision = pr, Ctor.rounding = rm);
+      };
+
+
+      /*
+       * Return a new Decimal whose value is the arccosine (inverse cosine) in radians of the value of
+       * this Decimal.
+       *
+       * Domain: [-1, 1]
+       * Range: [0, pi]
+       *
+       * acos(x) = pi/2 - asin(x)
+       *
+       * acos(0)       = pi/2
+       * acos(-0)      = pi/2
+       * acos(1)       = 0
+       * acos(-1)      = pi
+       * acos(1/2)     = pi/3
+       * acos(-1/2)    = 2*pi/3
+       * acos(|x| > 1) = NaN
+       * acos(NaN)     = NaN
+       *
+       */
+      P.inverseCosine = P.acos = function () {
+        var halfPi,
+          x = this,
+          Ctor = x.constructor,
+          k = x.abs().cmp(1),
+          pr = Ctor.precision,
+          rm = Ctor.rounding;
+
+        if (k !== -1) {
+          return k === 0
+            // |x| is 1
+            ? x.isNeg() ? getPi(Ctor, pr, rm) : new Ctor(0)
+            // |x| > 1 or x is NaN
+            : new Ctor(NaN);
+        }
+
+        if (x.isZero()) return getPi(Ctor, pr + 4, rm).times(0.5);
+
+        // TODO? Special case acos(0.5) = pi/3 and acos(-0.5) = 2*pi/3
+
+        Ctor.precision = pr + 6;
+        Ctor.rounding = 1;
+
+        x = x.asin();
+        halfPi = getPi(Ctor, pr + 4, rm).times(0.5);
+
+        Ctor.precision = pr;
+        Ctor.rounding = rm;
+
+        return halfPi.minus(x);
+      };
+
+
+      /*
+       * Return a new Decimal whose value is the inverse of the hyperbolic cosine in radians of the
+       * value of this Decimal.
+       *
+       * Domain: [1, Infinity]
+       * Range: [0, Infinity]
+       *
+       * acosh(x) = ln(x + sqrt(x^2 - 1))
+       *
+       * acosh(x < 1)     = NaN
+       * acosh(NaN)       = NaN
+       * acosh(Infinity)  = Infinity
+       * acosh(-Infinity) = NaN
+       * acosh(0)         = NaN
+       * acosh(-0)        = NaN
+       * acosh(1)         = 0
+       * acosh(-1)        = NaN
+       *
+       */
+      P.inverseHyperbolicCosine = P.acosh = function () {
+        var pr, rm,
+          x = this,
+          Ctor = x.constructor;
+
+        if (x.lte(1)) return new Ctor(x.eq(1) ? 0 : NaN);
+        if (!x.isFinite()) return new Ctor(x);
+
+        pr = Ctor.precision;
+        rm = Ctor.rounding;
+        Ctor.precision = pr + Math.max(Math.abs(x.e), x.sd()) + 4;
+        Ctor.rounding = 1;
+        external = false;
+
+        x = x.times(x).minus(1).sqrt().plus(x);
+
+        external = true;
+        Ctor.precision = pr;
+        Ctor.rounding = rm;
+
+        return x.ln();
+      };
+
+
+      /*
+       * Return a new Decimal whose value is the inverse of the hyperbolic sine in radians of the value
+       * of this Decimal.
+       *
+       * Domain: [-Infinity, Infinity]
+       * Range: [-Infinity, Infinity]
+       *
+       * asinh(x) = ln(x + sqrt(x^2 + 1))
+       *
+       * asinh(NaN)       = NaN
+       * asinh(Infinity)  = Infinity
+       * asinh(-Infinity) = -Infinity
+       * asinh(0)         = 0
+       * asinh(-0)        = -0
+       *
+       */
+      P.inverseHyperbolicSine = P.asinh = function () {
+        var pr, rm,
+          x = this,
+          Ctor = x.constructor;
+
+        if (!x.isFinite() || x.isZero()) return new Ctor(x);
+
+        pr = Ctor.precision;
+        rm = Ctor.rounding;
+        Ctor.precision = pr + 2 * Math.max(Math.abs(x.e), x.sd()) + 6;
+        Ctor.rounding = 1;
+        external = false;
+
+        x = x.times(x).plus(1).sqrt().plus(x);
+
+        external = true;
+        Ctor.precision = pr;
+        Ctor.rounding = rm;
+
+        return x.ln();
+      };
+
+
+      /*
+       * Return a new Decimal whose value is the inverse of the hyperbolic tangent in radians of the
+       * value of this Decimal.
+       *
+       * Domain: [-1, 1]
+       * Range: [-Infinity, Infinity]
+       *
+       * atanh(x) = 0.5 * ln((1 + x) / (1 - x))
+       *
+       * atanh(|x| > 1)   = NaN
+       * atanh(NaN)       = NaN
+       * atanh(Infinity)  = NaN
+       * atanh(-Infinity) = NaN
+       * atanh(0)         = 0
+       * atanh(-0)        = -0
+       * atanh(1)         = Infinity
+       * atanh(-1)        = -Infinity
+       *
+       */
+      P.inverseHyperbolicTangent = P.atanh = function () {
+        var pr, rm, wpr, xsd,
+          x = this,
+          Ctor = x.constructor;
+
+        if (!x.isFinite()) return new Ctor(NaN);
+        if (x.e >= 0) return new Ctor(x.abs().eq(1) ? x.s / 0 : x.isZero() ? x : NaN);
+
+        pr = Ctor.precision;
+        rm = Ctor.rounding;
+        xsd = x.sd();
+
+        if (Math.max(xsd, pr) < 2 * -x.e - 1) return finalise(new Ctor(x), pr, rm, true);
+
+        Ctor.precision = wpr = xsd - x.e;
+
+        x = divide(x.plus(1), new Ctor(1).minus(x), wpr + pr, 1);
+
+        Ctor.precision = pr + 4;
+        Ctor.rounding = 1;
+
+        x = x.ln();
+
+        Ctor.precision = pr;
+        Ctor.rounding = rm;
+
+        return x.times(0.5);
+      };
+
+
+      /*
+       * Return a new Decimal whose value is the arcsine (inverse sine) in radians of the value of this
+       * Decimal.
+       *
+       * Domain: [-Infinity, Infinity]
+       * Range: [-pi/2, pi/2]
+       *
+       * asin(x) = 2*atan(x/(1 + sqrt(1 - x^2)))
+       *
+       * asin(0)       = 0
+       * asin(-0)      = -0
+       * asin(1/2)     = pi/6
+       * asin(-1/2)    = -pi/6
+       * asin(1)       = pi/2
+       * asin(-1)      = -pi/2
+       * asin(|x| > 1) = NaN
+       * asin(NaN)     = NaN
+       *
+       * TODO? Compare performance of Taylor series.
+       *
+       */
+      P.inverseSine = P.asin = function () {
+        var halfPi, k,
+          pr, rm,
+          x = this,
+          Ctor = x.constructor;
+
+        if (x.isZero()) return new Ctor(x);
+
+        k = x.abs().cmp(1);
+        pr = Ctor.precision;
+        rm = Ctor.rounding;
+
+        if (k !== -1) {
+
+          // |x| is 1
+          if (k === 0) {
+            halfPi = getPi(Ctor, pr + 4, rm).times(0.5);
+            halfPi.s = x.s;
+            return halfPi;
+          }
+
+          // |x| > 1 or x is NaN
+          return new Ctor(NaN);
+        }
+
+        // TODO? Special case asin(1/2) = pi/6 and asin(-1/2) = -pi/6
+
+        Ctor.precision = pr + 6;
+        Ctor.rounding = 1;
+
+        x = x.div(new Ctor(1).minus(x.times(x)).sqrt().plus(1)).atan();
+
+        Ctor.precision = pr;
+        Ctor.rounding = rm;
+
+        return x.times(2);
+      };
+
+
+      /*
+       * Return a new Decimal whose value is the arctangent (inverse tangent) in radians of the value
+       * of this Decimal.
+       *
+       * Domain: [-Infinity, Infinity]
+       * Range: [-pi/2, pi/2]
+       *
+       * atan(x) = x - x^3/3 + x^5/5 - x^7/7 + ...
+       *
+       * atan(0)         = 0
+       * atan(-0)        = -0
+       * atan(1)         = pi/4
+       * atan(-1)        = -pi/4
+       * atan(Infinity)  = pi/2
+       * atan(-Infinity) = -pi/2
+       * atan(NaN)       = NaN
+       *
+       */
+      P.inverseTangent = P.atan = function () {
+        var i, j, k, n, px, t, r, wpr, x2,
+          x = this,
+          Ctor = x.constructor,
+          pr = Ctor.precision,
+          rm = Ctor.rounding;
+
+        if (!x.isFinite()) {
+          if (!x.s) return new Ctor(NaN);
+          if (pr + 4 <= PI_PRECISION) {
+            r = getPi(Ctor, pr + 4, rm).times(0.5);
+            r.s = x.s;
+            return r;
+          }
+        } else if (x.isZero()) {
+          return new Ctor(x);
+        } else if (x.abs().eq(1) && pr + 4 <= PI_PRECISION) {
+          r = getPi(Ctor, pr + 4, rm).times(0.25);
+          r.s = x.s;
+          return r;
+        }
+
+        Ctor.precision = wpr = pr + 10;
+        Ctor.rounding = 1;
+
+        // TODO? if (x >= 1 && pr <= PI_PRECISION) atan(x) = halfPi * x.s - atan(1 / x);
+
+        // Argument reduction
+        // Ensure |x| < 0.42
+        // atan(x) = 2 * atan(x / (1 + sqrt(1 + x^2)))
+
+        k = Math.min(28, wpr / LOG_BASE + 2 | 0);
+
+        for (i = k; i; --i) x = x.div(x.times(x).plus(1).sqrt().plus(1));
+
+        external = false;
+
+        j = Math.ceil(wpr / LOG_BASE);
+        n = 1;
+        x2 = x.times(x);
+        r = new Ctor(x);
+        px = x;
+
+        // atan(x) = x - x^3/3 + x^5/5 - x^7/7 + ...
+        for (; i !== -1;) {
+          px = px.times(x2);
+          t = r.minus(px.div(n += 2));
+
+          px = px.times(x2);
+          r = t.plus(px.div(n += 2));
+
+          if (r.d[j] !== void 0) for (i = j; r.d[i] === t.d[i] && i--;);
+        }
+
+        if (k) r = r.times(2 << (k - 1));
+
+        external = true;
+
+        return finalise(r, Ctor.precision = pr, Ctor.rounding = rm, true);
+      };
+
+
+      /*
+       * Return true if the value of this Decimal is a finite number, otherwise return false.
+       *
+       */
+      P.isFinite = function () {
+        return !!this.d;
+      };
+
+
+      /*
+       * Return true if the value of this Decimal is an integer, otherwise return false.
+       *
+       */
+      P.isInteger = P.isInt = function () {
+        return !!this.d && mathfloor(this.e / LOG_BASE) > this.d.length - 2;
+      };
+
+
+      /*
+       * Return true if the value of this Decimal is NaN, otherwise return false.
+       *
+       */
+      P.isNaN = function () {
+        return !this.s;
+      };
+
+
+      /*
+       * Return true if the value of this Decimal is negative, otherwise return false.
+       *
+       */
+      P.isNegative = P.isNeg = function () {
+        return this.s < 0;
+      };
+
+
+      /*
+       * Return true if the value of this Decimal is positive, otherwise return false.
+       *
+       */
+      P.isPositive = P.isPos = function () {
+        return this.s > 0;
+      };
+
+
+      /*
+       * Return true if the value of this Decimal is 0 or -0, otherwise return false.
+       *
+       */
+      P.isZero = function () {
+        return !!this.d && this.d[0] === 0;
+      };
+
+
+      /*
+       * Return true if the value of this Decimal is less than `y`, otherwise return false.
+       *
+       */
+      P.lessThan = P.lt = function (y) {
+        return this.cmp(y) < 0;
+      };
+
+
+      /*
+       * Return true if the value of this Decimal is less than or equal to `y`, otherwise return false.
+       *
+       */
+      P.lessThanOrEqualTo = P.lte = function (y) {
+        return this.cmp(y) < 1;
+      };
+
+
+      /*
+       * Return the logarithm of the value of this Decimal to the specified base, rounded to `precision`
+       * significant digits using rounding mode `rounding`.
+       *
+       * If no base is specified, return log[10](arg).
+       *
+       * log[base](arg) = ln(arg) / ln(base)
+       *
+       * The result will always be correctly rounded if the base of the log is 10, and 'almost always'
+       * otherwise:
+       *
+       * Depending on the rounding mode, the result may be incorrectly rounded if the first fifteen
+       * rounding digits are [49]99999999999999 or [50]00000000000000. In that case, the maximum error
+       * between the result and the correctly rounded result will be one ulp (unit in the last place).
+       *
+       * log[-b](a)       = NaN
+       * log[0](a)        = NaN
+       * log[1](a)        = NaN
+       * log[NaN](a)      = NaN
+       * log[Infinity](a) = NaN
+       * log[b](0)        = -Infinity
+       * log[b](-0)       = -Infinity
+       * log[b](-a)       = NaN
+       * log[b](1)        = 0
+       * log[b](Infinity) = Infinity
+       * log[b](NaN)      = NaN
+       *
+       * [base] {number|string|Decimal} The base of the logarithm.
+       *
+       */
+      P.logarithm = P.log = function (base) {
+        var isBase10, d, denominator, k, inf, num, sd, r,
+          arg = this,
+          Ctor = arg.constructor,
+          pr = Ctor.precision,
+          rm = Ctor.rounding,
+          guard = 5;
+
+        // Default base is 10.
+        if (base == null) {
+          base = new Ctor(10);
+          isBase10 = true;
+        } else {
+          base = new Ctor(base);
+          d = base.d;
+
+          // Return NaN if base is negative, or non-finite, or is 0 or 1.
+          if (base.s < 0 || !d || !d[0] || base.eq(1)) return new Ctor(NaN);
+
+          isBase10 = base.eq(10);
+        }
+
+        d = arg.d;
+
+        // Is arg negative, non-finite, 0 or 1?
+        if (arg.s < 0 || !d || !d[0] || arg.eq(1)) {
+          return new Ctor(d && !d[0] ? -1 / 0 : arg.s != 1 ? NaN : d ? 0 : 1 / 0);
+        }
+
+        // The result will have a non-terminating decimal expansion if base is 10 and arg is not an
+        // integer power of 10.
+        if (isBase10) {
+          if (d.length > 1) {
+            inf = true;
+          } else {
+            for (k = d[0]; k % 10 === 0;) k /= 10;
+            inf = k !== 1;
+          }
+        }
+
+        external = false;
+        sd = pr + guard;
+        num = naturalLogarithm(arg, sd);
+        denominator = isBase10 ? getLn10(Ctor, sd + 10) : naturalLogarithm(base, sd);
+
+        // The result will have 5 rounding digits.
+        r = divide(num, denominator, sd, 1);
+
+        // If at a rounding boundary, i.e. the result's rounding digits are [49]9999 or [50]0000,
+        // calculate 10 further digits.
+        //
+        // If the result is known to have an infinite decimal expansion, repeat this until it is clear
+        // that the result is above or below the boundary. Otherwise, if after calculating the 10
+        // further digits, the last 14 are nines, round up and assume the result is exact.
+        // Also assume the result is exact if the last 14 are zero.
+        //
+        // Example of a result that will be incorrectly rounded:
+        // log[1048576](4503599627370502) = 2.60000000000000009610279511444746...
+        // The above result correctly rounded using ROUND_CEIL to 1 decimal place should be 2.7, but it
+        // will be given as 2.6 as there are 15 zeros immediately after the requested decimal place, so
+        // the exact result would be assumed to be 2.6, which rounded using ROUND_CEIL to 1 decimal
+        // place is still 2.6.
+        if (checkRoundingDigits(r.d, k = pr, rm)) {
+
+          do {
+            sd += 10;
+            num = naturalLogarithm(arg, sd);
+            denominator = isBase10 ? getLn10(Ctor, sd + 10) : naturalLogarithm(base, sd);
+            r = divide(num, denominator, sd, 1);
+
+            if (!inf) {
+
+              // Check for 14 nines from the 2nd rounding digit, as the first may be 4.
+              if (+digitsToString(r.d).slice(k + 1, k + 15) + 1 == 1e14) {
+                r = finalise(r, pr + 1, 0);
+              }
+
+              break;
+            }
+          } while (checkRoundingDigits(r.d, k += 10, rm));
+        }
+
+        external = true;
+
+        return finalise(r, pr, rm);
+      };
+
+
+      /*
+       * Return a new Decimal whose value is the maximum of the arguments and the value of this Decimal.
+       *
+       * arguments {number|string|Decimal}
+       *
+      P.max = function () {
+        Array.prototype.push.call(arguments, this);
+        return maxOrMin(this.constructor, arguments, 'lt');
+      };
+       */
+
+
+      /*
+       * Return a new Decimal whose value is the minimum of the arguments and the value of this Decimal.
+       *
+       * arguments {number|string|Decimal}
+       *
+      P.min = function () {
+        Array.prototype.push.call(arguments, this);
+        return maxOrMin(this.constructor, arguments, 'gt');
+      };
+       */
+
+
+      /*
+       *  n - 0 = n
+       *  n - N = N
+       *  n - I = -I
+       *  0 - n = -n
+       *  0 - 0 = 0
+       *  0 - N = N
+       *  0 - I = -I
+       *  N - n = N
+       *  N - 0 = N
+       *  N - N = N
+       *  N - I = N
+       *  I - n = I
+       *  I - 0 = I
+       *  I - N = N
+       *  I - I = N
+       *
+       * Return a new Decimal whose value is the value of this Decimal minus `y`, rounded to `precision`
+       * significant digits using rounding mode `rounding`.
+       *
+       */
+      P.minus = P.sub = function (y) {
+        var d, e, i, j, k, len, pr, rm, xd, xe, xLTy, yd,
+          x = this,
+          Ctor = x.constructor;
+
+        y = new Ctor(y);
+
+        // If either is not finite...
+        if (!x.d || !y.d) {
+
+          // Return NaN if either is NaN.
+          if (!x.s || !y.s) y = new Ctor(NaN);
+
+          // Return y negated if x is finite and y is ±Infinity.
+          else if (x.d) y.s = -y.s;
+
+          // Return x if y is finite and x is ±Infinity.
+          // Return x if both are ±Infinity with different signs.
+          // Return NaN if both are ±Infinity with the same sign.
+          else y = new Ctor(y.d || x.s !== y.s ? x : NaN);
+
+          return y;
+        }
+
+        // If signs differ...
+        if (x.s != y.s) {
+          y.s = -y.s;
+          return x.plus(y);
+        }
+
+        xd = x.d;
+        yd = y.d;
+        pr = Ctor.precision;
+        rm = Ctor.rounding;
+
+        // If either is zero...
+        if (!xd[0] || !yd[0]) {
+
+          // Return y negated if x is zero and y is non-zero.
+          if (yd[0]) y.s = -y.s;
+
+          // Return x if y is zero and x is non-zero.
+          else if (xd[0]) y = new Ctor(x);
+
+          // Return zero if both are zero.
+          // From IEEE 754 (2008) 6.3: 0 - 0 = -0 - -0 = -0 when rounding to -Infinity.
+          else return new Ctor(rm === 3 ? -0 : 0);
+
+          return external ? finalise(y, pr, rm) : y;
+        }
+
+        // x and y are finite, non-zero numbers with the same sign.
+
+        // Calculate base 1e7 exponents.
+        e = mathfloor(y.e / LOG_BASE);
+        xe = mathfloor(x.e / LOG_BASE);
+
+        xd = xd.slice();
+        k = xe - e;
+
+        // If base 1e7 exponents differ...
+        if (k) {
+          xLTy = k < 0;
+
+          if (xLTy) {
+            d = xd;
+            k = -k;
+            len = yd.length;
+          } else {
+            d = yd;
+            e = xe;
+            len = xd.length;
+          }
+
+          // Numbers with massively different exponents would result in a very high number of
+          // zeros needing to be prepended, but this can be avoided while still ensuring correct
+          // rounding by limiting the number of zeros to `Math.ceil(pr / LOG_BASE) + 2`.
+          i = Math.max(Math.ceil(pr / LOG_BASE), len) + 2;
+
+          if (k > i) {
+            k = i;
+            d.length = 1;
+          }
+
+          // Prepend zeros to equalise exponents.
+          d.reverse();
+          for (i = k; i--;) d.push(0);
+          d.reverse();
+
+        // Base 1e7 exponents equal.
+        } else {
+
+          // Check digits to determine which is the bigger number.
+
+          i = xd.length;
+          len = yd.length;
+          xLTy = i < len;
+          if (xLTy) len = i;
+
+          for (i = 0; i < len; i++) {
+            if (xd[i] != yd[i]) {
+              xLTy = xd[i] < yd[i];
+              break;
+            }
+          }
+
+          k = 0;
+        }
+
+        if (xLTy) {
+          d = xd;
+          xd = yd;
+          yd = d;
+          y.s = -y.s;
+        }
+
+        len = xd.length;
+
+        // Append zeros to `xd` if shorter.
+        // Don't add zeros to `yd` if shorter as subtraction only needs to start at `yd` length.
+        for (i = yd.length - len; i > 0; --i) xd[len++] = 0;
+
+        // Subtract yd from xd.
+        for (i = yd.length; i > k;) {
+
+          if (xd[--i] < yd[i]) {
+            for (j = i; j && xd[--j] === 0;) xd[j] = BASE - 1;
+            --xd[j];
+            xd[i] += BASE;
+          }
+
+          xd[i] -= yd[i];
+        }
+
+        // Remove trailing zeros.
+        for (; xd[--len] === 0;) xd.pop();
+
+        // Remove leading zeros and adjust exponent accordingly.
+        for (; xd[0] === 0; xd.shift()) --e;
+
+        // Zero?
+        if (!xd[0]) return new Ctor(rm === 3 ? -0 : 0);
+
+        y.d = xd;
+        y.e = getBase10Exponent(xd, e);
+
+        return external ? finalise(y, pr, rm) : y;
+      };
+
+
+      /*
+       *   n % 0 =  N
+       *   n % N =  N
+       *   n % I =  n
+       *   0 % n =  0
+       *  -0 % n = -0
+       *   0 % 0 =  N
+       *   0 % N =  N
+       *   0 % I =  0
+       *   N % n =  N
+       *   N % 0 =  N
+       *   N % N =  N
+       *   N % I =  N
+       *   I % n =  N
+       *   I % 0 =  N
+       *   I % N =  N
+       *   I % I =  N
+       *
+       * Return a new Decimal whose value is the value of this Decimal modulo `y`, rounded to
+       * `precision` significant digits using rounding mode `rounding`.
+       *
+       * The result depends on the modulo mode.
+       *
+       */
+      P.modulo = P.mod = function (y) {
+        var q,
+          x = this,
+          Ctor = x.constructor;
+
+        y = new Ctor(y);
+
+        // Return NaN if x is ±Infinity or NaN, or y is NaN or ±0.
+        if (!x.d || !y.s || y.d && !y.d[0]) return new Ctor(NaN);
+
+        // Return x if y is ±Infinity or x is ±0.
+        if (!y.d || x.d && !x.d[0]) {
+          return finalise(new Ctor(x), Ctor.precision, Ctor.rounding);
+        }
+
+        // Prevent rounding of intermediate calculations.
+        external = false;
+
+        if (Ctor.modulo == 9) {
+
+          // Euclidian division: q = sign(y) * floor(x / abs(y))
+          // result = x - q * y    where  0 <= result < abs(y)
+          q = divide(x, y.abs(), 0, 3, 1);
+          q.s *= y.s;
+        } else {
+          q = divide(x, y, 0, Ctor.modulo, 1);
+        }
+
+        q = q.times(y);
+
+        external = true;
+
+        return x.minus(q);
+      };
+
+
+      /*
+       * Return a new Decimal whose value is the natural exponential of the value of this Decimal,
+       * i.e. the base e raised to the power the value of this Decimal, rounded to `precision`
+       * significant digits using rounding mode `rounding`.
+       *
+       */
+      P.naturalExponential = P.exp = function () {
+        return naturalExponential(this);
+      };
+
+
+      /*
+       * Return a new Decimal whose value is the natural logarithm of the value of this Decimal,
+       * rounded to `precision` significant digits using rounding mode `rounding`.
+       *
+       */
+      P.naturalLogarithm = P.ln = function () {
+        return naturalLogarithm(this);
+      };
+
+
+      /*
+       * Return a new Decimal whose value is the value of this Decimal negated, i.e. as if multiplied by
+       * -1.
+       *
+       */
+      P.negated = P.neg = function () {
+        var x = new this.constructor(this);
+        x.s = -x.s;
+        return finalise(x);
+      };
+
+
+      /*
+       *  n + 0 = n
+       *  n + N = N
+       *  n + I = I
+       *  0 + n = n
+       *  0 + 0 = 0
+       *  0 + N = N
+       *  0 + I = I
+       *  N + n = N
+       *  N + 0 = N
+       *  N + N = N
+       *  N + I = N
+       *  I + n = I
+       *  I + 0 = I
+       *  I + N = N
+       *  I + I = I
+       *
+       * Return a new Decimal whose value is the value of this Decimal plus `y`, rounded to `precision`
+       * significant digits using rounding mode `rounding`.
+       *
+       */
+      P.plus = P.add = function (y) {
+        var carry, d, e, i, k, len, pr, rm, xd, yd,
+          x = this,
+          Ctor = x.constructor;
+
+        y = new Ctor(y);
+
+        // If either is not finite...
+        if (!x.d || !y.d) {
+
+          // Return NaN if either is NaN.
+          if (!x.s || !y.s) y = new Ctor(NaN);
+
+          // Return x if y is finite and x is ±Infinity.
+          // Return x if both are ±Infinity with the same sign.
+          // Return NaN if both are ±Infinity with different signs.
+          // Return y if x is finite and y is ±Infinity.
+          else if (!x.d) y = new Ctor(y.d || x.s === y.s ? x : NaN);
+
+          return y;
+        }
+
+         // If signs differ...
+        if (x.s != y.s) {
+          y.s = -y.s;
+          return x.minus(y);
+        }
+
+        xd = x.d;
+        yd = y.d;
+        pr = Ctor.precision;
+        rm = Ctor.rounding;
+
+        // If either is zero...
+        if (!xd[0] || !yd[0]) {
+
+          // Return x if y is zero.
+          // Return y if y is non-zero.
+          if (!yd[0]) y = new Ctor(x);
+
+          return external ? finalise(y, pr, rm) : y;
+        }
+
+        // x and y are finite, non-zero numbers with the same sign.
+
+        // Calculate base 1e7 exponents.
+        k = mathfloor(x.e / LOG_BASE);
+        e = mathfloor(y.e / LOG_BASE);
+
+        xd = xd.slice();
+        i = k - e;
+
+        // If base 1e7 exponents differ...
+        if (i) {
+
+          if (i < 0) {
+            d = xd;
+            i = -i;
+            len = yd.length;
+          } else {
+            d = yd;
+            e = k;
+            len = xd.length;
+          }
+
+          // Limit number of zeros prepended to max(ceil(pr / LOG_BASE), len) + 1.
+          k = Math.ceil(pr / LOG_BASE);
+          len = k > len ? k + 1 : len + 1;
+
+          if (i > len) {
+            i = len;
+            d.length = 1;
+          }
+
+          // Prepend zeros to equalise exponents. Note: Faster to use reverse then do unshifts.
+          d.reverse();
+          for (; i--;) d.push(0);
+          d.reverse();
+        }
+
+        len = xd.length;
+        i = yd.length;
+
+        // If yd is longer than xd, swap xd and yd so xd points to the longer array.
+        if (len - i < 0) {
+          i = len;
+          d = yd;
+          yd = xd;
+          xd = d;
+        }
+
+        // Only start adding at yd.length - 1 as the further digits of xd can be left as they are.
+        for (carry = 0; i;) {
+          carry = (xd[--i] = xd[i] + yd[i] + carry) / BASE | 0;
+          xd[i] %= BASE;
+        }
+
+        if (carry) {
+          xd.unshift(carry);
+          ++e;
+        }
+
+        // Remove trailing zeros.
+        // No need to check for zero, as +x + +y != 0 && -x + -y != 0
+        for (len = xd.length; xd[--len] == 0;) xd.pop();
+
+        y.d = xd;
+        y.e = getBase10Exponent(xd, e);
+
+        return external ? finalise(y, pr, rm) : y;
+      };
+
+
+      /*
+       * Return the number of significant digits of the value of this Decimal.
+       *
+       * [z] {boolean|number} Whether to count integer-part trailing zeros: true, false, 1 or 0.
+       *
+       */
+      P.precision = P.sd = function (z) {
+        var k,
+          x = this;
+
+        if (z !== void 0 && z !== !!z && z !== 1 && z !== 0) throw Error(invalidArgument + z);
+
+        if (x.d) {
+          k = getPrecision(x.d);
+          if (z && x.e + 1 > k) k = x.e + 1;
+        } else {
+          k = NaN;
+        }
+
+        return k;
+      };
+
+
+      /*
+       * Return a new Decimal whose value is the value of this Decimal rounded to a whole number using
+       * rounding mode `rounding`.
+       *
+       */
+      P.round = function () {
+        var x = this,
+          Ctor = x.constructor;
+
+        return finalise(new Ctor(x), x.e + 1, Ctor.rounding);
+      };
+
+
+      /*
+       * Return a new Decimal whose value is the sine of the value in radians of this Decimal.
+       *
+       * Domain: [-Infinity, Infinity]
+       * Range: [-1, 1]
+       *
+       * sin(x) = x - x^3/3! + x^5/5! - ...
+       *
+       * sin(0)         = 0
+       * sin(-0)        = -0
+       * sin(Infinity)  = NaN
+       * sin(-Infinity) = NaN
+       * sin(NaN)       = NaN
+       *
+       */
+      P.sine = P.sin = function () {
+        var pr, rm,
+          x = this,
+          Ctor = x.constructor;
+
+        if (!x.isFinite()) return new Ctor(NaN);
+        if (x.isZero()) return new Ctor(x);
+
+        pr = Ctor.precision;
+        rm = Ctor.rounding;
+        Ctor.precision = pr + Math.max(x.e, x.sd()) + LOG_BASE;
+        Ctor.rounding = 1;
+
+        x = sine(Ctor, toLessThanHalfPi(Ctor, x));
+
+        Ctor.precision = pr;
+        Ctor.rounding = rm;
+
+        return finalise(quadrant > 2 ? x.neg() : x, pr, rm, true);
+      };
+
+
+      /*
+       * Return a new Decimal whose value is the square root of this Decimal, rounded to `precision`
+       * significant digits using rounding mode `rounding`.
+       *
+       *  sqrt(-n) =  N
+       *  sqrt(N)  =  N
+       *  sqrt(-I) =  N
+       *  sqrt(I)  =  I
+       *  sqrt(0)  =  0
+       *  sqrt(-0) = -0
+       *
+       */
+      P.squareRoot = P.sqrt = function () {
+        var m, n, sd, r, rep, t,
+          x = this,
+          d = x.d,
+          e = x.e,
+          s = x.s,
+          Ctor = x.constructor;
+
+        // Negative/NaN/Infinity/zero?
+        if (s !== 1 || !d || !d[0]) {
+          return new Ctor(!s || s < 0 && (!d || d[0]) ? NaN : d ? x : 1 / 0);
+        }
+
+        external = false;
+
+        // Initial estimate.
+        s = Math.sqrt(+x);
+
+        // Math.sqrt underflow/overflow?
+        // Pass x to Math.sqrt as integer, then adjust the exponent of the result.
+        if (s == 0 || s == 1 / 0) {
+          n = digitsToString(d);
+
+          if ((n.length + e) % 2 == 0) n += '0';
+          s = Math.sqrt(n);
+          e = mathfloor((e + 1) / 2) - (e < 0 || e % 2);
+
+          if (s == 1 / 0) {
+            n = '1e' + e;
+          } else {
+            n = s.toExponential();
+            n = n.slice(0, n.indexOf('e') + 1) + e;
+          }
+
+          r = new Ctor(n);
+        } else {
+          r = new Ctor(s.toString());
+        }
+
+        sd = (e = Ctor.precision) + 3;
+
+        // Newton-Raphson iteration.
+        for (;;) {
+          t = r;
+          r = t.plus(divide(x, t, sd + 2, 1)).times(0.5);
+
+          // TODO? Replace with for-loop and checkRoundingDigits.
+          if (digitsToString(t.d).slice(0, sd) === (n = digitsToString(r.d)).slice(0, sd)) {
+            n = n.slice(sd - 3, sd + 1);
+
+            // The 4th rounding digit may be in error by -1 so if the 4 rounding digits are 9999 or
+            // 4999, i.e. approaching a rounding boundary, continue the iteration.
+            if (n == '9999' || !rep && n == '4999') {
+
+              // On the first iteration only, check to see if rounding up gives the exact result as the
+              // nines may infinitely repeat.
+              if (!rep) {
+                finalise(t, e + 1, 0);
+
+                if (t.times(t).eq(x)) {
+                  r = t;
+                  break;
+                }
+              }
+
+              sd += 4;
+              rep = 1;
+            } else {
+
+              // If the rounding digits are null, 0{0,4} or 50{0,3}, check for an exact result.
+              // If not, then there are further digits and m will be truthy.
+              if (!+n || !+n.slice(1) && n.charAt(0) == '5') {
+
+                // Truncate to the first rounding digit.
+                finalise(r, e + 1, 1);
+                m = !r.times(r).eq(x);
+              }
+
+              break;
+            }
+          }
+        }
+
+        external = true;
+
+        return finalise(r, e, Ctor.rounding, m);
+      };
+
+
+      /*
+       * Return a new Decimal whose value is the tangent of the value in radians of this Decimal.
+       *
+       * Domain: [-Infinity, Infinity]
+       * Range: [-Infinity, Infinity]
+       *
+       * tan(0)         = 0
+       * tan(-0)        = -0
+       * tan(Infinity)  = NaN
+       * tan(-Infinity) = NaN
+       * tan(NaN)       = NaN
+       *
+       */
+      P.tangent = P.tan = function () {
+        var pr, rm,
+          x = this,
+          Ctor = x.constructor;
+
+        if (!x.isFinite()) return new Ctor(NaN);
+        if (x.isZero()) return new Ctor(x);
+
+        pr = Ctor.precision;
+        rm = Ctor.rounding;
+        Ctor.precision = pr + 10;
+        Ctor.rounding = 1;
+
+        x = x.sin();
+        x.s = 1;
+        x = divide(x, new Ctor(1).minus(x.times(x)).sqrt(), pr + 10, 0);
+
+        Ctor.precision = pr;
+        Ctor.rounding = rm;
+
+        return finalise(quadrant == 2 || quadrant == 4 ? x.neg() : x, pr, rm, true);
+      };
+
+
+      /*
+       *  n * 0 = 0
+       *  n * N = N
+       *  n * I = I
+       *  0 * n = 0
+       *  0 * 0 = 0
+       *  0 * N = N
+       *  0 * I = N
+       *  N * n = N
+       *  N * 0 = N
+       *  N * N = N
+       *  N * I = N
+       *  I * n = I
+       *  I * 0 = N
+       *  I * N = N
+       *  I * I = I
+       *
+       * Return a new Decimal whose value is this Decimal times `y`, rounded to `precision` significant
+       * digits using rounding mode `rounding`.
+       *
+       */
+      P.times = P.mul = function (y) {
+        var carry, e, i, k, r, rL, t, xdL, ydL,
+          x = this,
+          Ctor = x.constructor,
+          xd = x.d,
+          yd = (y = new Ctor(y)).d;
+
+        y.s *= x.s;
+
+         // If either is NaN, ±Infinity or ±0...
+        if (!xd || !xd[0] || !yd || !yd[0]) {
+
+          return new Ctor(!y.s || xd && !xd[0] && !yd || yd && !yd[0] && !xd
+
+            // Return NaN if either is NaN.
+            // Return NaN if x is ±0 and y is ±Infinity, or y is ±0 and x is ±Infinity.
+            ? NaN
+
+            // Return ±Infinity if either is ±Infinity.
+            // Return ±0 if either is ±0.
+            : !xd || !yd ? y.s / 0 : y.s * 0);
+        }
+
+        e = mathfloor(x.e / LOG_BASE) + mathfloor(y.e / LOG_BASE);
+        xdL = xd.length;
+        ydL = yd.length;
+
+        // Ensure xd points to the longer array.
+        if (xdL < ydL) {
+          r = xd;
+          xd = yd;
+          yd = r;
+          rL = xdL;
+          xdL = ydL;
+          ydL = rL;
+        }
+
+        // Initialise the result array with zeros.
+        r = [];
+        rL = xdL + ydL;
+        for (i = rL; i--;) r.push(0);
+
+        // Multiply!
+        for (i = ydL; --i >= 0;) {
+          carry = 0;
+          for (k = xdL + i; k > i;) {
+            t = r[k] + yd[i] * xd[k - i - 1] + carry;
+            r[k--] = t % BASE | 0;
+            carry = t / BASE | 0;
+          }
+
+          r[k] = (r[k] + carry) % BASE | 0;
+        }
+
+        // Remove trailing zeros.
+        for (; !r[--rL];) r.pop();
+
+        if (carry) ++e;
+        else r.shift();
+
+        y.d = r;
+        y.e = getBase10Exponent(r, e);
+
+        return external ? finalise(y, Ctor.precision, Ctor.rounding) : y;
+      };
+
+
+      /*
+       * Return a string representing the value of this Decimal in base 2, round to `sd` significant
+       * digits using rounding mode `rm`.
+       *
+       * If the optional `sd` argument is present then return binary exponential notation.
+       *
+       * [sd] {number} Significant digits. Integer, 1 to MAX_DIGITS inclusive.
+       * [rm] {number} Rounding mode. Integer, 0 to 8 inclusive.
+       *
+       */
+      P.toBinary = function (sd, rm) {
+        return toStringBinary(this, 2, sd, rm);
+      };
+
+
+      /*
+       * Return a new Decimal whose value is the value of this Decimal rounded to a maximum of `dp`
+       * decimal places using rounding mode `rm` or `rounding` if `rm` is omitted.
+       *
+       * If `dp` is omitted, return a new Decimal whose value is the value of this Decimal.
+       *
+       * [dp] {number} Decimal places. Integer, 0 to MAX_DIGITS inclusive.
+       * [rm] {number} Rounding mode. Integer, 0 to 8 inclusive.
+       *
+       */
+      P.toDecimalPlaces = P.toDP = function (dp, rm) {
+        var x = this,
+          Ctor = x.constructor;
+
+        x = new Ctor(x);
+        if (dp === void 0) return x;
+
+        checkInt32(dp, 0, MAX_DIGITS);
+
+        if (rm === void 0) rm = Ctor.rounding;
+        else checkInt32(rm, 0, 8);
+
+        return finalise(x, dp + x.e + 1, rm);
+      };
+
+
+      /*
+       * Return a string representing the value of this Decimal in exponential notation rounded to
+       * `dp` fixed decimal places using rounding mode `rounding`.
+       *
+       * [dp] {number} Decimal places. Integer, 0 to MAX_DIGITS inclusive.
+       * [rm] {number} Rounding mode. Integer, 0 to 8 inclusive.
+       *
+       */
+      P.toExponential = function (dp, rm) {
+        var str,
+          x = this,
+          Ctor = x.constructor;
+
+        if (dp === void 0) {
+          str = finiteToString(x, true);
+        } else {
+          checkInt32(dp, 0, MAX_DIGITS);
+
+          if (rm === void 0) rm = Ctor.rounding;
+          else checkInt32(rm, 0, 8);
+
+          x = finalise(new Ctor(x), dp + 1, rm);
+          str = finiteToString(x, true, dp + 1);
+        }
+
+        return x.isNeg() && !x.isZero() ? '-' + str : str;
+      };
+
+
+      /*
+       * Return a string representing the value of this Decimal in normal (fixed-point) notation to
+       * `dp` fixed decimal places and rounded using rounding mode `rm` or `rounding` if `rm` is
+       * omitted.
+       *
+       * As with JavaScript numbers, (-0).toFixed(0) is '0', but e.g. (-0.00001).toFixed(0) is '-0'.
+       *
+       * [dp] {number} Decimal places. Integer, 0 to MAX_DIGITS inclusive.
+       * [rm] {number} Rounding mode. Integer, 0 to 8 inclusive.
+       *
+       * (-0).toFixed(0) is '0', but (-0.1).toFixed(0) is '-0'.
+       * (-0).toFixed(1) is '0.0', but (-0.01).toFixed(1) is '-0.0'.
+       * (-0).toFixed(3) is '0.000'.
+       * (-0.5).toFixed(0) is '-0'.
+       *
+       */
+      P.toFixed = function (dp, rm) {
+        var str, y,
+          x = this,
+          Ctor = x.constructor;
+
+        if (dp === void 0) {
+          str = finiteToString(x);
+        } else {
+          checkInt32(dp, 0, MAX_DIGITS);
+
+          if (rm === void 0) rm = Ctor.rounding;
+          else checkInt32(rm, 0, 8);
+
+          y = finalise(new Ctor(x), dp + x.e + 1, rm);
+          str = finiteToString(y, false, dp + y.e + 1);
+        }
+
+        // To determine whether to add the minus sign look at the value before it was rounded,
+        // i.e. look at `x` rather than `y`.
+        return x.isNeg() && !x.isZero() ? '-' + str : str;
+      };
+
+
+      /*
+       * Return an array representing the value of this Decimal as a simple fraction with an integer
+       * numerator and an integer denominator.
+       *
+       * The denominator will be a positive non-zero value less than or equal to the specified maximum
+       * denominator. If a maximum denominator is not specified, the denominator will be the lowest
+       * value necessary to represent the number exactly.
+       *
+       * [maxD] {number|string|Decimal} Maximum denominator. Integer >= 1 and < Infinity.
+       *
+       */
+      P.toFraction = function (maxD) {
+        var d, d0, d1, d2, e, k, n, n0, n1, pr, q, r,
+          x = this,
+          xd = x.d,
+          Ctor = x.constructor;
+
+        if (!xd) return new Ctor(x);
+
+        n1 = d0 = new Ctor(1);
+        d1 = n0 = new Ctor(0);
+
+        d = new Ctor(d1);
+        e = d.e = getPrecision(xd) - x.e - 1;
+        k = e % LOG_BASE;
+        d.d[0] = mathpow(10, k < 0 ? LOG_BASE + k : k);
+
+        if (maxD == null) {
+
+          // d is 10**e, the minimum max-denominator needed.
+          maxD = e > 0 ? d : n1;
+        } else {
+          n = new Ctor(maxD);
+          if (!n.isInt() || n.lt(n1)) throw Error(invalidArgument + n);
+          maxD = n.gt(d) ? (e > 0 ? d : n1) : n;
+        }
+
+        external = false;
+        n = new Ctor(digitsToString(xd));
+        pr = Ctor.precision;
+        Ctor.precision = e = xd.length * LOG_BASE * 2;
+
+        for (;;)  {
+          q = divide(n, d, 0, 1, 1);
+          d2 = d0.plus(q.times(d1));
+          if (d2.cmp(maxD) == 1) break;
+          d0 = d1;
+          d1 = d2;
+          d2 = n1;
+          n1 = n0.plus(q.times(d2));
+          n0 = d2;
+          d2 = d;
+          d = n.minus(q.times(d2));
+          n = d2;
+        }
+
+        d2 = divide(maxD.minus(d0), d1, 0, 1, 1);
+        n0 = n0.plus(d2.times(n1));
+        d0 = d0.plus(d2.times(d1));
+        n0.s = n1.s = x.s;
+
+        // Determine which fraction is closer to x, n0/d0 or n1/d1?
+        r = divide(n1, d1, e, 1).minus(x).abs().cmp(divide(n0, d0, e, 1).minus(x).abs()) < 1
+            ? [n1, d1] : [n0, d0];
+
+        Ctor.precision = pr;
+        external = true;
+
+        return r;
+      };
+
+
+      /*
+       * Return a string representing the value of this Decimal in base 16, round to `sd` significant
+       * digits using rounding mode `rm`.
+       *
+       * If the optional `sd` argument is present then return binary exponential notation.
+       *
+       * [sd] {number} Significant digits. Integer, 1 to MAX_DIGITS inclusive.
+       * [rm] {number} Rounding mode. Integer, 0 to 8 inclusive.
+       *
+       */
+      P.toHexadecimal = P.toHex = function (sd, rm) {
+        return toStringBinary(this, 16, sd, rm);
+      };
+
+
+      /*
+       * Returns a new Decimal whose value is the nearest multiple of `y` in the direction of rounding
+       * mode `rm`, or `Decimal.rounding` if `rm` is omitted, to the value of this Decimal.
+       *
+       * The return value will always have the same sign as this Decimal, unless either this Decimal
+       * or `y` is NaN, in which case the return value will be also be NaN.
+       *
+       * The return value is not affected by the value of `precision`.
+       *
+       * y {number|string|Decimal} The magnitude to round to a multiple of.
+       * [rm] {number} Rounding mode. Integer, 0 to 8 inclusive.
+       *
+       * 'toNearest() rounding mode not an integer: {rm}'
+       * 'toNearest() rounding mode out of range: {rm}'
+       *
+       */
+      P.toNearest = function (y, rm) {
+        var x = this,
+          Ctor = x.constructor;
+
+        x = new Ctor(x);
+
+        if (y == null) {
+
+          // If x is not finite, return x.
+          if (!x.d) return x;
+
+          y = new Ctor(1);
+          rm = Ctor.rounding;
+        } else {
+          y = new Ctor(y);
+          if (rm === void 0) {
+            rm = Ctor.rounding;
+          } else {
+            checkInt32(rm, 0, 8);
+          }
+
+          // If x is not finite, return x if y is not NaN, else NaN.
+          if (!x.d) return y.s ? x : y;
+
+          // If y is not finite, return Infinity with the sign of x if y is Infinity, else NaN.
+          if (!y.d) {
+            if (y.s) y.s = x.s;
+            return y;
+          }
+        }
+
+        // If y is not zero, calculate the nearest multiple of y to x.
+        if (y.d[0]) {
+          external = false;
+          x = divide(x, y, 0, rm, 1).times(y);
+          external = true;
+          finalise(x);
+
+        // If y is zero, return zero with the sign of x.
+        } else {
+          y.s = x.s;
+          x = y;
+        }
+
+        return x;
+      };
+
+
+      /*
+       * Return the value of this Decimal converted to a number primitive.
+       * Zero keeps its sign.
+       *
+       */
+      P.toNumber = function () {
+        return +this;
+      };
+
+
+      /*
+       * Return a string representing the value of this Decimal in base 8, round to `sd` significant
+       * digits using rounding mode `rm`.
+       *
+       * If the optional `sd` argument is present then return binary exponential notation.
+       *
+       * [sd] {number} Significant digits. Integer, 1 to MAX_DIGITS inclusive.
+       * [rm] {number} Rounding mode. Integer, 0 to 8 inclusive.
+       *
+       */
+      P.toOctal = function (sd, rm) {
+        return toStringBinary(this, 8, sd, rm);
+      };
+
+
+      /*
+       * Return a new Decimal whose value is the value of this Decimal raised to the power `y`, rounded
+       * to `precision` significant digits using rounding mode `rounding`.
+       *
+       * ECMAScript compliant.
+       *
+       *   pow(x, NaN)                           = NaN
+       *   pow(x, ±0)                            = 1
+
+       *   pow(NaN, non-zero)                    = NaN
+       *   pow(abs(x) > 1, +Infinity)            = +Infinity
+       *   pow(abs(x) > 1, -Infinity)            = +0
+       *   pow(abs(x) == 1, ±Infinity)           = NaN
+       *   pow(abs(x) < 1, +Infinity)            = +0
+       *   pow(abs(x) < 1, -Infinity)            = +Infinity
+       *   pow(+Infinity, y > 0)                 = +Infinity
+       *   pow(+Infinity, y < 0)                 = +0
+       *   pow(-Infinity, odd integer > 0)       = -Infinity
+       *   pow(-Infinity, even integer > 0)      = +Infinity
+       *   pow(-Infinity, odd integer < 0)       = -0
+       *   pow(-Infinity, even integer < 0)      = +0
+       *   pow(+0, y > 0)                        = +0
+       *   pow(+0, y < 0)                        = +Infinity
+       *   pow(-0, odd integer > 0)              = -0
+       *   pow(-0, even integer > 0)             = +0
+       *   pow(-0, odd integer < 0)              = -Infinity
+       *   pow(-0, even integer < 0)             = +Infinity
+       *   pow(finite x < 0, finite non-integer) = NaN
+       *
+       * For non-integer or very large exponents pow(x, y) is calculated using
+       *
+       *   x^y = exp(y*ln(x))
+       *
+       * Assuming the first 15 rounding digits are each equally likely to be any digit 0-9, the
+       * probability of an incorrectly rounded result
+       * P([49]9{14} | [50]0{14}) = 2 * 0.2 * 10^-14 = 4e-15 = 1/2.5e+14
+       * i.e. 1 in 250,000,000,000,000
+       *
+       * If a result is incorrectly rounded the maximum error will be 1 ulp (unit in last place).
+       *
+       * y {number|string|Decimal} The power to which to raise this Decimal.
+       *
+       */
+      P.toPower = P.pow = function (y) {
+        var e, k, pr, r, rm, s,
+          x = this,
+          Ctor = x.constructor,
+          yn = +(y = new Ctor(y));
+
+        // Either ±Infinity, NaN or ±0?
+        if (!x.d || !y.d || !x.d[0] || !y.d[0]) return new Ctor(mathpow(+x, yn));
+
+        x = new Ctor(x);
+
+        if (x.eq(1)) return x;
+
+        pr = Ctor.precision;
+        rm = Ctor.rounding;
+
+        if (y.eq(1)) return finalise(x, pr, rm);
+
+        // y exponent
+        e = mathfloor(y.e / LOG_BASE);
+
+        // If y is a small integer use the 'exponentiation by squaring' algorithm.
+        if (e >= y.d.length - 1 && (k = yn < 0 ? -yn : yn) <= MAX_SAFE_INTEGER) {
+          r = intPow(Ctor, x, k, pr);
+          return y.s < 0 ? new Ctor(1).div(r) : finalise(r, pr, rm);
+        }
+
+        s = x.s;
+
+        // if x is negative
+        if (s < 0) {
+
+          // if y is not an integer
+          if (e < y.d.length - 1) return new Ctor(NaN);
+
+          // Result is positive if x is negative and the last digit of integer y is even.
+          if ((y.d[e] & 1) == 0) s = 1;
+
+          // if x.eq(-1)
+          if (x.e == 0 && x.d[0] == 1 && x.d.length == 1) {
+            x.s = s;
+            return x;
+          }
+        }
+
+        // Estimate result exponent.
+        // x^y = 10^e,  where e = y * log10(x)
+        // log10(x) = log10(x_significand) + x_exponent
+        // log10(x_significand) = ln(x_significand) / ln(10)
+        k = mathpow(+x, yn);
+        e = k == 0 || !isFinite(k)
+          ? mathfloor(yn * (Math.log('0.' + digitsToString(x.d)) / Math.LN10 + x.e + 1))
+          : new Ctor(k + '').e;
+
+        // Exponent estimate may be incorrect e.g. x: 0.999999999999999999, y: 2.29, e: 0, r.e: -1.
+
+        // Overflow/underflow?
+        if (e > Ctor.maxE + 1 || e < Ctor.minE - 1) return new Ctor(e > 0 ? s / 0 : 0);
+
+        external = false;
+        Ctor.rounding = x.s = 1;
+
+        // Estimate the extra guard digits needed to ensure five correct rounding digits from
+        // naturalLogarithm(x). Example of failure without these extra digits (precision: 10):
+        // new Decimal(2.32456).pow('2087987436534566.46411')
+        // should be 1.162377823e+764914905173815, but is 1.162355823e+764914905173815
+        k = Math.min(12, (e + '').length);
+
+        // r = x^y = exp(y*ln(x))
+        r = naturalExponential(y.times(naturalLogarithm(x, pr + k)), pr);
+
+        // r may be Infinity, e.g. (0.9999999999999999).pow(-1e+40)
+        if (r.d) {
+
+          // Truncate to the required precision plus five rounding digits.
+          r = finalise(r, pr + 5, 1);
+
+          // If the rounding digits are [49]9999 or [50]0000 increase the precision by 10 and recalculate
+          // the result.
+          if (checkRoundingDigits(r.d, pr, rm)) {
+            e = pr + 10;
+
+            // Truncate to the increased precision plus five rounding digits.
+            r = finalise(naturalExponential(y.times(naturalLogarithm(x, e + k)), e), e + 5, 1);
+
+            // Check for 14 nines from the 2nd rounding digit (the first rounding digit may be 4 or 9).
+            if (+digitsToString(r.d).slice(pr + 1, pr + 15) + 1 == 1e14) {
+              r = finalise(r, pr + 1, 0);
+            }
+          }
+        }
+
+        r.s = s;
+        external = true;
+        Ctor.rounding = rm;
+
+        return finalise(r, pr, rm);
+      };
+
+
+      /*
+       * Return a string representing the value of this Decimal rounded to `sd` significant digits
+       * using rounding mode `rounding`.
+       *
+       * Return exponential notation if `sd` is less than the number of digits necessary to represent
+       * the integer part of the value in normal notation.
+       *
+       * [sd] {number} Significant digits. Integer, 1 to MAX_DIGITS inclusive.
+       * [rm] {number} Rounding mode. Integer, 0 to 8 inclusive.
+       *
+       */
+      P.toPrecision = function (sd, rm) {
+        var str,
+          x = this,
+          Ctor = x.constructor;
+
+        if (sd === void 0) {
+          str = finiteToString(x, x.e <= Ctor.toExpNeg || x.e >= Ctor.toExpPos);
+        } else {
+          checkInt32(sd, 1, MAX_DIGITS);
+
+          if (rm === void 0) rm = Ctor.rounding;
+          else checkInt32(rm, 0, 8);
+
+          x = finalise(new Ctor(x), sd, rm);
+          str = finiteToString(x, sd <= x.e || x.e <= Ctor.toExpNeg, sd);
+        }
+
+        return x.isNeg() && !x.isZero() ? '-' + str : str;
+      };
+
+
+      /*
+       * Return a new Decimal whose value is the value of this Decimal rounded to a maximum of `sd`
+       * significant digits using rounding mode `rm`, or to `precision` and `rounding` respectively if
+       * omitted.
+       *
+       * [sd] {number} Significant digits. Integer, 1 to MAX_DIGITS inclusive.
+       * [rm] {number} Rounding mode. Integer, 0 to 8 inclusive.
+       *
+       * 'toSD() digits out of range: {sd}'
+       * 'toSD() digits not an integer: {sd}'
+       * 'toSD() rounding mode not an integer: {rm}'
+       * 'toSD() rounding mode out of range: {rm}'
+       *
+       */
+      P.toSignificantDigits = P.toSD = function (sd, rm) {
+        var x = this,
+          Ctor = x.constructor;
+
+        if (sd === void 0) {
+          sd = Ctor.precision;
+          rm = Ctor.rounding;
+        } else {
+          checkInt32(sd, 1, MAX_DIGITS);
+
+          if (rm === void 0) rm = Ctor.rounding;
+          else checkInt32(rm, 0, 8);
+        }
+
+        return finalise(new Ctor(x), sd, rm);
+      };
+
+
+      /*
+       * Return a string representing the value of this Decimal.
+       *
+       * Return exponential notation if this Decimal has a positive exponent equal to or greater than
+       * `toExpPos`, or a negative exponent equal to or less than `toExpNeg`.
+       *
+       */
+      P.toString = function () {
+        var x = this,
+          Ctor = x.constructor,
+          str = finiteToString(x, x.e <= Ctor.toExpNeg || x.e >= Ctor.toExpPos);
+
+        return x.isNeg() && !x.isZero() ? '-' + str : str;
+      };
+
+
+      /*
+       * Return a new Decimal whose value is the value of this Decimal truncated to a whole number.
+       *
+       */
+      P.truncated = P.trunc = function () {
+        return finalise(new this.constructor(this), this.e + 1, 1);
+      };
+
+
+      /*
+       * Return a string representing the value of this Decimal.
+       * Unlike `toString`, negative zero will include the minus sign.
+       *
+       */
+      P.valueOf = P.toJSON = function () {
+        var x = this,
+          Ctor = x.constructor,
+          str = finiteToString(x, x.e <= Ctor.toExpNeg || x.e >= Ctor.toExpPos);
+
+        return x.isNeg() ? '-' + str : str;
+      };
+
+
+      /*
+      // Add aliases to match BigDecimal method names.
+      // P.add = P.plus;
+      P.subtract = P.minus;
+      P.multiply = P.times;
+      P.divide = P.div;
+      P.remainder = P.mod;
+      P.compareTo = P.cmp;
+      P.negate = P.neg;
+       */
+
+
+      // Helper functions for Decimal.prototype (P) and/or Decimal methods, and their callers.
+
+
+      /*
+       *  digitsToString           P.cubeRoot, P.logarithm, P.squareRoot, P.toFraction, P.toPower,
+       *                           finiteToString, naturalExponential, naturalLogarithm
+       *  checkInt32               P.toDecimalPlaces, P.toExponential, P.toFixed, P.toNearest,
+       *                           P.toPrecision, P.toSignificantDigits, toStringBinary, random
+       *  checkRoundingDigits      P.logarithm, P.toPower, naturalExponential, naturalLogarithm
+       *  convertBase              toStringBinary, parseOther
+       *  cos                      P.cos
+       *  divide                   P.atanh, P.cubeRoot, P.dividedBy, P.dividedToIntegerBy,
+       *                           P.logarithm, P.modulo, P.squareRoot, P.tan, P.tanh, P.toFraction,
+       *                           P.toNearest, toStringBinary, naturalExponential, naturalLogarithm,
+       *                           taylorSeries, atan2, parseOther
+       *  finalise                 P.absoluteValue, P.atan, P.atanh, P.ceil, P.cos, P.cosh,
+       *                           P.cubeRoot, P.dividedToIntegerBy, P.floor, P.logarithm, P.minus,
+       *                           P.modulo, P.negated, P.plus, P.round, P.sin, P.sinh, P.squareRoot,
+       *                           P.tan, P.times, P.toDecimalPlaces, P.toExponential, P.toFixed,
+       *                           P.toNearest, P.toPower, P.toPrecision, P.toSignificantDigits,
+       *                           P.truncated, divide, getLn10, getPi, naturalExponential,
+       *                           naturalLogarithm, ceil, floor, round, trunc
+       *  finiteToString           P.toExponential, P.toFixed, P.toPrecision, P.toString, P.valueOf,
+       *                           toStringBinary
+       *  getBase10Exponent        P.minus, P.plus, P.times, parseOther
+       *  getLn10                  P.logarithm, naturalLogarithm
+       *  getPi                    P.acos, P.asin, P.atan, toLessThanHalfPi, atan2
+       *  getPrecision             P.precision, P.toFraction
+       *  getZeroString            digitsToString, finiteToString
+       *  intPow                   P.toPower, parseOther
+       *  isOdd                    toLessThanHalfPi
+       *  maxOrMin                 max, min
+       *  naturalExponential       P.naturalExponential, P.toPower
+       *  naturalLogarithm         P.acosh, P.asinh, P.atanh, P.logarithm, P.naturalLogarithm,
+       *                           P.toPower, naturalExponential
+       *  nonFiniteToString        finiteToString, toStringBinary
+       *  parseDecimal             Decimal
+       *  parseOther               Decimal
+       *  sin                      P.sin
+       *  taylorSeries             P.cosh, P.sinh, cos, sin
+       *  toLessThanHalfPi         P.cos, P.sin
+       *  toStringBinary           P.toBinary, P.toHexadecimal, P.toOctal
+       *  truncate                 intPow
+       *
+       *  Throws:                  P.logarithm, P.precision, P.toFraction, checkInt32, getLn10, getPi,
+       *                           naturalLogarithm, config, parseOther, random, Decimal
+       */
+
+
+      function digitsToString(d) {
+        var i, k, ws,
+          indexOfLastWord = d.length - 1,
+          str = '',
+          w = d[0];
+
+        if (indexOfLastWord > 0) {
+          str += w;
+          for (i = 1; i < indexOfLastWord; i++) {
+            ws = d[i] + '';
+            k = LOG_BASE - ws.length;
+            if (k) str += getZeroString(k);
+            str += ws;
+          }
+
+          w = d[i];
+          ws = w + '';
+          k = LOG_BASE - ws.length;
+          if (k) str += getZeroString(k);
+        } else if (w === 0) {
+          return '0';
+        }
+
+        // Remove trailing zeros of last w.
+        for (; w % 10 === 0;) w /= 10;
+
+        return str + w;
+      }
+
+
+      function checkInt32(i, min, max) {
+        if (i !== ~~i || i < min || i > max) {
+          throw Error(invalidArgument + i);
+        }
+      }
+
+
+      /*
+       * Check 5 rounding digits if `repeating` is null, 4 otherwise.
+       * `repeating == null` if caller is `log` or `pow`,
+       * `repeating != null` if caller is `naturalLogarithm` or `naturalExponential`.
+       */
+      function checkRoundingDigits(d, i, rm, repeating) {
+        var di, k, r, rd;
+
+        // Get the length of the first word of the array d.
+        for (k = d[0]; k >= 10; k /= 10) --i;
+
+        // Is the rounding digit in the first word of d?
+        if (--i < 0) {
+          i += LOG_BASE;
+          di = 0;
+        } else {
+          di = Math.ceil((i + 1) / LOG_BASE);
+          i %= LOG_BASE;
+        }
+
+        // i is the index (0 - 6) of the rounding digit.
+        // E.g. if within the word 3487563 the first rounding digit is 5,
+        // then i = 4, k = 1000, rd = 3487563 % 1000 = 563
+        k = mathpow(10, LOG_BASE - i);
+        rd = d[di] % k | 0;
+
+        if (repeating == null) {
+          if (i < 3) {
+            if (i == 0) rd = rd / 100 | 0;
+            else if (i == 1) rd = rd / 10 | 0;
+            r = rm < 4 && rd == 99999 || rm > 3 && rd == 49999 || rd == 50000 || rd == 0;
+          } else {
+            r = (rm < 4 && rd + 1 == k || rm > 3 && rd + 1 == k / 2) &&
+              (d[di + 1] / k / 100 | 0) == mathpow(10, i - 2) - 1 ||
+                (rd == k / 2 || rd == 0) && (d[di + 1] / k / 100 | 0) == 0;
+          }
+        } else {
+          if (i < 4) {
+            if (i == 0) rd = rd / 1000 | 0;
+            else if (i == 1) rd = rd / 100 | 0;
+            else if (i == 2) rd = rd / 10 | 0;
+            r = (repeating || rm < 4) && rd == 9999 || !repeating && rm > 3 && rd == 4999;
+          } else {
+            r = ((repeating || rm < 4) && rd + 1 == k ||
+            (!repeating && rm > 3) && rd + 1 == k / 2) &&
+              (d[di + 1] / k / 1000 | 0) == mathpow(10, i - 3) - 1;
+          }
+        }
+
+        return r;
+      }
+
+
+      // Convert string of `baseIn` to an array of numbers of `baseOut`.
+      // Eg. convertBase('255', 10, 16) returns [15, 15].
+      // Eg. convertBase('ff', 16, 10) returns [2, 5, 5].
+      function convertBase(str, baseIn, baseOut) {
+        var j,
+          arr = [0],
+          arrL,
+          i = 0,
+          strL = str.length;
+
+        for (; i < strL;) {
+          for (arrL = arr.length; arrL--;) arr[arrL] *= baseIn;
+          arr[0] += NUMERALS.indexOf(str.charAt(i++));
+          for (j = 0; j < arr.length; j++) {
+            if (arr[j] > baseOut - 1) {
+              if (arr[j + 1] === void 0) arr[j + 1] = 0;
+              arr[j + 1] += arr[j] / baseOut | 0;
+              arr[j] %= baseOut;
+            }
+          }
+        }
+
+        return arr.reverse();
+      }
+
+
+      /*
+       * cos(x) = 1 - x^2/2! + x^4/4! - ...
+       * |x| < pi/2
+       *
+       */
+      function cosine(Ctor, x) {
+        var k, y,
+          len = x.d.length;
+
+        // Argument reduction: cos(4x) = 8*(cos^4(x) - cos^2(x)) + 1
+        // i.e. cos(x) = 8*(cos^4(x/4) - cos^2(x/4)) + 1
+
+        // Estimate the optimum number of times to use the argument reduction.
+        if (len < 32) {
+          k = Math.ceil(len / 3);
+          y = (1 / tinyPow(4, k)).toString();
+        } else {
+          k = 16;
+          y = '2.3283064365386962890625e-10';
+        }
+
+        Ctor.precision += k;
+
+        x = taylorSeries(Ctor, 1, x.times(y), new Ctor(1));
+
+        // Reverse argument reduction
+        for (var i = k; i--;) {
+          var cos2x = x.times(x);
+          x = cos2x.times(cos2x).minus(cos2x).times(8).plus(1);
+        }
+
+        Ctor.precision -= k;
+
+        return x;
+      }
+
+
+      /*
+       * Perform division in the specified base.
+       */
+      var divide = (function () {
+
+        // Assumes non-zero x and k, and hence non-zero result.
+        function multiplyInteger(x, k, base) {
+          var temp,
+            carry = 0,
+            i = x.length;
+
+          for (x = x.slice(); i--;) {
+            temp = x[i] * k + carry;
+            x[i] = temp % base | 0;
+            carry = temp / base | 0;
+          }
+
+          if (carry) x.unshift(carry);
+
+          return x;
+        }
+
+        function compare(a, b, aL, bL) {
+          var i, r;
+
+          if (aL != bL) {
+            r = aL > bL ? 1 : -1;
+          } else {
+            for (i = r = 0; i < aL; i++) {
+              if (a[i] != b[i]) {
+                r = a[i] > b[i] ? 1 : -1;
+                break;
+              }
+            }
+          }
+
+          return r;
+        }
+
+        function subtract(a, b, aL, base) {
+          var i = 0;
+
+          // Subtract b from a.
+          for (; aL--;) {
+            a[aL] -= i;
+            i = a[aL] < b[aL] ? 1 : 0;
+            a[aL] = i * base + a[aL] - b[aL];
+          }
+
+          // Remove leading zeros.
+          for (; !a[0] && a.length > 1;) a.shift();
+        }
+
+        return function (x, y, pr, rm, dp, base) {
+          var cmp, e, i, k, logBase, more, prod, prodL, q, qd, rem, remL, rem0, sd, t, xi, xL, yd0,
+            yL, yz,
+            Ctor = x.constructor,
+            sign = x.s == y.s ? 1 : -1,
+            xd = x.d,
+            yd = y.d;
+
+          // Either NaN, Infinity or 0?
+          if (!xd || !xd[0] || !yd || !yd[0]) {
+
+            return new Ctor(// Return NaN if either NaN, or both Infinity or 0.
+              !x.s || !y.s || (xd ? yd && xd[0] == yd[0] : !yd) ? NaN :
+
+              // Return ±0 if x is 0 or y is ±Infinity, or return ±Infinity as y is 0.
+              xd && xd[0] == 0 || !yd ? sign * 0 : sign / 0);
+          }
+
+          if (base) {
+            logBase = 1;
+            e = x.e - y.e;
+          } else {
+            base = BASE;
+            logBase = LOG_BASE;
+            e = mathfloor(x.e / logBase) - mathfloor(y.e / logBase);
+          }
+
+          yL = yd.length;
+          xL = xd.length;
+          q = new Ctor(sign);
+          qd = q.d = [];
+
+          // Result exponent may be one less than e.
+          // The digit array of a Decimal from toStringBinary may have trailing zeros.
+          for (i = 0; yd[i] == (xd[i] || 0); i++);
+
+          if (yd[i] > (xd[i] || 0)) e--;
+
+          if (pr == null) {
+            sd = pr = Ctor.precision;
+            rm = Ctor.rounding;
+          } else if (dp) {
+            sd = pr + (x.e - y.e) + 1;
+          } else {
+            sd = pr;
+          }
+
+          if (sd < 0) {
+            qd.push(1);
+            more = true;
+          } else {
+
+            // Convert precision in number of base 10 digits to base 1e7 digits.
+            sd = sd / logBase + 2 | 0;
+            i = 0;
+
+            // divisor < 1e7
+            if (yL == 1) {
+              k = 0;
+              yd = yd[0];
+              sd++;
+
+              // k is the carry.
+              for (; (i < xL || k) && sd--; i++) {
+                t = k * base + (xd[i] || 0);
+                qd[i] = t / yd | 0;
+                k = t % yd | 0;
+              }
+
+              more = k || i < xL;
+
+            // divisor >= 1e7
+            } else {
+
+              // Normalise xd and yd so highest order digit of yd is >= base/2
+              k = base / (yd[0] + 1) | 0;
+
+              if (k > 1) {
+                yd = multiplyInteger(yd, k, base);
+                xd = multiplyInteger(xd, k, base);
+                yL = yd.length;
+                xL = xd.length;
+              }
+
+              xi = yL;
+              rem = xd.slice(0, yL);
+              remL = rem.length;
+
+              // Add zeros to make remainder as long as divisor.
+              for (; remL < yL;) rem[remL++] = 0;
+
+              yz = yd.slice();
+              yz.unshift(0);
+              yd0 = yd[0];
+
+              if (yd[1] >= base / 2) ++yd0;
+
+              do {
+                k = 0;
+
+                // Compare divisor and remainder.
+                cmp = compare(yd, rem, yL, remL);
+
+                // If divisor < remainder.
+                if (cmp < 0) {
+
+                  // Calculate trial digit, k.
+                  rem0 = rem[0];
+                  if (yL != remL) rem0 = rem0 * base + (rem[1] || 0);
+
+                  // k will be how many times the divisor goes into the current remainder.
+                  k = rem0 / yd0 | 0;
+
+                  //  Algorithm:
+                  //  1. product = divisor * trial digit (k)
+                  //  2. if product > remainder: product -= divisor, k--
+                  //  3. remainder -= product
+                  //  4. if product was < remainder at 2:
+                  //    5. compare new remainder and divisor
+                  //    6. If remainder > divisor: remainder -= divisor, k++
+
+                  if (k > 1) {
+                    if (k >= base) k = base - 1;
+
+                    // product = divisor * trial digit.
+                    prod = multiplyInteger(yd, k, base);
+                    prodL = prod.length;
+                    remL = rem.length;
+
+                    // Compare product and remainder.
+                    cmp = compare(prod, rem, prodL, remL);
+
+                    // product > remainder.
+                    if (cmp == 1) {
+                      k--;
+
+                      // Subtract divisor from product.
+                      subtract(prod, yL < prodL ? yz : yd, prodL, base);
+                    }
+                  } else {
+
+                    // cmp is -1.
+                    // If k is 0, there is no need to compare yd and rem again below, so change cmp to 1
+                    // to avoid it. If k is 1 there is a need to compare yd and rem again below.
+                    if (k == 0) cmp = k = 1;
+                    prod = yd.slice();
+                  }
+
+                  prodL = prod.length;
+                  if (prodL < remL) prod.unshift(0);
+
+                  // Subtract product from remainder.
+                  subtract(rem, prod, remL, base);
+
+                  // If product was < previous remainder.
+                  if (cmp == -1) {
+                    remL = rem.length;
+
+                    // Compare divisor and new remainder.
+                    cmp = compare(yd, rem, yL, remL);
+
+                    // If divisor < new remainder, subtract divisor from remainder.
+                    if (cmp < 1) {
+                      k++;
+
+                      // Subtract divisor from remainder.
+                      subtract(rem, yL < remL ? yz : yd, remL, base);
+                    }
+                  }
+
+                  remL = rem.length;
+                } else if (cmp === 0) {
+                  k++;
+                  rem = [0];
+                }    // if cmp === 1, k will be 0
+
+                // Add the next digit, k, to the result array.
+                qd[i++] = k;
+
+                // Update the remainder.
+                if (cmp && rem[0]) {
+                  rem[remL++] = xd[xi] || 0;
+                } else {
+                  rem = [xd[xi]];
+                  remL = 1;
+                }
+
+              } while ((xi++ < xL || rem[0] !== void 0) && sd--);
+
+              more = rem[0] !== void 0;
+            }
+
+            // Leading zero?
+            if (!qd[0]) qd.shift();
+          }
+
+          // logBase is 1 when divide is being used for base conversion.
+          if (logBase == 1) {
+            q.e = e;
+            inexact = more;
+          } else {
+
+            // To calculate q.e, first get the number of digits of qd[0].
+            for (i = 1, k = qd[0]; k >= 10; k /= 10) i++;
+            q.e = i + e * logBase - 1;
+
+            finalise(q, dp ? pr + q.e + 1 : pr, rm, more);
+          }
+
+          return q;
+        };
+      })();
+
+
+      /*
+       * Round `x` to `sd` significant digits using rounding mode `rm`.
+       * Check for over/under-flow.
+       */
+       function finalise(x, sd, rm, isTruncated) {
+        var digits, i, j, k, rd, roundUp, w, xd, xdi,
+          Ctor = x.constructor;
+
+        // Don't round if sd is null or undefined.
+        out: if (sd != null) {
+          xd = x.d;
+
+          // Infinity/NaN.
+          if (!xd) return x;
+
+          // rd: the rounding digit, i.e. the digit after the digit that may be rounded up.
+          // w: the word of xd containing rd, a base 1e7 number.
+          // xdi: the index of w within xd.
+          // digits: the number of digits of w.
+          // i: what would be the index of rd within w if all the numbers were 7 digits long (i.e. if
+          // they had leading zeros)
+          // j: if > 0, the actual index of rd within w (if < 0, rd is a leading zero).
+
+          // Get the length of the first word of the digits array xd.
+          for (digits = 1, k = xd[0]; k >= 10; k /= 10) digits++;
+          i = sd - digits;
+
+          // Is the rounding digit in the first word of xd?
+          if (i < 0) {
+            i += LOG_BASE;
+            j = sd;
+            w = xd[xdi = 0];
+
+            // Get the rounding digit at index j of w.
+            rd = w / mathpow(10, digits - j - 1) % 10 | 0;
+          } else {
+            xdi = Math.ceil((i + 1) / LOG_BASE);
+            k = xd.length;
+            if (xdi >= k) {
+              if (isTruncated) {
+
+                // Needed by `naturalExponential`, `naturalLogarithm` and `squareRoot`.
+                for (; k++ <= xdi;) xd.push(0);
+                w = rd = 0;
+                digits = 1;
+                i %= LOG_BASE;
+                j = i - LOG_BASE + 1;
+              } else {
+                break out;
+              }
+            } else {
+              w = k = xd[xdi];
+
+              // Get the number of digits of w.
+              for (digits = 1; k >= 10; k /= 10) digits++;
+
+              // Get the index of rd within w.
+              i %= LOG_BASE;
+
+              // Get the index of rd within w, adjusted for leading zeros.
+              // The number of leading zeros of w is given by LOG_BASE - digits.
+              j = i - LOG_BASE + digits;
+
+              // Get the rounding digit at index j of w.
+              rd = j < 0 ? 0 : w / mathpow(10, digits - j - 1) % 10 | 0;
+            }
+          }
+
+          // Are there any non-zero digits after the rounding digit?
+          isTruncated = isTruncated || sd < 0 ||
+            xd[xdi + 1] !== void 0 || (j < 0 ? w : w % mathpow(10, digits - j - 1));
+
+          // The expression `w % mathpow(10, digits - j - 1)` returns all the digits of w to the right
+          // of the digit at (left-to-right) index j, e.g. if w is 908714 and j is 2, the expression
+          // will give 714.
+
+          roundUp = rm < 4
+            ? (rd || isTruncated) && (rm == 0 || rm == (x.s < 0 ? 3 : 2))
+            : rd > 5 || rd == 5 && (rm == 4 || isTruncated || rm == 6 &&
+
+              // Check whether the digit to the left of the rounding digit is odd.
+              ((i > 0 ? j > 0 ? w / mathpow(10, digits - j) : 0 : xd[xdi - 1]) % 10) & 1 ||
+                rm == (x.s < 0 ? 8 : 7));
+
+          if (sd < 1 || !xd[0]) {
+            xd.length = 0;
+            if (roundUp) {
+
+              // Convert sd to decimal places.
+              sd -= x.e + 1;
+
+              // 1, 0.1, 0.01, 0.001, 0.0001 etc.
+              xd[0] = mathpow(10, (LOG_BASE - sd % LOG_BASE) % LOG_BASE);
+              x.e = -sd || 0;
+            } else {
+
+              // Zero.
+              xd[0] = x.e = 0;
+            }
+
+            return x;
+          }
+
+          // Remove excess digits.
+          if (i == 0) {
+            xd.length = xdi;
+            k = 1;
+            xdi--;
+          } else {
+            xd.length = xdi + 1;
+            k = mathpow(10, LOG_BASE - i);
+
+            // E.g. 56700 becomes 56000 if 7 is the rounding digit.
+            // j > 0 means i > number of leading zeros of w.
+            xd[xdi] = j > 0 ? (w / mathpow(10, digits - j) % mathpow(10, j) | 0) * k : 0;
+          }
+
+          if (roundUp) {
+            for (;;) {
+
+              // Is the digit to be rounded up in the first word of xd?
+              if (xdi == 0) {
+
+                // i will be the length of xd[0] before k is added.
+                for (i = 1, j = xd[0]; j >= 10; j /= 10) i++;
+                j = xd[0] += k;
+                for (k = 1; j >= 10; j /= 10) k++;
+
+                // if i != k the length has increased.
+                if (i != k) {
+                  x.e++;
+                  if (xd[0] == BASE) xd[0] = 1;
+                }
+
+                break;
+              } else {
+                xd[xdi] += k;
+                if (xd[xdi] != BASE) break;
+                xd[xdi--] = 0;
+                k = 1;
+              }
+            }
+          }
+
+          // Remove trailing zeros.
+          for (i = xd.length; xd[--i] === 0;) xd.pop();
+        }
+
+        if (external) {
+
+          // Overflow?
+          if (x.e > Ctor.maxE) {
+
+            // Infinity.
+            x.d = null;
+            x.e = NaN;
+
+          // Underflow?
+          } else if (x.e < Ctor.minE) {
+
+            // Zero.
+            x.e = 0;
+            x.d = [0];
+            // Ctor.underflow = true;
+          } // else Ctor.underflow = false;
+        }
+
+        return x;
+      }
+
+
+      function finiteToString(x, isExp, sd) {
+        if (!x.isFinite()) return nonFiniteToString(x);
+        var k,
+          e = x.e,
+          str = digitsToString(x.d),
+          len = str.length;
+
+        if (isExp) {
+          if (sd && (k = sd - len) > 0) {
+            str = str.charAt(0) + '.' + str.slice(1) + getZeroString(k);
+          } else if (len > 1) {
+            str = str.charAt(0) + '.' + str.slice(1);
+          }
+
+          str = str + (x.e < 0 ? 'e' : 'e+') + x.e;
+        } else if (e < 0) {
+          str = '0.' + getZeroString(-e - 1) + str;
+          if (sd && (k = sd - len) > 0) str += getZeroString(k);
+        } else if (e >= len) {
+          str += getZeroString(e + 1 - len);
+          if (sd && (k = sd - e - 1) > 0) str = str + '.' + getZeroString(k);
+        } else {
+          if ((k = e + 1) < len) str = str.slice(0, k) + '.' + str.slice(k);
+          if (sd && (k = sd - len) > 0) {
+            if (e + 1 === len) str += '.';
+            str += getZeroString(k);
+          }
+        }
+
+        return str;
+      }
+
+
+      // Calculate the base 10 exponent from the base 1e7 exponent.
+      function getBase10Exponent(digits, e) {
+        var w = digits[0];
+
+        // Add the number of digits of the first word of the digits array.
+        for ( e *= LOG_BASE; w >= 10; w /= 10) e++;
+        return e;
+      }
+
+
+      function getLn10(Ctor, sd, pr) {
+        if (sd > LN10_PRECISION) {
+
+          // Reset global state in case the exception is caught.
+          external = true;
+          if (pr) Ctor.precision = pr;
+          throw Error(precisionLimitExceeded);
+        }
+        return finalise(new Ctor(LN10), sd, 1, true);
+      }
+
+
+      function getPi(Ctor, sd, rm) {
+        if (sd > PI_PRECISION) throw Error(precisionLimitExceeded);
+        return finalise(new Ctor(PI), sd, rm, true);
+      }
+
+
+      function getPrecision(digits) {
+        var w = digits.length - 1,
+          len = w * LOG_BASE + 1;
+
+        w = digits[w];
+
+        // If non-zero...
+        if (w) {
+
+          // Subtract the number of trailing zeros of the last word.
+          for (; w % 10 == 0; w /= 10) len--;
+
+          // Add the number of digits of the first word.
+          for (w = digits[0]; w >= 10; w /= 10) len++;
+        }
+
+        return len;
+      }
+
+
+      function getZeroString(k) {
+        var zs = '';
+        for (; k--;) zs += '0';
+        return zs;
+      }
+
+
+      /*
+       * Return a new Decimal whose value is the value of Decimal `x` to the power `n`, where `n` is an
+       * integer of type number.
+       *
+       * Implements 'exponentiation by squaring'. Called by `pow` and `parseOther`.
+       *
+       */
+      function intPow(Ctor, x, n, pr) {
+        var isTruncated,
+          r = new Ctor(1),
+
+          // Max n of 9007199254740991 takes 53 loop iterations.
+          // Maximum digits array length; leaves [28, 34] guard digits.
+          k = Math.ceil(pr / LOG_BASE + 4);
+
+        external = false;
+
+        for (;;) {
+          if (n % 2) {
+            r = r.times(x);
+            if (truncate(r.d, k)) isTruncated = true;
+          }
+
+          n = mathfloor(n / 2);
+          if (n === 0) {
+
+            // To ensure correct rounding when r.d is truncated, increment the last word if it is zero.
+            n = r.d.length - 1;
+            if (isTruncated && r.d[n] === 0) ++r.d[n];
+            break;
+          }
+
+          x = x.times(x);
+          truncate(x.d, k);
+        }
+
+        external = true;
+
+        return r;
+      }
+
+
+      function isOdd(n) {
+        return n.d[n.d.length - 1] & 1;
+      }
+
+
+      /*
+       * Handle `max` and `min`. `ltgt` is 'lt' or 'gt'.
+       */
+      function maxOrMin(Ctor, args, ltgt) {
+        var y,
+          x = new Ctor(args[0]),
+          i = 0;
+
+        for (; ++i < args.length;) {
+          y = new Ctor(args[i]);
+          if (!y.s) {
+            x = y;
+            break;
+          } else if (x[ltgt](y)) {
+            x = y;
+          }
+        }
+
+        return x;
+      }
+
+
+      /*
+       * Return a new Decimal whose value is the natural exponential of `x` rounded to `sd` significant
+       * digits.
+       *
+       * Taylor/Maclaurin series.
+       *
+       * exp(x) = x^0/0! + x^1/1! + x^2/2! + x^3/3! + ...
+       *
+       * Argument reduction:
+       *   Repeat x = x / 32, k += 5, until |x| < 0.1
+       *   exp(x) = exp(x / 2^k)^(2^k)
+       *
+       * Previously, the argument was initially reduced by
+       * exp(x) = exp(r) * 10^k  where r = x - k * ln10, k = floor(x / ln10)
+       * to first put r in the range [0, ln10], before dividing by 32 until |x| < 0.1, but this was
+       * found to be slower than just dividing repeatedly by 32 as above.
+       *
+       * Max integer argument: exp('20723265836946413') = 6.3e+9000000000000000
+       * Min integer argument: exp('-20723265836946411') = 1.2e-9000000000000000
+       * (Math object integer min/max: Math.exp(709) = 8.2e+307, Math.exp(-745) = 5e-324)
+       *
+       *  exp(Infinity)  = Infinity
+       *  exp(-Infinity) = 0
+       *  exp(NaN)       = NaN
+       *  exp(±0)        = 1
+       *
+       *  exp(x) is non-terminating for any finite, non-zero x.
+       *
+       *  The result will always be correctly rounded.
+       *
+       */
+      function naturalExponential(x, sd) {
+        var denominator, guard, j, pow, sum, t, wpr,
+          rep = 0,
+          i = 0,
+          k = 0,
+          Ctor = x.constructor,
+          rm = Ctor.rounding,
+          pr = Ctor.precision;
+
+        // 0/NaN/Infinity?
+        if (!x.d || !x.d[0] || x.e > 17) {
+
+          return new Ctor(x.d
+            ? !x.d[0] ? 1 : x.s < 0 ? 0 : 1 / 0
+            : x.s ? x.s < 0 ? 0 : x : 0 / 0);
+        }
+
+        if (sd == null) {
+          external = false;
+          wpr = pr;
+        } else {
+          wpr = sd;
+        }
+
+        t = new Ctor(0.03125);
+
+        // while abs(x) >= 0.1
+        while (x.e > -2) {
+
+          // x = x / 2^5
+          x = x.times(t);
+          k += 5;
+        }
+
+        // Use 2 * log10(2^k) + 5 (empirically derived) to estimate the increase in precision
+        // necessary to ensure the first 4 rounding digits are correct.
+        guard = Math.log(mathpow(2, k)) / Math.LN10 * 2 + 5 | 0;
+        wpr += guard;
+        denominator = pow = sum = new Ctor(1);
+        Ctor.precision = wpr;
+
+        for (;;) {
+          pow = finalise(pow.times(x), wpr, 1);
+          denominator = denominator.times(++i);
+          t = sum.plus(divide(pow, denominator, wpr, 1));
+
+          if (digitsToString(t.d).slice(0, wpr) === digitsToString(sum.d).slice(0, wpr)) {
+            j = k;
+            while (j--) sum = finalise(sum.times(sum), wpr, 1);
+
+            // Check to see if the first 4 rounding digits are [49]999.
+            // If so, repeat the summation with a higher precision, otherwise
+            // e.g. with precision: 18, rounding: 1
+            // exp(18.404272462595034083567793919843761) = 98372560.1229999999 (should be 98372560.123)
+            // `wpr - guard` is the index of first rounding digit.
+            if (sd == null) {
+
+              if (rep < 3 && checkRoundingDigits(sum.d, wpr - guard, rm, rep)) {
+                Ctor.precision = wpr += 10;
+                denominator = pow = t = new Ctor(1);
+                i = 0;
+                rep++;
+              } else {
+                return finalise(sum, Ctor.precision = pr, rm, external = true);
+              }
+            } else {
+              Ctor.precision = pr;
+              return sum;
+            }
+          }
+
+          sum = t;
+        }
+      }
+
+
+      /*
+       * Return a new Decimal whose value is the natural logarithm of `x` rounded to `sd` significant
+       * digits.
+       *
+       *  ln(-n)        = NaN
+       *  ln(0)         = -Infinity
+       *  ln(-0)        = -Infinity
+       *  ln(1)         = 0
+       *  ln(Infinity)  = Infinity
+       *  ln(-Infinity) = NaN
+       *  ln(NaN)       = NaN
+       *
+       *  ln(n) (n != 1) is non-terminating.
+       *
+       */
+      function naturalLogarithm(y, sd) {
+        var c, c0, denominator, e, numerator, rep, sum, t, wpr, x1, x2,
+          n = 1,
+          guard = 10,
+          x = y,
+          xd = x.d,
+          Ctor = x.constructor,
+          rm = Ctor.rounding,
+          pr = Ctor.precision;
+
+        // Is x negative or Infinity, NaN, 0 or 1?
+        if (x.s < 0 || !xd || !xd[0] || !x.e && xd[0] == 1 && xd.length == 1) {
+          return new Ctor(xd && !xd[0] ? -1 / 0 : x.s != 1 ? NaN : xd ? 0 : x);
+        }
+
+        if (sd == null) {
+          external = false;
+          wpr = pr;
+        } else {
+          wpr = sd;
+        }
+
+        Ctor.precision = wpr += guard;
+        c = digitsToString(xd);
+        c0 = c.charAt(0);
+
+        if (Math.abs(e = x.e) < 1.5e15) {
+
+          // Argument reduction.
+          // The series converges faster the closer the argument is to 1, so using
+          // ln(a^b) = b * ln(a),   ln(a) = ln(a^b) / b
+          // multiply the argument by itself until the leading digits of the significand are 7, 8, 9,
+          // 10, 11, 12 or 13, recording the number of multiplications so the sum of the series can
+          // later be divided by this number, then separate out the power of 10 using
+          // ln(a*10^b) = ln(a) + b*ln(10).
+
+          // max n is 21 (gives 0.9, 1.0 or 1.1) (9e15 / 21 = 4.2e14).
+          //while (c0 < 9 && c0 != 1 || c0 == 1 && c.charAt(1) > 1) {
+          // max n is 6 (gives 0.7 - 1.3)
+          while (c0 < 7 && c0 != 1 || c0 == 1 && c.charAt(1) > 3) {
+            x = x.times(y);
+            c = digitsToString(x.d);
+            c0 = c.charAt(0);
+            n++;
+          }
+
+          e = x.e;
+
+          if (c0 > 1) {
+            x = new Ctor('0.' + c);
+            e++;
+          } else {
+            x = new Ctor(c0 + '.' + c.slice(1));
+          }
+        } else {
+
+          // The argument reduction method above may result in overflow if the argument y is a massive
+          // number with exponent >= 1500000000000000 (9e15 / 6 = 1.5e15), so instead recall this
+          // function using ln(x*10^e) = ln(x) + e*ln(10).
+          t = getLn10(Ctor, wpr + 2, pr).times(e + '');
+          x = naturalLogarithm(new Ctor(c0 + '.' + c.slice(1)), wpr - guard).plus(t);
+          Ctor.precision = pr;
+
+          return sd == null ? finalise(x, pr, rm, external = true) : x;
+        }
+
+        // x1 is x reduced to a value near 1.
+        x1 = x;
+
+        // Taylor series.
+        // ln(y) = ln((1 + x)/(1 - x)) = 2(x + x^3/3 + x^5/5 + x^7/7 + ...)
+        // where x = (y - 1)/(y + 1)    (|x| < 1)
+        sum = numerator = x = divide(x.minus(1), x.plus(1), wpr, 1);
+        x2 = finalise(x.times(x), wpr, 1);
+        denominator = 3;
+
+        for (;;) {
+          numerator = finalise(numerator.times(x2), wpr, 1);
+          t = sum.plus(divide(numerator, new Ctor(denominator), wpr, 1));
+
+          if (digitsToString(t.d).slice(0, wpr) === digitsToString(sum.d).slice(0, wpr)) {
+            sum = sum.times(2);
+
+            // Reverse the argument reduction. Check that e is not 0 because, besides preventing an
+            // unnecessary calculation, -0 + 0 = +0 and to ensure correct rounding -0 needs to stay -0.
+            if (e !== 0) sum = sum.plus(getLn10(Ctor, wpr + 2, pr).times(e + ''));
+            sum = divide(sum, new Ctor(n), wpr, 1);
+
+            // Is rm > 3 and the first 4 rounding digits 4999, or rm < 4 (or the summation has
+            // been repeated previously) and the first 4 rounding digits 9999?
+            // If so, restart the summation with a higher precision, otherwise
+            // e.g. with precision: 12, rounding: 1
+            // ln(135520028.6126091714265381533) = 18.7246299999 when it should be 18.72463.
+            // `wpr - guard` is the index of first rounding digit.
+            if (sd == null) {
+              if (checkRoundingDigits(sum.d, wpr - guard, rm, rep)) {
+                Ctor.precision = wpr += guard;
+                t = numerator = x = divide(x1.minus(1), x1.plus(1), wpr, 1);
+                x2 = finalise(x.times(x), wpr, 1);
+                denominator = rep = 1;
+              } else {
+                return finalise(sum, Ctor.precision = pr, rm, external = true);
+              }
+            } else {
+              Ctor.precision = pr;
+              return sum;
+            }
+          }
+
+          sum = t;
+          denominator += 2;
+        }
+      }
+
+
+      // ±Infinity, NaN.
+      function nonFiniteToString(x) {
+        // Unsigned.
+        return String(x.s * x.s / 0);
+      }
+
+
+      /*
+       * Parse the value of a new Decimal `x` from string `str`.
+       */
+      function parseDecimal(x, str) {
+        var e, i, len;
+
+        // Decimal point?
+        if ((e = str.indexOf('.')) > -1) str = str.replace('.', '');
+
+        // Exponential form?
+        if ((i = str.search(/e/i)) > 0) {
+
+          // Determine exponent.
+          if (e < 0) e = i;
+          e += +str.slice(i + 1);
+          str = str.substring(0, i);
+        } else if (e < 0) {
+
+          // Integer.
+          e = str.length;
+        }
+
+        // Determine leading zeros.
+        for (i = 0; str.charCodeAt(i) === 48; i++);
+
+        // Determine trailing zeros.
+        for (len = str.length; str.charCodeAt(len - 1) === 48; --len);
+        str = str.slice(i, len);
+
+        if (str) {
+          len -= i;
+          x.e = e = e - i - 1;
+          x.d = [];
+
+          // Transform base
+
+          // e is the base 10 exponent.
+          // i is where to slice str to get the first word of the digits array.
+          i = (e + 1) % LOG_BASE;
+          if (e < 0) i += LOG_BASE;
+
+          if (i < len) {
+            if (i) x.d.push(+str.slice(0, i));
+            for (len -= LOG_BASE; i < len;) x.d.push(+str.slice(i, i += LOG_BASE));
+            str = str.slice(i);
+            i = LOG_BASE - str.length;
+          } else {
+            i -= len;
+          }
+
+          for (; i--;) str += '0';
+          x.d.push(+str);
+
+          if (external) {
+
+            // Overflow?
+            if (x.e > x.constructor.maxE) {
+
+              // Infinity.
+              x.d = null;
+              x.e = NaN;
+
+            // Underflow?
+            } else if (x.e < x.constructor.minE) {
+
+              // Zero.
+              x.e = 0;
+              x.d = [0];
+              // x.constructor.underflow = true;
+            } // else x.constructor.underflow = false;
+          }
+        } else {
+
+          // Zero.
+          x.e = 0;
+          x.d = [0];
+        }
+
+        return x;
+      }
+
+
+      /*
+       * Parse the value of a new Decimal `x` from a string `str`, which is not a decimal value.
+       */
+      function parseOther(x, str) {
+        var base, Ctor, divisor, i, isFloat, len, p, xd, xe;
+
+        if (str === 'Infinity' || str === 'NaN') {
+          if (!+str) x.s = NaN;
+          x.e = NaN;
+          x.d = null;
+          return x;
+        }
+
+        if (isHex.test(str))  {
+          base = 16;
+          str = str.toLowerCase();
+        } else if (isBinary.test(str))  {
+          base = 2;
+        } else if (isOctal.test(str))  {
+          base = 8;
+        } else {
+          throw Error(invalidArgument + str);
+        }
+
+        // Is there a binary exponent part?
+        i = str.search(/p/i);
+
+        if (i > 0) {
+          p = +str.slice(i + 1);
+          str = str.substring(2, i);
+        } else {
+          str = str.slice(2);
+        }
+
+        // Convert `str` as an integer then divide the result by `base` raised to a power such that the
+        // fraction part will be restored.
+        i = str.indexOf('.');
+        isFloat = i >= 0;
+        Ctor = x.constructor;
+
+        if (isFloat) {
+          str = str.replace('.', '');
+          len = str.length;
+          i = len - i;
+
+          // log[10](16) = 1.2041... , log[10](88) = 1.9444....
+          divisor = intPow(Ctor, new Ctor(base), i, i * 2);
+        }
+
+        xd = convertBase(str, base, BASE);
+        xe = xd.length - 1;
+
+        // Remove trailing zeros.
+        for (i = xe; xd[i] === 0; --i) xd.pop();
+        if (i < 0) return new Ctor(x.s * 0);
+        x.e = getBase10Exponent(xd, xe);
+        x.d = xd;
+        external = false;
+
+        // At what precision to perform the division to ensure exact conversion?
+        // maxDecimalIntegerPartDigitCount = ceil(log[10](b) * otherBaseIntegerPartDigitCount)
+        // log[10](2) = 0.30103, log[10](8) = 0.90309, log[10](16) = 1.20412
+        // E.g. ceil(1.2 * 3) = 4, so up to 4 decimal digits are needed to represent 3 hex int digits.
+        // maxDecimalFractionPartDigitCount = {Hex:4|Oct:3|Bin:1} * otherBaseFractionPartDigitCount
+        // Therefore using 4 * the number of digits of str will always be enough.
+        if (isFloat) x = divide(x, divisor, len * 4);
+
+        // Multiply by the binary exponent part if present.
+        if (p) x = x.times(Math.abs(p) < 54 ? mathpow(2, p) : Decimal.pow(2, p));
+        external = true;
+
+        return x;
+      }
+
+
+      /*
+       * sin(x) = x - x^3/3! + x^5/5! - ...
+       * |x| < pi/2
+       *
+       */
+      function sine(Ctor, x) {
+        var k,
+          len = x.d.length;
+
+        if (len < 3) return taylorSeries(Ctor, 2, x, x);
+
+        // Argument reduction: sin(5x) = 16*sin^5(x) - 20*sin^3(x) + 5*sin(x)
+        // i.e. sin(x) = 16*sin^5(x/5) - 20*sin^3(x/5) + 5*sin(x/5)
+        // and  sin(x) = sin(x/5)(5 + sin^2(x/5)(16sin^2(x/5) - 20))
+
+        // Estimate the optimum number of times to use the argument reduction.
+        k = 1.4 * Math.sqrt(len);
+        k = k > 16 ? 16 : k | 0;
+
+        x = x.times(1 / tinyPow(5, k));
+        x = taylorSeries(Ctor, 2, x, x);
+
+        // Reverse argument reduction
+        var sin2_x,
+          d5 = new Ctor(5),
+          d16 = new Ctor(16),
+          d20 = new Ctor(20);
+        for (; k--;) {
+          sin2_x = x.times(x);
+          x = x.times(d5.plus(sin2_x.times(d16.times(sin2_x).minus(d20))));
+        }
+
+        return x;
+      }
+
+
+      // Calculate Taylor series for `cos`, `cosh`, `sin` and `sinh`.
+      function taylorSeries(Ctor, n, x, y, isHyperbolic) {
+        var j, t, u, x2,
+          pr = Ctor.precision,
+          k = Math.ceil(pr / LOG_BASE);
+
+        external = false;
+        x2 = x.times(x);
+        u = new Ctor(y);
+
+        for (;;) {
+          t = divide(u.times(x2), new Ctor(n++ * n++), pr, 1);
+          u = isHyperbolic ? y.plus(t) : y.minus(t);
+          y = divide(t.times(x2), new Ctor(n++ * n++), pr, 1);
+          t = u.plus(y);
+
+          if (t.d[k] !== void 0) {
+            for (j = k; t.d[j] === u.d[j] && j--;);
+            if (j == -1) break;
+          }
+
+          j = u;
+          u = y;
+          y = t;
+          t = j;
+        }
+
+        external = true;
+        t.d.length = k + 1;
+
+        return t;
+      }
+
+
+      // Exponent e must be positive and non-zero.
+      function tinyPow(b, e) {
+        var n = b;
+        while (--e) n *= b;
+        return n;
+      }
+
+
+      // Return the absolute value of `x` reduced to less than or equal to half pi.
+      function toLessThanHalfPi(Ctor, x) {
+        var t,
+          isNeg = x.s < 0,
+          pi = getPi(Ctor, Ctor.precision, 1),
+          halfPi = pi.times(0.5);
+
+        x = x.abs();
+
+        if (x.lte(halfPi)) {
+          quadrant = isNeg ? 4 : 1;
+          return x;
+        }
+
+        t = x.divToInt(pi);
+
+        if (t.isZero()) {
+          quadrant = isNeg ? 3 : 2;
+        } else {
+          x = x.minus(t.times(pi));
+
+          // 0 <= x < pi
+          if (x.lte(halfPi)) {
+            quadrant = isOdd(t) ? (isNeg ? 2 : 3) : (isNeg ? 4 : 1);
+            return x;
+          }
+
+          quadrant = isOdd(t) ? (isNeg ? 1 : 4) : (isNeg ? 3 : 2);
+        }
+
+        return x.minus(pi).abs();
+      }
+
+
+      /*
+       * Return the value of Decimal `x` as a string in base `baseOut`.
+       *
+       * If the optional `sd` argument is present include a binary exponent suffix.
+       */
+      function toStringBinary(x, baseOut, sd, rm) {
+        var base, e, i, k, len, roundUp, str, xd, y,
+          Ctor = x.constructor,
+          isExp = sd !== void 0;
+
+        if (isExp) {
+          checkInt32(sd, 1, MAX_DIGITS);
+          if (rm === void 0) rm = Ctor.rounding;
+          else checkInt32(rm, 0, 8);
+        } else {
+          sd = Ctor.precision;
+          rm = Ctor.rounding;
+        }
+
+        if (!x.isFinite()) {
+          str = nonFiniteToString(x);
+        } else {
+          str = finiteToString(x);
+          i = str.indexOf('.');
+
+          // Use exponential notation according to `toExpPos` and `toExpNeg`? No, but if required:
+          // maxBinaryExponent = floor((decimalExponent + 1) * log[2](10))
+          // minBinaryExponent = floor(decimalExponent * log[2](10))
+          // log[2](10) = 3.321928094887362347870319429489390175864
+
+          if (isExp) {
+            base = 2;
+            if (baseOut == 16) {
+              sd = sd * 4 - 3;
+            } else if (baseOut == 8) {
+              sd = sd * 3 - 2;
+            }
+          } else {
+            base = baseOut;
+          }
+
+          // Convert the number as an integer then divide the result by its base raised to a power such
+          // that the fraction part will be restored.
+
+          // Non-integer.
+          if (i >= 0) {
+            str = str.replace('.', '');
+            y = new Ctor(1);
+            y.e = str.length - i;
+            y.d = convertBase(finiteToString(y), 10, base);
+            y.e = y.d.length;
+          }
+
+          xd = convertBase(str, 10, base);
+          e = len = xd.length;
+
+          // Remove trailing zeros.
+          for (; xd[--len] == 0;) xd.pop();
+
+          if (!xd[0]) {
+            str = isExp ? '0p+0' : '0';
+          } else {
+            if (i < 0) {
+              e--;
+            } else {
+              x = new Ctor(x);
+              x.d = xd;
+              x.e = e;
+              x = divide(x, y, sd, rm, 0, base);
+              xd = x.d;
+              e = x.e;
+              roundUp = inexact;
+            }
+
+            // The rounding digit, i.e. the digit after the digit that may be rounded up.
+            i = xd[sd];
+            k = base / 2;
+            roundUp = roundUp || xd[sd + 1] !== void 0;
+
+            roundUp = rm < 4
+              ? (i !== void 0 || roundUp) && (rm === 0 || rm === (x.s < 0 ? 3 : 2))
+              : i > k || i === k && (rm === 4 || roundUp || rm === 6 && xd[sd - 1] & 1 ||
+                rm === (x.s < 0 ? 8 : 7));
+
+            xd.length = sd;
+
+            if (roundUp) {
+
+              // Rounding up may mean the previous digit has to be rounded up and so on.
+              for (; ++xd[--sd] > base - 1;) {
+                xd[sd] = 0;
+                if (!sd) {
+                  ++e;
+                  xd.unshift(1);
+                }
+              }
+            }
+
+            // Determine trailing zeros.
+            for (len = xd.length; !xd[len - 1]; --len);
+
+            // E.g. [4, 11, 15] becomes 4bf.
+            for (i = 0, str = ''; i < len; i++) str += NUMERALS.charAt(xd[i]);
+
+            // Add binary exponent suffix?
+            if (isExp) {
+              if (len > 1) {
+                if (baseOut == 16 || baseOut == 8) {
+                  i = baseOut == 16 ? 4 : 3;
+                  for (--len; len % i; len++) str += '0';
+                  xd = convertBase(str, base, baseOut);
+                  for (len = xd.length; !xd[len - 1]; --len);
+
+                  // xd[0] will always be be 1
+                  for (i = 1, str = '1.'; i < len; i++) str += NUMERALS.charAt(xd[i]);
+                } else {
+                  str = str.charAt(0) + '.' + str.slice(1);
+                }
+              }
+
+              str =  str + (e < 0 ? 'p' : 'p+') + e;
+            } else if (e < 0) {
+              for (; ++e;) str = '0' + str;
+              str = '0.' + str;
+            } else {
+              if (++e > len) for (e -= len; e-- ;) str += '0';
+              else if (e < len) str = str.slice(0, e) + '.' + str.slice(e);
+            }
+          }
+
+          str = (baseOut == 16 ? '0x' : baseOut == 2 ? '0b' : baseOut == 8 ? '0o' : '') + str;
+        }
+
+        return x.s < 0 ? '-' + str : str;
+      }
+
+
+      // Does not strip trailing zeros.
+      function truncate(arr, len) {
+        if (arr.length > len) {
+          arr.length = len;
+          return true;
+        }
+      }
+
+
+      // Decimal methods
+
+
+      /*
+       *  abs
+       *  acos
+       *  acosh
+       *  add
+       *  asin
+       *  asinh
+       *  atan
+       *  atanh
+       *  atan2
+       *  cbrt
+       *  ceil
+       *  clone
+       *  config
+       *  cos
+       *  cosh
+       *  div
+       *  exp
+       *  floor
+       *  hypot
+       *  ln
+       *  log
+       *  log2
+       *  log10
+       *  max
+       *  min
+       *  mod
+       *  mul
+       *  pow
+       *  random
+       *  round
+       *  set
+       *  sign
+       *  sin
+       *  sinh
+       *  sqrt
+       *  sub
+       *  tan
+       *  tanh
+       *  trunc
+       */
+
+
+      /*
+       * Return a new Decimal whose value is the absolute value of `x`.
+       *
+       * x {number|string|Decimal}
+       *
+       */
+      function abs(x) {
+        return new this(x).abs();
+      }
+
+
+      /*
+       * Return a new Decimal whose value is the arccosine in radians of `x`.
+       *
+       * x {number|string|Decimal}
+       *
+       */
+      function acos(x) {
+        return new this(x).acos();
+      }
+
+
+      /*
+       * Return a new Decimal whose value is the inverse of the hyperbolic cosine of `x`, rounded to
+       * `precision` significant digits using rounding mode `rounding`.
+       *
+       * x {number|string|Decimal} A value in radians.
+       *
+       */
+      function acosh(x) {
+        return new this(x).acosh();
+      }
+
+
+      /*
+       * Return a new Decimal whose value is the sum of `x` and `y`, rounded to `precision` significant
+       * digits using rounding mode `rounding`.
+       *
+       * x {number|string|Decimal}
+       * y {number|string|Decimal}
+       *
+       */
+      function add(x, y) {
+        return new this(x).plus(y);
+      }
+
+
+      /*
+       * Return a new Decimal whose value is the arcsine in radians of `x`, rounded to `precision`
+       * significant digits using rounding mode `rounding`.
+       *
+       * x {number|string|Decimal}
+       *
+       */
+      function asin(x) {
+        return new this(x).asin();
+      }
+
+
+      /*
+       * Return a new Decimal whose value is the inverse of the hyperbolic sine of `x`, rounded to
+       * `precision` significant digits using rounding mode `rounding`.
+       *
+       * x {number|string|Decimal} A value in radians.
+       *
+       */
+      function asinh(x) {
+        return new this(x).asinh();
+      }
+
+
+      /*
+       * Return a new Decimal whose value is the arctangent in radians of `x`, rounded to `precision`
+       * significant digits using rounding mode `rounding`.
+       *
+       * x {number|string|Decimal}
+       *
+       */
+      function atan(x) {
+        return new this(x).atan();
+      }
+
+
+      /*
+       * Return a new Decimal whose value is the inverse of the hyperbolic tangent of `x`, rounded to
+       * `precision` significant digits using rounding mode `rounding`.
+       *
+       * x {number|string|Decimal} A value in radians.
+       *
+       */
+      function atanh(x) {
+        return new this(x).atanh();
+      }
+
+
+      /*
+       * Return a new Decimal whose value is the arctangent in radians of `y/x` in the range -pi to pi
+       * (inclusive), rounded to `precision` significant digits using rounding mode `rounding`.
+       *
+       * Domain: [-Infinity, Infinity]
+       * Range: [-pi, pi]
+       *
+       * y {number|string|Decimal} The y-coordinate.
+       * x {number|string|Decimal} The x-coordinate.
+       *
+       * atan2(±0, -0)               = ±pi
+       * atan2(±0, +0)               = ±0
+       * atan2(±0, -x)               = ±pi for x > 0
+       * atan2(±0, x)                = ±0 for x > 0
+       * atan2(-y, ±0)               = -pi/2 for y > 0
+       * atan2(y, ±0)                = pi/2 for y > 0
+       * atan2(±y, -Infinity)        = ±pi for finite y > 0
+       * atan2(±y, +Infinity)        = ±0 for finite y > 0
+       * atan2(±Infinity, x)         = ±pi/2 for finite x
+       * atan2(±Infinity, -Infinity) = ±3*pi/4
+       * atan2(±Infinity, +Infinity) = ±pi/4
+       * atan2(NaN, x) = NaN
+       * atan2(y, NaN) = NaN
+       *
+       */
+      function atan2(y, x) {
+        y = new this(y);
+        x = new this(x);
+        var r,
+          pr = this.precision,
+          rm = this.rounding,
+          wpr = pr + 4;
+
+        // Either NaN
+        if (!y.s || !x.s) {
+          r = new this(NaN);
+
+        // Both ±Infinity
+        } else if (!y.d && !x.d) {
+          r = getPi(this, wpr, 1).times(x.s > 0 ? 0.25 : 0.75);
+          r.s = y.s;
+
+        // x is ±Infinity or y is ±0
+        } else if (!x.d || y.isZero()) {
+          r = x.s < 0 ? getPi(this, pr, rm) : new this(0);
+          r.s = y.s;
+
+        // y is ±Infinity or x is ±0
+        } else if (!y.d || x.isZero()) {
+          r = getPi(this, wpr, 1).times(0.5);
+          r.s = y.s;
+
+        // Both non-zero and finite
+        } else if (x.s < 0) {
+          this.precision = wpr;
+          this.rounding = 1;
+          r = this.atan(divide(y, x, wpr, 1));
+          x = getPi(this, wpr, 1);
+          this.precision = pr;
+          this.rounding = rm;
+          r = y.s < 0 ? r.minus(x) : r.plus(x);
+        } else {
+          r = this.atan(divide(y, x, wpr, 1));
+        }
+
+        return r;
+      }
+
+
+      /*
+       * Return a new Decimal whose value is the cube root of `x`, rounded to `precision` significant
+       * digits using rounding mode `rounding`.
+       *
+       * x {number|string|Decimal}
+       *
+       */
+      function cbrt(x) {
+        return new this(x).cbrt();
+      }
+
+
+      /*
+       * Return a new Decimal whose value is `x` rounded to an integer using `ROUND_CEIL`.
+       *
+       * x {number|string|Decimal}
+       *
+       */
+      function ceil(x) {
+        return finalise(x = new this(x), x.e + 1, 2);
+      }
+
+
+      /*
+       * Configure global settings for a Decimal constructor.
+       *
+       * `obj` is an object with one or more of the following properties,
+       *
+       *   precision  {number}
+       *   rounding   {number}
+       *   toExpNeg   {number}
+       *   toExpPos   {number}
+       *   maxE       {number}
+       *   minE       {number}
+       *   modulo     {number}
+       *   crypto     {boolean|number}
+       *   defaults   {true}
+       *
+       * E.g. Decimal.config({ precision: 20, rounding: 4 })
+       *
+       */
+      function config(obj) {
+        if (!obj || typeof obj !== 'object') throw Error(decimalError + 'Object expected');
+        var i, p, v,
+          useDefaults = obj.defaults === true,
+          ps = [
+            'precision', 1, MAX_DIGITS,
+            'rounding', 0, 8,
+            'toExpNeg', -EXP_LIMIT, 0,
+            'toExpPos', 0, EXP_LIMIT,
+            'maxE', 0, EXP_LIMIT,
+            'minE', -EXP_LIMIT, 0,
+            'modulo', 0, 9
+          ];
+
+        for (i = 0; i < ps.length; i += 3) {
+          if (p = ps[i], useDefaults) this[p] = DEFAULTS[p];
+          if ((v = obj[p]) !== void 0) {
+            if (mathfloor(v) === v && v >= ps[i + 1] && v <= ps[i + 2]) this[p] = v;
+            else throw Error(invalidArgument + p + ': ' + v);
+          }
+        }
+
+        if (p = 'crypto', useDefaults) this[p] = DEFAULTS[p];
+        if ((v = obj[p]) !== void 0) {
+          if (v === true || v === false || v === 0 || v === 1) {
+            if (v) {
+              if (typeof crypto != 'undefined' && crypto &&
+                (crypto.getRandomValues || crypto.randomBytes)) {
+                this[p] = true;
+              } else {
+                throw Error(cryptoUnavailable);
+              }
+            } else {
+              this[p] = false;
+            }
+          } else {
+            throw Error(invalidArgument + p + ': ' + v);
+          }
+        }
+
+        return this;
+      }
+
+
+      /*
+       * Return a new Decimal whose value is the cosine of `x`, rounded to `precision` significant
+       * digits using rounding mode `rounding`.
+       *
+       * x {number|string|Decimal} A value in radians.
+       *
+       */
+      function cos(x) {
+        return new this(x).cos();
+      }
+
+
+      /*
+       * Return a new Decimal whose value is the hyperbolic cosine of `x`, rounded to precision
+       * significant digits using rounding mode `rounding`.
+       *
+       * x {number|string|Decimal} A value in radians.
+       *
+       */
+      function cosh(x) {
+        return new this(x).cosh();
+      }
+
+
+      /*
+       * Create and return a Decimal constructor with the same configuration properties as this Decimal
+       * constructor.
+       *
+       */
+      function clone(obj) {
+        var i, p, ps;
+
+        /*
+         * The Decimal constructor and exported function.
+         * Return a new Decimal instance.
+         *
+         * v {number|string|Decimal} A numeric value.
+         *
+         */
+        function Decimal(v) {
+          var e, i, t,
+            x = this;
+
+          // Decimal called without new.
+          if (!(x instanceof Decimal)) return new Decimal(v);
+
+          // Retain a reference to this Decimal constructor, and shadow Decimal.prototype.constructor
+          // which points to Object.
+          x.constructor = Decimal;
+
+          // Duplicate.
+          if (v instanceof Decimal) {
+            x.s = v.s;
+
+            if (external) {
+              if (!v.d || v.e > Decimal.maxE) {
+
+                // Infinity.
+                x.e = NaN;
+                x.d = null;
+              } else if (v.e < Decimal.minE) {
+
+                // Zero.
+                x.e = 0;
+                x.d = [0];
+              } else {
+                x.e = v.e;
+                x.d = v.d.slice();
+              }
+            } else {
+              x.e = v.e;
+              x.d = v.d ? v.d.slice() : v.d;
+            }
+
+            return;
+          }
+
+          t = typeof v;
+
+          if (t === 'number') {
+            if (v === 0) {
+              x.s = 1 / v < 0 ? -1 : 1;
+              x.e = 0;
+              x.d = [0];
+              return;
+            }
+
+            if (v < 0) {
+              v = -v;
+              x.s = -1;
+            } else {
+              x.s = 1;
+            }
+
+            // Fast path for small integers.
+            if (v === ~~v && v < 1e7) {
+              for (e = 0, i = v; i >= 10; i /= 10) e++;
+
+              if (external) {
+                if (e > Decimal.maxE) {
+                  x.e = NaN;
+                  x.d = null;
+                } else if (e < Decimal.minE) {
+                  x.e = 0;
+                  x.d = [0];
+                } else {
+                  x.e = e;
+                  x.d = [v];
+                }
+              } else {
+                x.e = e;
+                x.d = [v];
+              }
+
+              return;
+
+            // Infinity, NaN.
+            } else if (v * 0 !== 0) {
+              if (!v) x.s = NaN;
+              x.e = NaN;
+              x.d = null;
+              return;
+            }
+
+            return parseDecimal(x, v.toString());
+
+          } else if (t !== 'string') {
+            throw Error(invalidArgument + v);
+          }
+
+          // Minus sign?
+          if ((i = v.charCodeAt(0)) === 45) {
+            v = v.slice(1);
+            x.s = -1;
+          } else {
+            // Plus sign?
+            if (i === 43) v = v.slice(1);
+            x.s = 1;
+          }
+
+          return isDecimal.test(v) ? parseDecimal(x, v) : parseOther(x, v);
+        }
+
+        Decimal.prototype = P;
+
+        Decimal.ROUND_UP = 0;
+        Decimal.ROUND_DOWN = 1;
+        Decimal.ROUND_CEIL = 2;
+        Decimal.ROUND_FLOOR = 3;
+        Decimal.ROUND_HALF_UP = 4;
+        Decimal.ROUND_HALF_DOWN = 5;
+        Decimal.ROUND_HALF_EVEN = 6;
+        Decimal.ROUND_HALF_CEIL = 7;
+        Decimal.ROUND_HALF_FLOOR = 8;
+        Decimal.EUCLID = 9;
+
+        Decimal.config = Decimal.set = config;
+        Decimal.clone = clone;
+        Decimal.isDecimal = isDecimalInstance;
+
+        Decimal.abs = abs;
+        Decimal.acos = acos;
+        Decimal.acosh = acosh;        // ES6
+        Decimal.add = add;
+        Decimal.asin = asin;
+        Decimal.asinh = asinh;        // ES6
+        Decimal.atan = atan;
+        Decimal.atanh = atanh;        // ES6
+        Decimal.atan2 = atan2;
+        Decimal.cbrt = cbrt;          // ES6
+        Decimal.ceil = ceil;
+        Decimal.cos = cos;
+        Decimal.cosh = cosh;          // ES6
+        Decimal.div = div;
+        Decimal.exp = exp;
+        Decimal.floor = floor;
+        Decimal.hypot = hypot;        // ES6
+        Decimal.ln = ln;
+        Decimal.log = log;
+        Decimal.log10 = log10;        // ES6
+        Decimal.log2 = log2;          // ES6
+        Decimal.max = max;
+        Decimal.min = min;
+        Decimal.mod = mod;
+        Decimal.mul = mul;
+        Decimal.pow = pow;
+        Decimal.random = random;
+        Decimal.round = round;
+        Decimal.sign = sign;          // ES6
+        Decimal.sin = sin;
+        Decimal.sinh = sinh;          // ES6
+        Decimal.sqrt = sqrt;
+        Decimal.sub = sub;
+        Decimal.tan = tan;
+        Decimal.tanh = tanh;          // ES6
+        Decimal.trunc = trunc;        // ES6
+
+        if (obj === void 0) obj = {};
+        if (obj) {
+          if (obj.defaults !== true) {
+            ps = ['precision', 'rounding', 'toExpNeg', 'toExpPos', 'maxE', 'minE', 'modulo', 'crypto'];
+            for (i = 0; i < ps.length;) if (!obj.hasOwnProperty(p = ps[i++])) obj[p] = this[p];
+          }
+        }
+
+        Decimal.config(obj);
+
+        return Decimal;
+      }
+
+
+      /*
+       * Return a new Decimal whose value is `x` divided by `y`, rounded to `precision` significant
+       * digits using rounding mode `rounding`.
+       *
+       * x {number|string|Decimal}
+       * y {number|string|Decimal}
+       *
+       */
+      function div(x, y) {
+        return new this(x).div(y);
+      }
+
+
+      /*
+       * Return a new Decimal whose value is the natural exponential of `x`, rounded to `precision`
+       * significant digits using rounding mode `rounding`.
+       *
+       * x {number|string|Decimal} The power to which to raise the base of the natural log.
+       *
+       */
+      function exp(x) {
+        return new this(x).exp();
+      }
+
+
+      /*
+       * Return a new Decimal whose value is `x` round to an integer using `ROUND_FLOOR`.
+       *
+       * x {number|string|Decimal}
+       *
+       */
+      function floor(x) {
+        return finalise(x = new this(x), x.e + 1, 3);
+      }
+
+
+      /*
+       * Return a new Decimal whose value is the square root of the sum of the squares of the arguments,
+       * rounded to `precision` significant digits using rounding mode `rounding`.
+       *
+       * hypot(a, b, ...) = sqrt(a^2 + b^2 + ...)
+       *
+       * arguments {number|string|Decimal}
+       *
+       */
+      function hypot() {
+        var i, n,
+          t = new this(0);
+
+        external = false;
+
+        for (i = 0; i < arguments.length;) {
+          n = new this(arguments[i++]);
+          if (!n.d) {
+            if (n.s) {
+              external = true;
+              return new this(1 / 0);
+            }
+            t = n;
+          } else if (t.d) {
+            t = t.plus(n.times(n));
+          }
+        }
+
+        external = true;
+
+        return t.sqrt();
+      }
+
+
+      /*
+       * Return true if object is a Decimal instance (where Decimal is any Decimal constructor),
+       * otherwise return false.
+       *
+       */
+      function isDecimalInstance(obj) {
+        return obj instanceof Decimal || obj && obj.name === '[object Decimal]' || false;
+      }
+
+
+      /*
+       * Return a new Decimal whose value is the natural logarithm of `x`, rounded to `precision`
+       * significant digits using rounding mode `rounding`.
+       *
+       * x {number|string|Decimal}
+       *
+       */
+      function ln(x) {
+        return new this(x).ln();
+      }
+
+
+      /*
+       * Return a new Decimal whose value is the log of `x` to the base `y`, or to base 10 if no base
+       * is specified, rounded to `precision` significant digits using rounding mode `rounding`.
+       *
+       * log[y](x)
+       *
+       * x {number|string|Decimal} The argument of the logarithm.
+       * y {number|string|Decimal} The base of the logarithm.
+       *
+       */
+      function log(x, y) {
+        return new this(x).log(y);
+      }
+
+
+      /*
+       * Return a new Decimal whose value is the base 2 logarithm of `x`, rounded to `precision`
+       * significant digits using rounding mode `rounding`.
+       *
+       * x {number|string|Decimal}
+       *
+       */
+      function log2(x) {
+        return new this(x).log(2);
+      }
+
+
+      /*
+       * Return a new Decimal whose value is the base 10 logarithm of `x`, rounded to `precision`
+       * significant digits using rounding mode `rounding`.
+       *
+       * x {number|string|Decimal}
+       *
+       */
+      function log10(x) {
+        return new this(x).log(10);
+      }
+
+
+      /*
+       * Return a new Decimal whose value is the maximum of the arguments.
+       *
+       * arguments {number|string|Decimal}
+       *
+       */
+      function max() {
+        return maxOrMin(this, arguments, 'lt');
+      }
+
+
+      /*
+       * Return a new Decimal whose value is the minimum of the arguments.
+       *
+       * arguments {number|string|Decimal}
+       *
+       */
+      function min() {
+        return maxOrMin(this, arguments, 'gt');
+      }
+
+
+      /*
+       * Return a new Decimal whose value is `x` modulo `y`, rounded to `precision` significant digits
+       * using rounding mode `rounding`.
+       *
+       * x {number|string|Decimal}
+       * y {number|string|Decimal}
+       *
+       */
+      function mod(x, y) {
+        return new this(x).mod(y);
+      }
+
+
+      /*
+       * Return a new Decimal whose value is `x` multiplied by `y`, rounded to `precision` significant
+       * digits using rounding mode `rounding`.
+       *
+       * x {number|string|Decimal}
+       * y {number|string|Decimal}
+       *
+       */
+      function mul(x, y) {
+        return new this(x).mul(y);
+      }
+
+
+      /*
+       * Return a new Decimal whose value is `x` raised to the power `y`, rounded to precision
+       * significant digits using rounding mode `rounding`.
+       *
+       * x {number|string|Decimal} The base.
+       * y {number|string|Decimal} The exponent.
+       *
+       */
+      function pow(x, y) {
+        return new this(x).pow(y);
+      }
+
+
+      /*
+       * Returns a new Decimal with a random value equal to or greater than 0 and less than 1, and with
+       * `sd`, or `Decimal.precision` if `sd` is omitted, significant digits (or less if trailing zeros
+       * are produced).
+       *
+       * [sd] {number} Significant digits. Integer, 0 to MAX_DIGITS inclusive.
+       *
+       */
+      function random(sd) {
+        var d, e, k, n,
+          i = 0,
+          r = new this(1),
+          rd = [];
+
+        if (sd === void 0) sd = this.precision;
+        else checkInt32(sd, 1, MAX_DIGITS);
+
+        k = Math.ceil(sd / LOG_BASE);
+
+        if (!this.crypto) {
+          for (; i < k;) rd[i++] = Math.random() * 1e7 | 0;
+
+        // Browsers supporting crypto.getRandomValues.
+        } else if (crypto.getRandomValues) {
+          d = crypto.getRandomValues(new Uint32Array(k));
+
+          for (; i < k;) {
+            n = d[i];
+
+            // 0 <= n < 4294967296
+            // Probability n >= 4.29e9, is 4967296 / 4294967296 = 0.00116 (1 in 865).
+            if (n >= 4.29e9) {
+              d[i] = crypto.getRandomValues(new Uint32Array(1))[0];
+            } else {
+
+              // 0 <= n <= 4289999999
+              // 0 <= (n % 1e7) <= 9999999
+              rd[i++] = n % 1e7;
+            }
+          }
+
+        // Node.js supporting crypto.randomBytes.
+        } else if (crypto.randomBytes) {
+
+          // buffer
+          d = crypto.randomBytes(k *= 4);
+
+          for (; i < k;) {
+
+            // 0 <= n < 2147483648
+            n = d[i] + (d[i + 1] << 8) + (d[i + 2] << 16) + ((d[i + 3] & 0x7f) << 24);
+
+            // Probability n >= 2.14e9, is 7483648 / 2147483648 = 0.0035 (1 in 286).
+            if (n >= 2.14e9) {
+              crypto.randomBytes(4).copy(d, i);
+            } else {
+
+              // 0 <= n <= 2139999999
+              // 0 <= (n % 1e7) <= 9999999
+              rd.push(n % 1e7);
+              i += 4;
+            }
+          }
+
+          i = k / 4;
+        } else {
+          throw Error(cryptoUnavailable);
+        }
+
+        k = rd[--i];
+        sd %= LOG_BASE;
+
+        // Convert trailing digits to zeros according to sd.
+        if (k && sd) {
+          n = mathpow(10, LOG_BASE - sd);
+          rd[i] = (k / n | 0) * n;
+        }
+
+        // Remove trailing words which are zero.
+        for (; rd[i] === 0; i--) rd.pop();
+
+        // Zero?
+        if (i < 0) {
+          e = 0;
+          rd = [0];
+        } else {
+          e = -1;
+
+          // Remove leading words which are zero and adjust exponent accordingly.
+          for (; rd[0] === 0; e -= LOG_BASE) rd.shift();
+
+          // Count the digits of the first word of rd to determine leading zeros.
+          for (k = 1, n = rd[0]; n >= 10; n /= 10) k++;
+
+          // Adjust the exponent for leading zeros of the first word of rd.
+          if (k < LOG_BASE) e -= LOG_BASE - k;
+        }
+
+        r.e = e;
+        r.d = rd;
+
+        return r;
+      }
+
+
+      /*
+       * Return a new Decimal whose value is `x` rounded to an integer using rounding mode `rounding`.
+       *
+       * To emulate `Math.round`, set rounding to 7 (ROUND_HALF_CEIL).
+       *
+       * x {number|string|Decimal}
+       *
+       */
+      function round(x) {
+        return finalise(x = new this(x), x.e + 1, this.rounding);
+      }
+
+
+      /*
+       * Return
+       *   1    if x > 0,
+       *  -1    if x < 0,
+       *   0    if x is 0,
+       *  -0    if x is -0,
+       *   NaN  otherwise
+       *
+       * x {number|string|Decimal}
+       *
+       */
+      function sign(x) {
+        x = new this(x);
+        return x.d ? (x.d[0] ? x.s : 0 * x.s) : x.s || NaN;
+      }
+
+
+      /*
+       * Return a new Decimal whose value is the sine of `x`, rounded to `precision` significant digits
+       * using rounding mode `rounding`.
+       *
+       * x {number|string|Decimal} A value in radians.
+       *
+       */
+      function sin(x) {
+        return new this(x).sin();
+      }
+
+
+      /*
+       * Return a new Decimal whose value is the hyperbolic sine of `x`, rounded to `precision`
+       * significant digits using rounding mode `rounding`.
+       *
+       * x {number|string|Decimal} A value in radians.
+       *
+       */
+      function sinh(x) {
+        return new this(x).sinh();
+      }
+
+
+      /*
+       * Return a new Decimal whose value is the square root of `x`, rounded to `precision` significant
+       * digits using rounding mode `rounding`.
+       *
+       * x {number|string|Decimal}
+       *
+       */
+      function sqrt(x) {
+        return new this(x).sqrt();
+      }
+
+
+      /*
+       * Return a new Decimal whose value is `x` minus `y`, rounded to `precision` significant digits
+       * using rounding mode `rounding`.
+       *
+       * x {number|string|Decimal}
+       * y {number|string|Decimal}
+       *
+       */
+      function sub(x, y) {
+        return new this(x).sub(y);
+      }
+
+
+      /*
+       * Return a new Decimal whose value is the tangent of `x`, rounded to `precision` significant
+       * digits using rounding mode `rounding`.
+       *
+       * x {number|string|Decimal} A value in radians.
+       *
+       */
+      function tan(x) {
+        return new this(x).tan();
+      }
+
+
+      /*
+       * Return a new Decimal whose value is the hyperbolic tangent of `x`, rounded to `precision`
+       * significant digits using rounding mode `rounding`.
+       *
+       * x {number|string|Decimal} A value in radians.
+       *
+       */
+      function tanh(x) {
+        return new this(x).tanh();
+      }
+
+
+      /*
+       * Return a new Decimal whose value is `x` truncated to an integer.
+       *
+       * x {number|string|Decimal}
+       *
+       */
+      function trunc(x) {
+        return finalise(x = new this(x), x.e + 1, 1);
+      }
+
+
+      // Create and configure initial Decimal constructor.
+      Decimal = clone(DEFAULTS);
+
+      Decimal['default'] = Decimal.Decimal = Decimal;
+
+      // Create the internal constants from their string values.
+      LN10 = new Decimal(LN10);
+      PI = new Decimal(PI);
+
+
+      // Export.
+
+
+      // AMD.
+      if ( module.exports) {
+        if (typeof Symbol == 'function' && typeof Symbol.iterator == 'symbol') {
+          P[Symbol.for('nodejs.util.inspect.custom')] = P.toString;
+          P[Symbol.toStringTag] = 'Decimal';
+        }
+
+        module.exports = Decimal;
+
+      // Browser.
+      } else {
+        if (!globalScope) {
+          globalScope = typeof self != 'undefined' && self && self.self == self ? self : window;
+        }
+
+        noConflict = globalScope.Decimal;
+        Decimal.noConflict = function () {
+          globalScope.Decimal = noConflict;
+          return Decimal;
+        };
+
+        globalScope.Decimal = Decimal;
+      }
+    })(commonjsGlobal);
+    });
+
+    const name = 'BigNumber';
+    const dependencies$1 = ['?on', 'config'];
+
+    const createBigNumberClass = /* #__PURE__ */ factory(name, dependencies$1, ({ on, config }) => {
+      const BigNumber = decimal.clone({ precision: config.precision });
+
+      /**
+       * Attach type information
+       */
+      BigNumber.prototype.type = 'BigNumber';
+      BigNumber.prototype.isBigNumber = true;
+
+      /**
+       * Get a JSON representation of a BigNumber containing
+       * type information
+       * @returns {Object} Returns a JSON object structured as:
+       *                   `{"mathjs": "BigNumber", "value": "0.2"}`
+       */
+      BigNumber.prototype.toJSON = function () {
+        return {
+          mathjs: 'BigNumber',
+          value: this.toString()
+        }
+      };
+
+      /**
+       * Instantiate a BigNumber from a JSON object
+       * @param {Object} json  a JSON object structured as:
+       *                       `{"mathjs": "BigNumber", "value": "0.2"}`
+       * @return {BigNumber}
+       */
+      BigNumber.fromJSON = function (json) {
+        return new BigNumber(json.value)
+      };
+
+      if (on) {
+        // listen for changed in the configuration, automatically apply changed precision
+        on('config', function (curr, prev) {
+          if (curr.precision !== prev.precision) {
+            BigNumber.config({ precision: curr.precision });
+          }
+        });
+      }
+
+      return BigNumber
+    }, { isClass: true });
+
+    var complex = createCommonjsModule(function (module, exports) {
+    /**
+     * @license Complex.js v2.0.11 11/02/2016
+     *
+     * Copyright (c) 2016, Robert Eisele (robert@xarg.org)
+     * Dual licensed under the MIT or GPL Version 2 licenses.
+     **/
+
+    /**
+     *
+     * This class allows the manipulation of complex numbers.
+     * You can pass a complex number in different formats. Either as object, double, string or two integer parameters.
+     *
+     * Object form
+     * { re: <real>, im: <imaginary> }
+     * { arg: <angle>, abs: <radius> }
+     * { phi: <angle>, r: <radius> }
+     *
+     * Array / Vector form
+     * [ real, imaginary ]
+     *
+     * Double form
+     * 99.3 - Single double value
+     *
+     * String form
+     * '23.1337' - Simple real number
+     * '15+3i' - a simple complex number
+     * '3-i' - a simple complex number
+     *
+     * Example:
+     *
+     * var c = new Complex('99.3+8i');
+     * c.mul({r: 3, i: 9}).div(4.9).sub(3, 2);
+     *
+     */
+
+    (function(root) {
+
+      var cosh = function(x) {
+        return (Math.exp(x) + Math.exp(-x)) * 0.5;
+      };
+
+      var sinh = function(x) {
+        return (Math.exp(x) - Math.exp(-x)) * 0.5;
+      };
+
+      /**
+       * Calculates cos(x) - 1 using Taylor series if x is small.
+       *
+       * @param {number} x
+       * @returns {number} cos(x) - 1
+       */
+
+      var cosm1 = function(x) {
+        var limit = Math.PI/4;
+        if (x < -limit || x > limit) {
+          return (Math.cos(x) - 1.0);
+        }
+
+        var xx = x * x;
+        return xx *
+          (-0.5 + xx *
+            (1/24 + xx *
+              (-1/720 + xx *
+                (1/40320 + xx *
+                  (-1/3628800 + xx *
+                    (1/4790014600 + xx *
+                      (-1/87178291200 + xx *
+                        (1/20922789888000)
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          )
+      };
+
+      var hypot = function(x, y) {
+
+        var a = Math.abs(x);
+        var b = Math.abs(y);
+
+        if (a < 3000 && b < 3000) {
+          return Math.sqrt(a * a + b * b);
+        }
+
+        if (a < b) {
+          a = b;
+          b = x / y;
+        } else {
+          b = y / x;
+        }
+        return a * Math.sqrt(1 + b * b);
+      };
+
+      var parser_exit = function() {
+        throw SyntaxError('Invalid Param');
+      };
+
+      /**
+       * Calculates log(sqrt(a^2+b^2)) in a way to avoid overflows
+       *
+       * @param {number} a
+       * @param {number} b
+       * @returns {number}
+       */
+      function logHypot(a, b) {
+
+        var _a = Math.abs(a);
+        var _b = Math.abs(b);
+
+        if (a === 0) {
+          return Math.log(_b);
+        }
+
+        if (b === 0) {
+          return Math.log(_a);
+        }
+
+        if (_a < 3000 && _b < 3000) {
+          return Math.log(a * a + b * b) * 0.5;
+        }
+
+        /* I got 4 ideas to compute this property without overflow:
+         *
+         * Testing 1000000 times with random samples for a,b ∈ [1, 1000000000] against a big decimal library to get an error estimate
+         *
+         * 1. Only eliminate the square root: (OVERALL ERROR: 3.9122483030951116e-11)
+
+         Math.log(a * a + b * b) / 2
+
+         *
+         *
+         * 2. Try to use the non-overflowing pythagoras: (OVERALL ERROR: 8.889760039210159e-10)
+
+         var fn = function(a, b) {
+         a = Math.abs(a);
+         b = Math.abs(b);
+         var t = Math.min(a, b);
+         a = Math.max(a, b);
+         t = t / a;
+
+         return Math.log(a) + Math.log(1 + t * t) / 2;
+         };
+
+         * 3. Abuse the identity cos(atan(y/x) = x / sqrt(x^2+y^2): (OVERALL ERROR: 3.4780178737037204e-10)
+
+         Math.log(a / Math.cos(Math.atan2(b, a)))
+
+         * 4. Use 3. and apply log rules: (OVERALL ERROR: 1.2014087502620896e-9)
+
+         Math.log(a) - Math.log(Math.cos(Math.atan2(b, a)))
+
+         */
+
+        return Math.log(a / Math.cos(Math.atan2(b, a)));
+      }
+
+      var parse = function(a, b) {
+
+        var z = {'re': 0, 'im': 0};
+
+        if (a === undefined || a === null) {
+          z['re'] =
+                  z['im'] = 0;
+        } else if (b !== undefined) {
+          z['re'] = a;
+          z['im'] = b;
+        } else
+          switch (typeof a) {
+
+            case 'object':
+
+              if ('im' in a && 're' in a) {
+                z['re'] = a['re'];
+                z['im'] = a['im'];
+              } else if ('abs' in a && 'arg' in a) {
+                if (!Number.isFinite(a['abs']) && Number.isFinite(a['arg'])) {
+                  return Complex['INFINITY'];
+                }
+                z['re'] = a['abs'] * Math.cos(a['arg']);
+                z['im'] = a['abs'] * Math.sin(a['arg']);
+              } else if ('r' in a && 'phi' in a) {
+                if (!Number.isFinite(a['r']) && Number.isFinite(a['phi'])) {
+                  return Complex['INFINITY'];
+                }
+                z['re'] = a['r'] * Math.cos(a['phi']);
+                z['im'] = a['r'] * Math.sin(a['phi']);
+              } else if (a.length === 2) { // Quick array check
+                z['re'] = a[0];
+                z['im'] = a[1];
+              } else {
+                parser_exit();
+              }
+              break;
+
+            case 'string':
+
+              z['im'] = /* void */
+                      z['re'] = 0;
+
+              var tokens = a.match(/\d+\.?\d*e[+-]?\d+|\d+\.?\d*|\.\d+|./g);
+              var plus = 1;
+              var minus = 0;
+
+              if (tokens === null) {
+                parser_exit();
+              }
+
+              for (var i = 0; i < tokens.length; i++) {
+
+                var c = tokens[i];
+
+                if (c === ' ' || c === '\t' || c === '\n') ; else if (c === '+') {
+                  plus++;
+                } else if (c === '-') {
+                  minus++;
+                } else if (c === 'i' || c === 'I') {
+
+                  if (plus + minus === 0) {
+                    parser_exit();
+                  }
+
+                  if (tokens[i + 1] !== ' ' && !isNaN(tokens[i + 1])) {
+                    z['im'] += parseFloat((minus % 2 ? '-' : '') + tokens[i + 1]);
+                    i++;
+                  } else {
+                    z['im'] += parseFloat((minus % 2 ? '-' : '') + '1');
+                  }
+                  plus = minus = 0;
+
+                } else {
+
+                  if (plus + minus === 0 || isNaN(c)) {
+                    parser_exit();
+                  }
+
+                  if (tokens[i + 1] === 'i' || tokens[i + 1] === 'I') {
+                    z['im'] += parseFloat((minus % 2 ? '-' : '') + c);
+                    i++;
+                  } else {
+                    z['re'] += parseFloat((minus % 2 ? '-' : '') + c);
+                  }
+                  plus = minus = 0;
+                }
+              }
+
+              // Still something on the stack
+              if (plus + minus > 0) {
+                parser_exit();
+              }
+              break;
+
+            case 'number':
+              z['im'] = 0;
+              z['re'] = a;
+              break;
+
+            default:
+              parser_exit();
+          }
+
+        return z;
+      };
+
+      /**
+       * @constructor
+       * @returns {Complex}
+       */
+      function Complex(a, b) {
+
+        if (!(this instanceof Complex)) {
+          return new Complex(a, b);
+        }
+
+        var z = parse(a, b);
+
+        this['re'] = z['re'];
+        this['im'] = z['im'];
+      }
+
+      Complex.prototype = {
+
+        're': 0,
+        'im': 0,
+
+        /**
+         * Calculates the sign of a complex number, which is a normalized complex
+         *
+         * @returns {Complex}
+         */
+        'sign': function() {
+
+          var abs = this['abs']();
+
+          return new Complex(
+                  this['re'] / abs,
+                  this['im'] / abs);
+        },
+
+        /**
+         * Adds two complex numbers
+         *
+         * @returns {Complex}
+         */
+        'add': function(a, b) {
+
+          var z = new Complex(a, b);
+
+          // Infinity + Infinity = NaN
+          if (this['isInfinite']() && z['isInfinite']()) {
+            return Complex['NAN'];
+          }
+
+          // Infinity + z = Infinity { where z != Infinity }
+          if (this['isInfinite']() || z['isInfinite']()) {
+            return Complex['INFINITY'];
+          }
+
+          return new Complex(
+                  this['re'] + z['re'],
+                  this['im'] + z['im']);
+        },
+
+        /**
+         * Subtracts two complex numbers
+         *
+         * @returns {Complex}
+         */
+        'sub': function(a, b) {
+
+          var z = new Complex(a, b);
+
+          // Infinity - Infinity = NaN
+          if (this['isInfinite']() && z['isInfinite']()) {
+            return Complex['NAN'];
+          }
+
+          // Infinity - z = Infinity { where z != Infinity }
+          if (this['isInfinite']() || z['isInfinite']()) {
+            return Complex['INFINITY'];
+          }
+
+          return new Complex(
+                  this['re'] - z['re'],
+                  this['im'] - z['im']);
+        },
+
+        /**
+         * Multiplies two complex numbers
+         *
+         * @returns {Complex}
+         */
+        'mul': function(a, b) {
+
+          var z = new Complex(a, b);
+
+          // Infinity * 0 = NaN
+          if ((this['isInfinite']() && z['isZero']()) || (this['isZero']() && z['isInfinite']())) {
+            return Complex['NAN'];
+          }
+
+          // Infinity * z = Infinity { where z != 0 }
+          if (this['isInfinite']() || z['isInfinite']()) {
+            return Complex['INFINITY'];
+          }
+
+          // Short circuit for real values
+          if (z['im'] === 0 && this['im'] === 0) {
+            return new Complex(this['re'] * z['re'], 0);
+          }
+
+          return new Complex(
+                  this['re'] * z['re'] - this['im'] * z['im'],
+                  this['re'] * z['im'] + this['im'] * z['re']);
+        },
+
+        /**
+         * Divides two complex numbers
+         *
+         * @returns {Complex}
+         */
+        'div': function(a, b) {
+
+          var z = new Complex(a, b);
+
+          // 0 / 0 = NaN and Infinity / Infinity = NaN
+          if ((this['isZero']() && z['isZero']()) || (this['isInfinite']() && z['isInfinite']())) {
+            return Complex['NAN'];
+          }
+
+          // Infinity / 0 = Infinity
+          if (this['isInfinite']() || z['isZero']()) {
+            return Complex['INFINITY'];
+          }
+
+          // 0 / Infinity = 0
+          if (this['isZero']() || z['isInfinite']()) {
+            return Complex['ZERO'];
+          }
+
+          a = this['re'];
+          b = this['im'];
+
+          var c = z['re'];
+          var d = z['im'];
+          var t, x;
+
+          if (0 === d) {
+            // Divisor is real
+            return new Complex(a / c, b / c);
+          }
+
+          if (Math.abs(c) < Math.abs(d)) {
+
+            x = c / d;
+            t = c * x + d;
+
+            return new Complex(
+                    (a * x + b) / t,
+                    (b * x - a) / t);
+
+          } else {
+
+            x = d / c;
+            t = d * x + c;
+
+            return new Complex(
+                    (a + b * x) / t,
+                    (b - a * x) / t);
+          }
+        },
+
+        /**
+         * Calculate the power of two complex numbers
+         *
+         * @returns {Complex}
+         */
+        'pow': function(a, b) {
+
+          var z = new Complex(a, b);
+
+          a = this['re'];
+          b = this['im'];
+
+          if (z['isZero']()) {
+            return Complex['ONE'];
+          }
+
+          // If the exponent is real
+          if (z['im'] === 0) {
+
+            if (b === 0 && a >= 0) {
+
+              return new Complex(Math.pow(a, z['re']), 0);
+
+            } else if (a === 0) { // If base is fully imaginary
+
+              switch ((z['re'] % 4 + 4) % 4) {
+                case 0:
+                  return new Complex(Math.pow(b, z['re']), 0);
+                case 1:
+                  return new Complex(0, Math.pow(b, z['re']));
+                case 2:
+                  return new Complex(-Math.pow(b, z['re']), 0);
+                case 3:
+                  return new Complex(0, -Math.pow(b, z['re']));
+              }
+            }
+          }
+
+          /* I couldn't find a good formula, so here is a derivation and optimization
+           *
+           * z_1^z_2 = (a + bi)^(c + di)
+           *         = exp((c + di) * log(a + bi)
+           *         = pow(a^2 + b^2, (c + di) / 2) * exp(i(c + di)atan2(b, a))
+           * =>...
+           * Re = (pow(a^2 + b^2, c / 2) * exp(-d * atan2(b, a))) * cos(d * log(a^2 + b^2) / 2 + c * atan2(b, a))
+           * Im = (pow(a^2 + b^2, c / 2) * exp(-d * atan2(b, a))) * sin(d * log(a^2 + b^2) / 2 + c * atan2(b, a))
+           *
+           * =>...
+           * Re = exp(c * log(sqrt(a^2 + b^2)) - d * atan2(b, a)) * cos(d * log(sqrt(a^2 + b^2)) + c * atan2(b, a))
+           * Im = exp(c * log(sqrt(a^2 + b^2)) - d * atan2(b, a)) * sin(d * log(sqrt(a^2 + b^2)) + c * atan2(b, a))
+           *
+           * =>
+           * Re = exp(c * logsq2 - d * arg(z_1)) * cos(d * logsq2 + c * arg(z_1))
+           * Im = exp(c * logsq2 - d * arg(z_1)) * sin(d * logsq2 + c * arg(z_1))
+           *
+           */
+
+          if (a === 0 && b === 0 && z['re'] > 0 && z['im'] >= 0) {
+            return Complex['ZERO'];
+          }
+
+          var arg = Math.atan2(b, a);
+          var loh = logHypot(a, b);
+
+          a = Math.exp(z['re'] * loh - z['im'] * arg);
+          b = z['im'] * loh + z['re'] * arg;
+          return new Complex(
+                  a * Math.cos(b),
+                  a * Math.sin(b));
+        },
+
+        /**
+         * Calculate the complex square root
+         *
+         * @returns {Complex}
+         */
+        'sqrt': function() {
+
+          var a = this['re'];
+          var b = this['im'];
+          var r = this['abs']();
+
+          var re, im;
+
+          if (a >= 0) {
+
+            if (b === 0) {
+              return new Complex(Math.sqrt(a), 0);
+            }
+
+            re = 0.5 * Math.sqrt(2.0 * (r + a));
+          } else {
+            re = Math.abs(b) / Math.sqrt(2 * (r - a));
+          }
+
+          if (a <= 0) {
+            im = 0.5 * Math.sqrt(2.0 * (r - a));
+          } else {
+            im = Math.abs(b) / Math.sqrt(2 * (r + a));
+          }
+
+          return new Complex(re, b < 0 ? -im : im);
+        },
+
+        /**
+         * Calculate the complex exponent
+         *
+         * @returns {Complex}
+         */
+        'exp': function() {
+
+          var tmp = Math.exp(this['re']);
+
+          if (this['im'] === 0) ;
+          return new Complex(
+                  tmp * Math.cos(this['im']),
+                  tmp * Math.sin(this['im']));
+        },
+
+        /**
+         * Calculate the complex exponent and subtracts one.
+         *
+         * This may be more accurate than `Complex(x).exp().sub(1)` if
+         * `x` is small.
+         *
+         * @returns {Complex}
+         */
+        'expm1': function() {
+
+          /**
+           * exp(a + i*b) - 1
+           = exp(a) * (cos(b) + j*sin(b)) - 1
+           = expm1(a)*cos(b) + cosm1(b) + j*exp(a)*sin(b)
+           */
+
+          var a = this['re'];
+          var b = this['im'];
+
+          return new Complex(
+                  Math.expm1(a) * Math.cos(b) + cosm1(b),
+                  Math.exp(a) * Math.sin(b));
+        },
+
+        /**
+         * Calculate the natural log
+         *
+         * @returns {Complex}
+         */
+        'log': function() {
+
+          var a = this['re'];
+          var b = this['im'];
+
+          return new Complex(
+                  logHypot(a, b),
+                  Math.atan2(b, a));
+        },
+
+        /**
+         * Calculate the magnitude of the complex number
+         *
+         * @returns {number}
+         */
+        'abs': function() {
+
+          return hypot(this['re'], this['im']);
+        },
+
+        /**
+         * Calculate the angle of the complex number
+         *
+         * @returns {number}
+         */
+        'arg': function() {
+
+          return Math.atan2(this['im'], this['re']);
+        },
+
+        /**
+         * Calculate the sine of the complex number
+         *
+         * @returns {Complex}
+         */
+        'sin': function() {
+
+          // sin(c) = (e^b - e^(-b)) / (2i)
+
+          var a = this['re'];
+          var b = this['im'];
+
+          return new Complex(
+                  Math.sin(a) * cosh(b),
+                  Math.cos(a) * sinh(b));
+        },
+
+        /**
+         * Calculate the cosine
+         *
+         * @returns {Complex}
+         */
+        'cos': function() {
+
+          // cos(z) = (e^b + e^(-b)) / 2
+
+          var a = this['re'];
+          var b = this['im'];
+
+          return new Complex(
+                  Math.cos(a) * cosh(b),
+                  -Math.sin(a) * sinh(b));
+        },
+
+        /**
+         * Calculate the tangent
+         *
+         * @returns {Complex}
+         */
+        'tan': function() {
+
+          // tan(c) = (e^(ci) - e^(-ci)) / (i(e^(ci) + e^(-ci)))
+
+          var a = 2 * this['re'];
+          var b = 2 * this['im'];
+          var d = Math.cos(a) + cosh(b);
+
+          return new Complex(
+                  Math.sin(a) / d,
+                  sinh(b) / d);
+        },
+
+        /**
+         * Calculate the cotangent
+         *
+         * @returns {Complex}
+         */
+        'cot': function() {
+
+          // cot(c) = i(e^(ci) + e^(-ci)) / (e^(ci) - e^(-ci))
+
+          var a = 2 * this['re'];
+          var b = 2 * this['im'];
+          var d = Math.cos(a) - cosh(b);
+
+          return new Complex(
+                  -Math.sin(a) / d,
+                  sinh(b) / d);
+        },
+
+        /**
+         * Calculate the secant
+         *
+         * @returns {Complex}
+         */
+        'sec': function() {
+
+          // sec(c) = 2 / (e^(ci) + e^(-ci))
+
+          var a = this['re'];
+          var b = this['im'];
+          var d = 0.5 * cosh(2 * b) + 0.5 * Math.cos(2 * a);
+
+          return new Complex(
+                  Math.cos(a) * cosh(b) / d,
+                  Math.sin(a) * sinh(b) / d);
+        },
+
+        /**
+         * Calculate the cosecans
+         *
+         * @returns {Complex}
+         */
+        'csc': function() {
+
+          // csc(c) = 2i / (e^(ci) - e^(-ci))
+
+          var a = this['re'];
+          var b = this['im'];
+          var d = 0.5 * cosh(2 * b) - 0.5 * Math.cos(2 * a);
+
+          return new Complex(
+                  Math.sin(a) * cosh(b) / d,
+                  -Math.cos(a) * sinh(b) / d);
+        },
+
+        /**
+         * Calculate the complex arcus sinus
+         *
+         * @returns {Complex}
+         */
+        'asin': function() {
+
+          // asin(c) = -i * log(ci + sqrt(1 - c^2))
+
+          var a = this['re'];
+          var b = this['im'];
+
+          var t1 = new Complex(
+                  b * b - a * a + 1,
+                  -2 * a * b)['sqrt']();
+
+          var t2 = new Complex(
+                  t1['re'] - b,
+                  t1['im'] + a)['log']();
+
+          return new Complex(t2['im'], -t2['re']);
+        },
+
+        /**
+         * Calculate the complex arcus cosinus
+         *
+         * @returns {Complex}
+         */
+        'acos': function() {
+
+          // acos(c) = i * log(c - i * sqrt(1 - c^2))
+
+          var a = this['re'];
+          var b = this['im'];
+
+          var t1 = new Complex(
+                  b * b - a * a + 1,
+                  -2 * a * b)['sqrt']();
+
+          var t2 = new Complex(
+                  t1['re'] - b,
+                  t1['im'] + a)['log']();
+
+          return new Complex(Math.PI / 2 - t2['im'], t2['re']);
+        },
+
+        /**
+         * Calculate the complex arcus tangent
+         *
+         * @returns {Complex}
+         */
+        'atan': function() {
+
+          // atan(c) = i / 2 log((i + x) / (i - x))
+
+          var a = this['re'];
+          var b = this['im'];
+
+          if (a === 0) {
+
+            if (b === 1) {
+              return new Complex(0, Infinity);
+            }
+
+            if (b === -1) {
+              return new Complex(0, -Infinity);
+            }
+          }
+
+          var d = a * a + (1.0 - b) * (1.0 - b);
+
+          var t1 = new Complex(
+                  (1 - b * b - a * a) / d,
+                  -2 * a / d).log();
+
+          return new Complex(-0.5 * t1['im'], 0.5 * t1['re']);
+        },
+
+        /**
+         * Calculate the complex arcus cotangent
+         *
+         * @returns {Complex}
+         */
+        'acot': function() {
+
+          // acot(c) = i / 2 log((c - i) / (c + i))
+
+          var a = this['re'];
+          var b = this['im'];
+
+          if (b === 0) {
+            return new Complex(Math.atan2(1, a), 0);
+          }
+
+          var d = a * a + b * b;
+          return (d !== 0)
+                  ? new Complex(
+                          a / d,
+                          -b / d).atan()
+                  : new Complex(
+                          (a !== 0) ? a / 0 : 0,
+                          (b !== 0) ? -b / 0 : 0).atan();
+        },
+
+        /**
+         * Calculate the complex arcus secant
+         *
+         * @returns {Complex}
+         */
+        'asec': function() {
+
+          // asec(c) = -i * log(1 / c + sqrt(1 - i / c^2))
+
+          var a = this['re'];
+          var b = this['im'];
+
+          if (a === 0 && b === 0) {
+            return new Complex(0, Infinity);
+          }
+
+          var d = a * a + b * b;
+          return (d !== 0)
+                  ? new Complex(
+                          a / d,
+                          -b / d).acos()
+                  : new Complex(
+                          (a !== 0) ? a / 0 : 0,
+                          (b !== 0) ? -b / 0 : 0).acos();
+        },
+
+        /**
+         * Calculate the complex arcus cosecans
+         *
+         * @returns {Complex}
+         */
+        'acsc': function() {
+
+          // acsc(c) = -i * log(i / c + sqrt(1 - 1 / c^2))
+
+          var a = this['re'];
+          var b = this['im'];
+
+          if (a === 0 && b === 0) {
+            return new Complex(Math.PI / 2, Infinity);
+          }
+
+          var d = a * a + b * b;
+          return (d !== 0)
+                  ? new Complex(
+                          a / d,
+                          -b / d).asin()
+                  : new Complex(
+                          (a !== 0) ? a / 0 : 0,
+                          (b !== 0) ? -b / 0 : 0).asin();
+        },
+
+        /**
+         * Calculate the complex sinh
+         *
+         * @returns {Complex}
+         */
+        'sinh': function() {
+
+          // sinh(c) = (e^c - e^-c) / 2
+
+          var a = this['re'];
+          var b = this['im'];
+
+          return new Complex(
+                  sinh(a) * Math.cos(b),
+                  cosh(a) * Math.sin(b));
+        },
+
+        /**
+         * Calculate the complex cosh
+         *
+         * @returns {Complex}
+         */
+        'cosh': function() {
+
+          // cosh(c) = (e^c + e^-c) / 2
+
+          var a = this['re'];
+          var b = this['im'];
+
+          return new Complex(
+                  cosh(a) * Math.cos(b),
+                  sinh(a) * Math.sin(b));
+        },
+
+        /**
+         * Calculate the complex tanh
+         *
+         * @returns {Complex}
+         */
+        'tanh': function() {
+
+          // tanh(c) = (e^c - e^-c) / (e^c + e^-c)
+
+          var a = 2 * this['re'];
+          var b = 2 * this['im'];
+          var d = cosh(a) + Math.cos(b);
+
+          return new Complex(
+                  sinh(a) / d,
+                  Math.sin(b) / d);
+        },
+
+        /**
+         * Calculate the complex coth
+         *
+         * @returns {Complex}
+         */
+        'coth': function() {
+
+          // coth(c) = (e^c + e^-c) / (e^c - e^-c)
+
+          var a = 2 * this['re'];
+          var b = 2 * this['im'];
+          var d = cosh(a) - Math.cos(b);
+
+          return new Complex(
+                  sinh(a) / d,
+                  -Math.sin(b) / d);
+        },
+
+        /**
+         * Calculate the complex coth
+         *
+         * @returns {Complex}
+         */
+        'csch': function() {
+
+          // csch(c) = 2 / (e^c - e^-c)
+
+          var a = this['re'];
+          var b = this['im'];
+          var d = Math.cos(2 * b) - cosh(2 * a);
+
+          return new Complex(
+                  -2 * sinh(a) * Math.cos(b) / d,
+                  2 * cosh(a) * Math.sin(b) / d);
+        },
+
+        /**
+         * Calculate the complex sech
+         *
+         * @returns {Complex}
+         */
+        'sech': function() {
+
+          // sech(c) = 2 / (e^c + e^-c)
+
+          var a = this['re'];
+          var b = this['im'];
+          var d = Math.cos(2 * b) + cosh(2 * a);
+
+          return new Complex(
+                  2 * cosh(a) * Math.cos(b) / d,
+                  -2 * sinh(a) * Math.sin(b) / d);
+        },
+
+        /**
+         * Calculate the complex asinh
+         *
+         * @returns {Complex}
+         */
+        'asinh': function() {
+
+          // asinh(c) = log(c + sqrt(c^2 + 1))
+
+          var tmp = this['im'];
+          this['im'] = -this['re'];
+          this['re'] = tmp;
+          var res = this['asin']();
+
+          this['re'] = -this['im'];
+          this['im'] = tmp;
+          tmp = res['re'];
+
+          res['re'] = -res['im'];
+          res['im'] = tmp;
+          return res;
+        },
+
+        /**
+         * Calculate the complex asinh
+         *
+         * @returns {Complex}
+         */
+        'acosh': function() {
+
+          // acosh(c) = log(c + sqrt(c^2 - 1))
+
+          var res = this['acos']();
+          if (res['im'] <= 0) {
+            var tmp = res['re'];
+            res['re'] = -res['im'];
+            res['im'] = tmp;
+          } else {
+            var tmp = res['im'];
+            res['im'] = -res['re'];
+            res['re'] = tmp;
+          }
+          return res;
+        },
+
+        /**
+         * Calculate the complex atanh
+         *
+         * @returns {Complex}
+         */
+        'atanh': function() {
+
+          // atanh(c) = log((1+c) / (1-c)) / 2
+
+          var a = this['re'];
+          var b = this['im'];
+
+          var noIM = a > 1 && b === 0;
+          var oneMinus = 1 - a;
+          var onePlus = 1 + a;
+          var d = oneMinus * oneMinus + b * b;
+
+          var x = (d !== 0)
+                  ? new Complex(
+                          (onePlus * oneMinus - b * b) / d,
+                          (b * oneMinus + onePlus * b) / d)
+                  : new Complex(
+                          (a !== -1) ? (a / 0) : 0,
+                          (b !== 0) ? (b / 0) : 0);
+
+          var temp = x['re'];
+          x['re'] = logHypot(x['re'], x['im']) / 2;
+          x['im'] = Math.atan2(x['im'], temp) / 2;
+          if (noIM) {
+            x['im'] = -x['im'];
+          }
+          return x;
+        },
+
+        /**
+         * Calculate the complex acoth
+         *
+         * @returns {Complex}
+         */
+        'acoth': function() {
+
+          // acoth(c) = log((c+1) / (c-1)) / 2
+
+          var a = this['re'];
+          var b = this['im'];
+
+          if (a === 0 && b === 0) {
+            return new Complex(0, Math.PI / 2);
+          }
+
+          var d = a * a + b * b;
+          return (d !== 0)
+                  ? new Complex(
+                          a / d,
+                          -b / d).atanh()
+                  : new Complex(
+                          (a !== 0) ? a / 0 : 0,
+                          (b !== 0) ? -b / 0 : 0).atanh();
+        },
+
+        /**
+         * Calculate the complex acsch
+         *
+         * @returns {Complex}
+         */
+        'acsch': function() {
+
+          // acsch(c) = log((1+sqrt(1+c^2))/c)
+
+          var a = this['re'];
+          var b = this['im'];
+
+          if (b === 0) {
+
+            return new Complex(
+                    (a !== 0)
+                    ? Math.log(a + Math.sqrt(a * a + 1))
+                    : Infinity, 0);
+          }
+
+          var d = a * a + b * b;
+          return (d !== 0)
+                  ? new Complex(
+                          a / d,
+                          -b / d).asinh()
+                  : new Complex(
+                          (a !== 0) ? a / 0 : 0,
+                          (b !== 0) ? -b / 0 : 0).asinh();
+        },
+
+        /**
+         * Calculate the complex asech
+         *
+         * @returns {Complex}
+         */
+        'asech': function() {
+
+          // asech(c) = log((1+sqrt(1-c^2))/c)
+
+          var a = this['re'];
+          var b = this['im'];
+
+          if (this['isZero']()) {
+            return Complex['INFINITY'];
+          }
+
+          var d = a * a + b * b;
+          return (d !== 0)
+                  ? new Complex(
+                          a / d,
+                          -b / d).acosh()
+                  : new Complex(
+                          (a !== 0) ? a / 0 : 0,
+                          (b !== 0) ? -b / 0 : 0).acosh();
+        },
+
+        /**
+         * Calculate the complex inverse 1/z
+         *
+         * @returns {Complex}
+         */
+        'inverse': function() {
+
+          // 1 / 0 = Infinity and 1 / Infinity = 0
+          if (this['isZero']()) {
+            return Complex['INFINITY'];
+          }
+
+          if (this['isInfinite']()) {
+            return Complex['ZERO'];
+          }
+
+          var a = this['re'];
+          var b = this['im'];
+
+          var d = a * a + b * b;
+
+          return new Complex(a / d, -b / d);
+        },
+
+        /**
+         * Returns the complex conjugate
+         *
+         * @returns {Complex}
+         */
+        'conjugate': function() {
+
+          return new Complex(this['re'], -this['im']);
+        },
+
+        /**
+         * Gets the negated complex number
+         *
+         * @returns {Complex}
+         */
+        'neg': function() {
+
+          return new Complex(-this['re'], -this['im']);
+        },
+
+        /**
+         * Ceils the actual complex number
+         *
+         * @returns {Complex}
+         */
+        'ceil': function(places) {
+
+          places = Math.pow(10, places || 0);
+
+          return new Complex(
+                  Math.ceil(this['re'] * places) / places,
+                  Math.ceil(this['im'] * places) / places);
+        },
+
+        /**
+         * Floors the actual complex number
+         *
+         * @returns {Complex}
+         */
+        'floor': function(places) {
+
+          places = Math.pow(10, places || 0);
+
+          return new Complex(
+                  Math.floor(this['re'] * places) / places,
+                  Math.floor(this['im'] * places) / places);
+        },
+
+        /**
+         * Ceils the actual complex number
+         *
+         * @returns {Complex}
+         */
+        'round': function(places) {
+
+          places = Math.pow(10, places || 0);
+
+          return new Complex(
+                  Math.round(this['re'] * places) / places,
+                  Math.round(this['im'] * places) / places);
+        },
+
+        /**
+         * Compares two complex numbers
+         *
+         * **Note:** new Complex(Infinity).equals(Infinity) === false
+         *
+         * @returns {boolean}
+         */
+        'equals': function(a, b) {
+
+          var z = new Complex(a, b);
+
+          return Math.abs(z['re'] - this['re']) <= Complex['EPSILON'] &&
+                  Math.abs(z['im'] - this['im']) <= Complex['EPSILON'];
+        },
+
+        /**
+         * Clones the actual object
+         *
+         * @returns {Complex}
+         */
+        'clone': function() {
+
+          return new Complex(this['re'], this['im']);
+        },
+
+        /**
+         * Gets a string of the actual complex number
+         *
+         * @returns {string}
+         */
+        'toString': function() {
+
+          var a = this['re'];
+          var b = this['im'];
+          var ret = '';
+
+          if (this['isNaN']()) {
+            return 'NaN';
+          }
+
+          if (this['isZero']()) {
+            return '0';
+          }
+
+          if (this['isInfinite']()) {
+            return 'Infinity';
+          }
+
+          if (a !== 0) {
+            ret += a;
+          }
+
+          if (b !== 0) {
+
+            if (a !== 0) {
+              ret += b < 0 ? ' - ' : ' + ';
+            } else if (b < 0) {
+              ret += '-';
+            }
+
+            b = Math.abs(b);
+
+            if (1 !== b) {
+              ret += b;
+            }
+            ret += 'i';
+          }
+
+          if (!ret)
+            return '0';
+
+          return ret;
+        },
+
+        /**
+         * Returns the actual number as a vector
+         *
+         * @returns {Array}
+         */
+        'toVector': function() {
+
+          return [this['re'], this['im']];
+        },
+
+        /**
+         * Returns the actual real value of the current object
+         *
+         * @returns {number|null}
+         */
+        'valueOf': function() {
+
+          if (this['im'] === 0) {
+            return this['re'];
+          }
+          return null;
+        },
+
+        /**
+         * Determines whether a complex number is not on the Riemann sphere.
+         *
+         * @returns {boolean}
+         */
+        'isNaN': function() {
+          return isNaN(this['re']) || isNaN(this['im']);
+        },
+
+        /**
+         * Determines whether or not a complex number is at the zero pole of the
+         * Riemann sphere.
+         *
+         * @returns {boolean}
+         */
+        'isZero': function() {
+          return (
+                  (this['re'] === 0 || this['re'] === -0) &&
+                  (this['im'] === 0 || this['im'] === -0)
+                  );
+        },
+
+        /**
+         * Determines whether a complex number is not at the infinity pole of the
+         * Riemann sphere.
+         *
+         * @returns {boolean}
+         */
+        'isFinite': function() {
+          return isFinite(this['re']) && isFinite(this['im']);
+        },
+
+        /**
+         * Determines whether or not a complex number is at the infinity pole of the
+         * Riemann sphere.
+         *
+         * @returns {boolean}
+         */
+        'isInfinite': function() {
+          return !(this['isNaN']() || this['isFinite']());
+        }
+      };
+
+      Complex['ZERO'] = new Complex(0, 0);
+      Complex['ONE'] = new Complex(1, 0);
+      Complex['I'] = new Complex(0, 1);
+      Complex['PI'] = new Complex(Math.PI, 0);
+      Complex['E'] = new Complex(Math.E, 0);
+      Complex['INFINITY'] = new Complex(Infinity, Infinity);
+      Complex['NAN'] = new Complex(NaN, NaN);
+      Complex['EPSILON'] = 1e-16;
+
+      {
+        Object.defineProperty(exports, "__esModule", {'value': true});
+        Complex['default'] = Complex;
+        Complex['Complex'] = Complex;
+        module['exports'] = Complex;
+      }
+
+    })();
+    });
+
+    var Complex = unwrapExports(complex);
+
+    const name$1 = 'Complex';
+    const dependencies$2 = [];
+
+    const createComplexClass = /* #__PURE__ */ factory(name$1, dependencies$2, () => {
+      /**
+       * Attach type information
+       */
+      Complex.prototype.type = 'Complex';
+      Complex.prototype.isComplex = true;
+
+      /**
+       * Get a JSON representation of the complex number
+       * @returns {Object} Returns a JSON object structured as:
+       *                   `{"mathjs": "Complex", "re": 2, "im": 3}`
+       */
+      Complex.prototype.toJSON = function () {
+        return {
+          mathjs: 'Complex',
+          re: this.re,
+          im: this.im
+        }
+      };
+
+      /*
+       * Return the value of the complex number in polar notation
+       * The angle phi will be set in the interval of [-pi, pi].
+       * @return {{r: number, phi: number}} Returns and object with properties r and phi.
+       */
+      Complex.prototype.toPolar = function () {
+        return {
+          r: this.abs(),
+          phi: this.arg()
+        }
+      };
+
+      /**
+       * Get a string representation of the complex number,
+       * with optional formatting options.
+       * @param {Object | number | Function} [options]  Formatting options. See
+       *                                                lib/utils/number:format for a
+       *                                                description of the available
+       *                                                options.
+       * @return {string} str
+       */
+      Complex.prototype.format = function (options) {
+        let str = '';
+        let im = this.im;
+        let re = this.re;
+        const strRe = format(this.re, options);
+        const strIm = format(this.im, options);
+
+        // round either re or im when smaller than the configured precision
+        const precision = isNumber(options) ? options : options ? options.precision : null;
+        if (precision !== null) {
+          const epsilon = Math.pow(10, -precision);
+          if (Math.abs(re / im) < epsilon) {
+            re = 0;
+          }
+          if (Math.abs(im / re) < epsilon) {
+            im = 0;
+          }
+        }
+
+        if (im === 0) {
+          // real value
+          str = strRe;
+        } else if (re === 0) {
+          // purely complex value
+          if (im === 1) {
+            str = 'i';
+          } else if (im === -1) {
+            str = '-i';
+          } else {
+            str = strIm + 'i';
+          }
+        } else {
+          // complex value
+          if (im < 0) {
+            if (im === -1) {
+              str = strRe + ' - i';
+            } else {
+              str = strRe + ' - ' + strIm.substring(1) + 'i';
+            }
+          } else {
+            if (im === 1) {
+              str = strRe + ' + i';
+            } else {
+              str = strRe + ' + ' + strIm + 'i';
+            }
+          }
+        }
+        return str
+      };
+
+      /**
+       * Create a complex number from polar coordinates
+       *
+       * Usage:
+       *
+       *     Complex.fromPolar(r: number, phi: number) : Complex
+       *     Complex.fromPolar({r: number, phi: number}) : Complex
+       *
+       * @param {*} args...
+       * @return {Complex}
+       */
+      Complex.fromPolar = function (args) {
+        switch (arguments.length) {
+          case 1:
+            const arg = arguments[0];
+            if (typeof arg === 'object') {
+              return Complex(arg)
+            }
+            throw new TypeError('Input has to be an object with r and phi keys.')
+
+          case 2:
+            const r = arguments[0];
+            let phi = arguments[1];
+            if (isNumber(r)) {
+              if (isUnit(phi) && phi.hasBase('ANGLE')) {
+                // convert unit to a number in radians
+                phi = phi.toNumber('rad');
+              }
+
+              if (isNumber(phi)) {
+                return new Complex({ r: r, phi: phi })
+              }
+
+              throw new TypeError('Phi is not a number nor an angle unit.')
+            } else {
+              throw new TypeError('Radius r is not a number.')
+            }
+
+          default:
+            throw new SyntaxError('Wrong number of arguments in function fromPolar')
+        }
+      };
+
+      Complex.prototype.valueOf = Complex.prototype.toString;
+
+      /**
+       * Create a Complex number from a JSON object
+       * @param {Object} json  A JSON Object structured as
+       *                       {"mathjs": "Complex", "re": 2, "im": 3}
+       *                       All properties are optional, default values
+       *                       for `re` and `im` are 0.
+       * @return {Complex} Returns a new Complex number
+       */
+      Complex.fromJSON = function (json) {
+        return new Complex(json)
+      };
+
+      /**
+       * Compare two complex numbers, `a` and `b`:
+       *
+       * - Returns 1 when the real part of `a` is larger than the real part of `b`
+       * - Returns -1 when the real part of `a` is smaller than the real part of `b`
+       * - Returns 1 when the real parts are equal
+       *   and the imaginary part of `a` is larger than the imaginary part of `b`
+       * - Returns -1 when the real parts are equal
+       *   and the imaginary part of `a` is smaller than the imaginary part of `b`
+       * - Returns 0 when both real and imaginary parts are equal.
+       *
+       * @params {Complex} a
+       * @params {Complex} b
+       * @returns {number} Returns the comparison result: -1, 0, or 1
+       */
+      Complex.compare = function (a, b) {
+        if (a.re > b.re) { return 1 }
+        if (a.re < b.re) { return -1 }
+
+        if (a.im > b.im) { return 1 }
+        if (a.im < b.im) { return -1 }
+
+        return 0
+      };
+
+      return Complex
+    }, { isClass: true });
+
+    var fraction = createCommonjsModule(function (module, exports) {
+    /**
+     * @license Fraction.js v4.0.12 09/09/2015
+     * http://www.xarg.org/2014/03/rational-numbers-in-javascript/
+     *
+     * Copyright (c) 2015, Robert Eisele (robert@xarg.org)
+     * Dual licensed under the MIT or GPL Version 2 licenses.
+     **/
+
+
+    /**
+     *
+     * This class offers the possibility to calculate fractions.
+     * You can pass a fraction in different formats. Either as array, as double, as string or as an integer.
+     *
+     * Array/Object form
+     * [ 0 => <nominator>, 1 => <denominator> ]
+     * [ n => <nominator>, d => <denominator> ]
+     *
+     * Integer form
+     * - Single integer value
+     *
+     * Double form
+     * - Single double value
+     *
+     * String form
+     * 123.456 - a simple double
+     * 123/456 - a string fraction
+     * 123.'456' - a double with repeating decimal places
+     * 123.(456) - synonym
+     * 123.45'6' - a double with repeating last place
+     * 123.45(6) - synonym
+     *
+     * Example:
+     *
+     * var f = new Fraction("9.4'31'");
+     * f.mul([-4, 3]).div(4.9);
+     *
+     */
+
+    (function(root) {
+
+      // Maximum search depth for cyclic rational numbers. 2000 should be more than enough.
+      // Example: 1/7 = 0.(142857) has 6 repeating decimal places.
+      // If MAX_CYCLE_LEN gets reduced, long cycles will not be detected and toString() only gets the first 10 digits
+      var MAX_CYCLE_LEN = 2000;
+
+      // Parsed data to avoid calling "new" all the time
+      var P = {
+        "s": 1,
+        "n": 0,
+        "d": 1
+      };
+
+      function createError(name) {
+
+        function errorConstructor() {
+          var temp = Error.apply(this, arguments);
+          temp['name'] = this['name'] = name;
+          this['stack'] = temp['stack'];
+          this['message'] = temp['message'];
+        }
+
+        /**
+         * Error constructor
+         *
+         * @constructor
+         */
+        function IntermediateInheritor() {}
+        IntermediateInheritor.prototype = Error.prototype;
+        errorConstructor.prototype = new IntermediateInheritor();
+
+        return errorConstructor;
+      }
+
+      var DivisionByZero = Fraction['DivisionByZero'] = createError('DivisionByZero');
+      var InvalidParameter = Fraction['InvalidParameter'] = createError('InvalidParameter');
+
+      function assign(n, s) {
+
+        if (isNaN(n = parseInt(n, 10))) {
+          throwInvalidParam();
+        }
+        return n * s;
+      }
+
+      function throwInvalidParam() {
+        throw new InvalidParameter();
+      }
+
+      var parse = function(p1, p2) {
+
+        var n = 0, d = 1, s = 1;
+        var v = 0, w = 0, x = 0, y = 1, z = 1;
+
+        var A = 0, B = 1;
+        var C = 1, D = 1;
+
+        var N = 10000000;
+        var M;
+
+        if (p1 === undefined || p1 === null) ; else if (p2 !== undefined) {
+          n = p1;
+          d = p2;
+          s = n * d;
+        } else
+          switch (typeof p1) {
+
+            case "object":
+            {
+              if ("d" in p1 && "n" in p1) {
+                n = p1["n"];
+                d = p1["d"];
+                if ("s" in p1)
+                  n *= p1["s"];
+              } else if (0 in p1) {
+                n = p1[0];
+                if (1 in p1)
+                  d = p1[1];
+              } else {
+                throwInvalidParam();
+              }
+              s = n * d;
+              break;
+            }
+            case "number":
+            {
+              if (p1 < 0) {
+                s = p1;
+                p1 = -p1;
+              }
+
+              if (p1 % 1 === 0) {
+                n = p1;
+              } else if (p1 > 0) { // check for != 0, scale would become NaN (log(0)), which converges really slow
+
+                if (p1 >= 1) {
+                  z = Math.pow(10, Math.floor(1 + Math.log(p1) / Math.LN10));
+                  p1 /= z;
+                }
+
+                // Using Farey Sequences
+                // http://www.johndcook.com/blog/2010/10/20/best-rational-approximation/
+
+                while (B <= N && D <= N) {
+                  M = (A + C) / (B + D);
+
+                  if (p1 === M) {
+                    if (B + D <= N) {
+                      n = A + C;
+                      d = B + D;
+                    } else if (D > B) {
+                      n = C;
+                      d = D;
+                    } else {
+                      n = A;
+                      d = B;
+                    }
+                    break;
+
+                  } else {
+
+                    if (p1 > M) {
+                      A += C;
+                      B += D;
+                    } else {
+                      C += A;
+                      D += B;
+                    }
+
+                    if (B > N) {
+                      n = C;
+                      d = D;
+                    } else {
+                      n = A;
+                      d = B;
+                    }
+                  }
+                }
+                n *= z;
+              } else if (isNaN(p1) || isNaN(p2)) {
+                d = n = NaN;
+              }
+              break;
+            }
+            case "string":
+            {
+              B = p1.match(/\d+|./g);
+
+              if (B === null)
+                throwInvalidParam();
+
+              if (B[A] === '-') {// Check for minus sign at the beginning
+                s = -1;
+                A++;
+              } else if (B[A] === '+') {// Check for plus sign at the beginning
+                A++;
+              }
+
+              if (B.length === A + 1) { // Check if it's just a simple number "1234"
+                w = assign(B[A++], s);
+              } else if (B[A + 1] === '.' || B[A] === '.') { // Check if it's a decimal number
+
+                if (B[A] !== '.') { // Handle 0.5 and .5
+                  v = assign(B[A++], s);
+                }
+                A++;
+
+                // Check for decimal places
+                if (A + 1 === B.length || B[A + 1] === '(' && B[A + 3] === ')' || B[A + 1] === "'" && B[A + 3] === "'") {
+                  w = assign(B[A], s);
+                  y = Math.pow(10, B[A].length);
+                  A++;
+                }
+
+                // Check for repeating places
+                if (B[A] === '(' && B[A + 2] === ')' || B[A] === "'" && B[A + 2] === "'") {
+                  x = assign(B[A + 1], s);
+                  z = Math.pow(10, B[A + 1].length) - 1;
+                  A += 3;
+                }
+
+              } else if (B[A + 1] === '/' || B[A + 1] === ':') { // Check for a simple fraction "123/456" or "123:456"
+                w = assign(B[A], s);
+                y = assign(B[A + 2], 1);
+                A += 3;
+              } else if (B[A + 3] === '/' && B[A + 1] === ' ') { // Check for a complex fraction "123 1/2"
+                v = assign(B[A], s);
+                w = assign(B[A + 2], s);
+                y = assign(B[A + 4], 1);
+                A += 5;
+              }
+
+              if (B.length <= A) { // Check for more tokens on the stack
+                d = y * z;
+                s = /* void */
+                        n = x + d * v + z * w;
+                break;
+              }
+
+              /* Fall through on error */
+            }
+            default:
+              throwInvalidParam();
+          }
+
+        if (d === 0) {
+          throw new DivisionByZero();
+        }
+
+        P["s"] = s < 0 ? -1 : 1;
+        P["n"] = Math.abs(n);
+        P["d"] = Math.abs(d);
+      };
+
+      function modpow(b, e, m) {
+
+        var r = 1;
+        for (; e > 0; b = (b * b) % m, e >>= 1) {
+
+          if (e & 1) {
+            r = (r * b) % m;
+          }
+        }
+        return r;
+      }
+
+
+      function cycleLen(n, d) {
+
+        for (; d % 2 === 0;
+                d /= 2) {
+        }
+
+        for (; d % 5 === 0;
+                d /= 5) {
+        }
+
+        if (d === 1) // Catch non-cyclic numbers
+          return 0;
+
+        // If we would like to compute really large numbers quicker, we could make use of Fermat's little theorem:
+        // 10^(d-1) % d == 1
+        // However, we don't need such large numbers and MAX_CYCLE_LEN should be the capstone,
+        // as we want to translate the numbers to strings.
+
+        var rem = 10 % d;
+        var t = 1;
+
+        for (; rem !== 1; t++) {
+          rem = rem * 10 % d;
+
+          if (t > MAX_CYCLE_LEN)
+            return 0; // Returning 0 here means that we don't print it as a cyclic number. It's likely that the answer is `d-1`
+        }
+        return t;
+      }
+
+
+         function cycleStart(n, d, len) {
+
+        var rem1 = 1;
+        var rem2 = modpow(10, len, d);
+
+        for (var t = 0; t < 300; t++) { // s < ~log10(Number.MAX_VALUE)
+          // Solve 10^s == 10^(s+t) (mod d)
+
+          if (rem1 === rem2)
+            return t;
+
+          rem1 = rem1 * 10 % d;
+          rem2 = rem2 * 10 % d;
+        }
+        return 0;
+      }
+
+      function gcd(a, b) {
+
+        if (!a)
+          return b;
+        if (!b)
+          return a;
+
+        while (1) {
+          a %= b;
+          if (!a)
+            return b;
+          b %= a;
+          if (!b)
+            return a;
+        }
+      }
+      /**
+       * Module constructor
+       *
+       * @constructor
+       * @param {number|Fraction=} a
+       * @param {number=} b
+       */
+      function Fraction(a, b) {
+
+        if (!(this instanceof Fraction)) {
+          return new Fraction(a, b);
+        }
+
+        parse(a, b);
+
+        if (Fraction['REDUCE']) {
+          a = gcd(P["d"], P["n"]); // Abuse a
+        } else {
+          a = 1;
+        }
+
+        this["s"] = P["s"];
+        this["n"] = P["n"] / a;
+        this["d"] = P["d"] / a;
+      }
+
+      /**
+       * Boolean global variable to be able to disable automatic reduction of the fraction
+       *
+       */
+      Fraction['REDUCE'] = 1;
+
+      Fraction.prototype = {
+
+        "s": 1,
+        "n": 0,
+        "d": 1,
+
+        /**
+         * Calculates the absolute value
+         *
+         * Ex: new Fraction(-4).abs() => 4
+         **/
+        "abs": function() {
+
+          return new Fraction(this["n"], this["d"]);
+        },
+
+        /**
+         * Inverts the sign of the current fraction
+         *
+         * Ex: new Fraction(-4).neg() => 4
+         **/
+        "neg": function() {
+
+          return new Fraction(-this["s"] * this["n"], this["d"]);
+        },
+
+        /**
+         * Adds two rational numbers
+         *
+         * Ex: new Fraction({n: 2, d: 3}).add("14.9") => 467 / 30
+         **/
+        "add": function(a, b) {
+
+          parse(a, b);
+          return new Fraction(
+                  this["s"] * this["n"] * P["d"] + P["s"] * this["d"] * P["n"],
+                  this["d"] * P["d"]
+                  );
+        },
+
+        /**
+         * Subtracts two rational numbers
+         *
+         * Ex: new Fraction({n: 2, d: 3}).add("14.9") => -427 / 30
+         **/
+        "sub": function(a, b) {
+
+          parse(a, b);
+          return new Fraction(
+                  this["s"] * this["n"] * P["d"] - P["s"] * this["d"] * P["n"],
+                  this["d"] * P["d"]
+                  );
+        },
+
+        /**
+         * Multiplies two rational numbers
+         *
+         * Ex: new Fraction("-17.(345)").mul(3) => 5776 / 111
+         **/
+        "mul": function(a, b) {
+
+          parse(a, b);
+          return new Fraction(
+                  this["s"] * P["s"] * this["n"] * P["n"],
+                  this["d"] * P["d"]
+                  );
+        },
+
+        /**
+         * Divides two rational numbers
+         *
+         * Ex: new Fraction("-17.(345)").inverse().div(3)
+         **/
+        "div": function(a, b) {
+
+          parse(a, b);
+          return new Fraction(
+                  this["s"] * P["s"] * this["n"] * P["d"],
+                  this["d"] * P["n"]
+                  );
+        },
+
+        /**
+         * Clones the actual object
+         *
+         * Ex: new Fraction("-17.(345)").clone()
+         **/
+        "clone": function() {
+          return new Fraction(this);
+        },
+
+        /**
+         * Calculates the modulo of two rational numbers - a more precise fmod
+         *
+         * Ex: new Fraction('4.(3)').mod([7, 8]) => (13/3) % (7/8) = (5/6)
+         **/
+        "mod": function(a, b) {
+
+          if (isNaN(this['n']) || isNaN(this['d'])) {
+            return new Fraction(NaN);
+          }
+
+          if (a === undefined) {
+            return new Fraction(this["s"] * this["n"] % this["d"], 1);
+          }
+
+          parse(a, b);
+          if (0 === P["n"] && 0 === this["d"]) {
+            Fraction(0, 0); // Throw DivisionByZero
+          }
+
+          /*
+           * First silly attempt, kinda slow
+           *
+           return that["sub"]({
+           "n": num["n"] * Math.floor((this.n / this.d) / (num.n / num.d)),
+           "d": num["d"],
+           "s": this["s"]
+           });*/
+
+          /*
+           * New attempt: a1 / b1 = a2 / b2 * q + r
+           * => b2 * a1 = a2 * b1 * q + b1 * b2 * r
+           * => (b2 * a1 % a2 * b1) / (b1 * b2)
+           */
+          return new Fraction(
+                  this["s"] * (P["d"] * this["n"]) % (P["n"] * this["d"]),
+                  P["d"] * this["d"]
+                  );
+        },
+
+        /**
+         * Calculates the fractional gcd of two rational numbers
+         *
+         * Ex: new Fraction(5,8).gcd(3,7) => 1/56
+         */
+        "gcd": function(a, b) {
+
+          parse(a, b);
+
+          // gcd(a / b, c / d) = gcd(a, c) / lcm(b, d)
+
+          return new Fraction(gcd(P["n"], this["n"]) * gcd(P["d"], this["d"]), P["d"] * this["d"]);
+        },
+
+        /**
+         * Calculates the fractional lcm of two rational numbers
+         *
+         * Ex: new Fraction(5,8).lcm(3,7) => 15
+         */
+        "lcm": function(a, b) {
+
+          parse(a, b);
+
+          // lcm(a / b, c / d) = lcm(a, c) / gcd(b, d)
+
+          if (P["n"] === 0 && this["n"] === 0) {
+            return new Fraction;
+          }
+          return new Fraction(P["n"] * this["n"], gcd(P["n"], this["n"]) * gcd(P["d"], this["d"]));
+        },
+
+        /**
+         * Calculates the ceil of a rational number
+         *
+         * Ex: new Fraction('4.(3)').ceil() => (5 / 1)
+         **/
+        "ceil": function(places) {
+
+          places = Math.pow(10, places || 0);
+
+          if (isNaN(this["n"]) || isNaN(this["d"])) {
+            return new Fraction(NaN);
+          }
+          return new Fraction(Math.ceil(places * this["s"] * this["n"] / this["d"]), places);
+        },
+
+        /**
+         * Calculates the floor of a rational number
+         *
+         * Ex: new Fraction('4.(3)').floor() => (4 / 1)
+         **/
+        "floor": function(places) {
+
+          places = Math.pow(10, places || 0);
+
+          if (isNaN(this["n"]) || isNaN(this["d"])) {
+            return new Fraction(NaN);
+          }
+          return new Fraction(Math.floor(places * this["s"] * this["n"] / this["d"]), places);
+        },
+
+        /**
+         * Rounds a rational numbers
+         *
+         * Ex: new Fraction('4.(3)').round() => (4 / 1)
+         **/
+        "round": function(places) {
+
+          places = Math.pow(10, places || 0);
+
+          if (isNaN(this["n"]) || isNaN(this["d"])) {
+            return new Fraction(NaN);
+          }
+          return new Fraction(Math.round(places * this["s"] * this["n"] / this["d"]), places);
+        },
+
+        /**
+         * Gets the inverse of the fraction, means numerator and denumerator are exchanged
+         *
+         * Ex: new Fraction([-3, 4]).inverse() => -4 / 3
+         **/
+        "inverse": function() {
+
+          return new Fraction(this["s"] * this["d"], this["n"]);
+        },
+
+        /**
+         * Calculates the fraction to some integer exponent
+         *
+         * Ex: new Fraction(-1,2).pow(-3) => -8
+         */
+        "pow": function(m) {
+
+          if (m < 0) {
+            return new Fraction(Math.pow(this['s'] * this["d"], -m), Math.pow(this["n"], -m));
+          } else {
+            return new Fraction(Math.pow(this['s'] * this["n"], m), Math.pow(this["d"], m));
+          }
+        },
+
+        /**
+         * Check if two rational numbers are the same
+         *
+         * Ex: new Fraction(19.6).equals([98, 5]);
+         **/
+        "equals": function(a, b) {
+
+          parse(a, b);
+          return this["s"] * this["n"] * P["d"] === P["s"] * P["n"] * this["d"]; // Same as compare() === 0
+        },
+
+        /**
+         * Check if two rational numbers are the same
+         *
+         * Ex: new Fraction(19.6).equals([98, 5]);
+         **/
+        "compare": function(a, b) {
+
+          parse(a, b);
+          var t = (this["s"] * this["n"] * P["d"] - P["s"] * P["n"] * this["d"]);
+          return (0 < t) - (t < 0);
+        },
+
+        "simplify": function(eps) {
+
+          // First naive implementation, needs improvement
+
+          if (isNaN(this['n']) || isNaN(this['d'])) {
+            return this;
+          }
+
+          var cont = this['abs']()['toContinued']();
+
+          eps = eps || 0.001;
+
+          function rec(a) {
+            if (a.length === 1)
+              return new Fraction(a[0]);
+            return rec(a.slice(1))['inverse']()['add'](a[0]);
+          }
+
+          for (var i = 0; i < cont.length; i++) {
+            var tmp = rec(cont.slice(0, i + 1));
+            if (tmp['sub'](this['abs']())['abs']().valueOf() < eps) {
+              return tmp['mul'](this['s']);
+            }
+          }
+          return this;
+        },
+
+        /**
+         * Check if two rational numbers are divisible
+         *
+         * Ex: new Fraction(19.6).divisible(1.5);
+         */
+        "divisible": function(a, b) {
+
+          parse(a, b);
+          return !(!(P["n"] * this["d"]) || ((this["n"] * P["d"]) % (P["n"] * this["d"])));
+        },
+
+        /**
+         * Returns a decimal representation of the fraction
+         *
+         * Ex: new Fraction("100.'91823'").valueOf() => 100.91823918239183
+         **/
+        'valueOf': function() {
+
+          return this["s"] * this["n"] / this["d"];
+        },
+
+        /**
+         * Returns a string-fraction representation of a Fraction object
+         *
+         * Ex: new Fraction("1.'3'").toFraction() => "4 1/3"
+         **/
+        'toFraction': function(excludeWhole) {
+
+          var whole, str = "";
+          var n = this["n"];
+          var d = this["d"];
+          if (this["s"] < 0) {
+            str += '-';
+          }
+
+          if (d === 1) {
+            str += n;
+          } else {
+
+            if (excludeWhole && (whole = Math.floor(n / d)) > 0) {
+              str += whole;
+              str += " ";
+              n %= d;
+            }
+
+            str += n;
+            str += '/';
+            str += d;
+          }
+          return str;
+        },
+
+        /**
+         * Returns a latex representation of a Fraction object
+         *
+         * Ex: new Fraction("1.'3'").toLatex() => "\frac{4}{3}"
+         **/
+        'toLatex': function(excludeWhole) {
+
+          var whole, str = "";
+          var n = this["n"];
+          var d = this["d"];
+          if (this["s"] < 0) {
+            str += '-';
+          }
+
+          if (d === 1) {
+            str += n;
+          } else {
+
+            if (excludeWhole && (whole = Math.floor(n / d)) > 0) {
+              str += whole;
+              n %= d;
+            }
+
+            str += "\\frac{";
+            str += n;
+            str += '}{';
+            str += d;
+            str += '}';
+          }
+          return str;
+        },
+
+        /**
+         * Returns an array of continued fraction elements
+         *
+         * Ex: new Fraction("7/8").toContinued() => [0,1,7]
+         */
+        'toContinued': function() {
+
+          var t;
+          var a = this['n'];
+          var b = this['d'];
+          var res = [];
+
+          if (isNaN(this['n']) || isNaN(this['d'])) {
+            return res;
+          }
+
+          do {
+            res.push(Math.floor(a / b));
+            t = a % b;
+            a = b;
+            b = t;
+          } while (a !== 1);
+
+          return res;
+        },
+
+        /**
+         * Creates a string representation of a fraction with all digits
+         *
+         * Ex: new Fraction("100.'91823'").toString() => "100.(91823)"
+         **/
+        'toString': function(dec) {
+
+          var g;
+          var N = this["n"];
+          var D = this["d"];
+
+          if (isNaN(N) || isNaN(D)) {
+            return "NaN";
+          }
+
+          if (!Fraction['REDUCE']) {
+            g = gcd(N, D);
+            N /= g;
+            D /= g;
+          }
+
+          dec = dec || 15; // 15 = decimal places when no repitation
+
+          var cycLen = cycleLen(N, D); // Cycle length
+          var cycOff = cycleStart(N, D, cycLen); // Cycle start
+
+          var str = this['s'] === -1 ? "-" : "";
+
+          str += N / D | 0;
+
+          N %= D;
+          N *= 10;
+
+          if (N)
+            str += ".";
+
+          if (cycLen) {
+
+            for (var i = cycOff; i--; ) {
+              str += N / D | 0;
+              N %= D;
+              N *= 10;
+            }
+            str += "(";
+            for (var i = cycLen; i--; ) {
+              str += N / D | 0;
+              N %= D;
+              N *= 10;
+            }
+            str += ")";
+          } else {
+            for (var i = dec; N && i--; ) {
+              str += N / D | 0;
+              N %= D;
+              N *= 10;
+            }
+          }
+          return str;
+        }
+      };
+
+      {
+        Object.defineProperty(exports, "__esModule", {'value': true});
+        Fraction['default'] = Fraction;
+        Fraction['Fraction'] = Fraction;
+        module['exports'] = Fraction;
+      }
+
+    })();
+    });
+
+    var Fraction = unwrapExports(fraction);
+
+    const name$2 = 'Fraction';
+    const dependencies$3 = [];
+
+    const createFractionClass = /* #__PURE__ */ factory(name$2, dependencies$3, () => {
+      /**
+       * Attach type information
+       */
+      Fraction.prototype.type = 'Fraction';
+      Fraction.prototype.isFraction = true;
+
+      /**
+       * Get a JSON representation of a Fraction containing type information
+       * @returns {Object} Returns a JSON object structured as:
+       *                   `{"mathjs": "Fraction", "n": 3, "d": 8}`
+       */
+      Fraction.prototype.toJSON = function () {
+        return {
+          mathjs: 'Fraction',
+          n: this.s * this.n,
+          d: this.d
+        }
+      };
+
+      /**
+       * Instantiate a Fraction from a JSON object
+       * @param {Object} json  a JSON object structured as:
+       *                       `{"mathjs": "Fraction", "n": 3, "d": 8}`
+       * @return {BigNumber}
+       */
+      Fraction.fromJSON = function (json) {
+        return new Fraction(json)
+      };
+
+      return Fraction
+    }, { isClass: true });
+
+    const name$3 = 'Matrix';
+    const dependencies$4 = [];
+
+    const createMatrixClass = /* #__PURE__ */ factory(name$3, dependencies$4, () => {
+      /**
+       * @constructor Matrix
+       *
+       * A Matrix is a wrapper around an Array. A matrix can hold a multi dimensional
+       * array. A matrix can be constructed as:
+       *
+       *     let matrix = math.matrix(data)
+       *
+       * Matrix contains the functions to resize, get and set values, get the size,
+       * clone the matrix and to convert the matrix to a vector, array, or scalar.
+       * Furthermore, one can iterate over the matrix using map and forEach.
+       * The internal Array of the Matrix can be accessed using the function valueOf.
+       *
+       * Example usage:
+       *
+       *     let matrix = math.matrix([[1, 2], [3, 4]])
+       *     matix.size()              // [2, 2]
+       *     matrix.resize([3, 2], 5)
+       *     matrix.valueOf()          // [[1, 2], [3, 4], [5, 5]]
+       *     matrix.subset([1,2])       // 3 (indexes are zero-based)
+       *
+       */
+      function Matrix () {
+        if (!(this instanceof Matrix)) {
+          throw new SyntaxError('Constructor must be called with the new operator')
+        }
+      }
+
+      /**
+       * Attach type information
+       */
+      Matrix.prototype.type = 'Matrix';
+      Matrix.prototype.isMatrix = true;
+
+      /**
+       * Get the Matrix storage constructor for the given format.
+       *
+       * @param {string} format       The Matrix storage format.
+       *
+       * @return {Function}           The Matrix storage constructor.
+       */
+      Matrix.storage = function (format) {
+        // TODO: deprecated since v6.0.0. Clean up some day
+        throw new Error('Matrix.storage is deprecated since v6.0.0. ' +
+          'Use the factory function math.matrix instead.')
+      };
+
+      /**
+       * Get the storage format used by the matrix.
+       *
+       * Usage:
+       *     const format = matrix.storage()   // retrieve storage format
+       *
+       * @return {string}           The storage format.
+       */
+      Matrix.prototype.storage = function () {
+        // must be implemented by each of the Matrix implementations
+        throw new Error('Cannot invoke storage on a Matrix interface')
+      };
+
+      /**
+       * Get the datatype of the data stored in the matrix.
+       *
+       * Usage:
+       *     const format = matrix.datatype()    // retrieve matrix datatype
+       *
+       * @return {string}           The datatype.
+       */
+      Matrix.prototype.datatype = function () {
+        // must be implemented by each of the Matrix implementations
+        throw new Error('Cannot invoke datatype on a Matrix interface')
+      };
+
+      /**
+       * Create a new Matrix With the type of the current matrix instance
+       * @param {Array | Object} data
+       * @param {string} [datatype]
+       */
+      Matrix.prototype.create = function (data, datatype) {
+        throw new Error('Cannot invoke create on a Matrix interface')
+      };
+
+      /**
+       * Get a subset of the matrix, or replace a subset of the matrix.
+       *
+       * Usage:
+       *     const subset = matrix.subset(index)               // retrieve subset
+       *     const value = matrix.subset(index, replacement)   // replace subset
+       *
+       * @param {Index} index
+       * @param {Array | Matrix | *} [replacement]
+       * @param {*} [defaultValue=0]      Default value, filled in on new entries when
+       *                                  the matrix is resized. If not provided,
+       *                                  new matrix elements will be filled with zeros.
+       */
+      Matrix.prototype.subset = function (index, replacement, defaultValue) {
+        // must be implemented by each of the Matrix implementations
+        throw new Error('Cannot invoke subset on a Matrix interface')
+      };
+
+      /**
+       * Get a single element from the matrix.
+       * @param {number[]} index   Zero-based index
+       * @return {*} value
+       */
+      Matrix.prototype.get = function (index) {
+        // must be implemented by each of the Matrix implementations
+        throw new Error('Cannot invoke get on a Matrix interface')
+      };
+
+      /**
+       * Replace a single element in the matrix.
+       * @param {number[]} index   Zero-based index
+       * @param {*} value
+       * @param {*} [defaultValue]        Default value, filled in on new entries when
+       *                                  the matrix is resized. If not provided,
+       *                                  new matrix elements will be left undefined.
+       * @return {Matrix} self
+       */
+      Matrix.prototype.set = function (index, value, defaultValue) {
+        // must be implemented by each of the Matrix implementations
+        throw new Error('Cannot invoke set on a Matrix interface')
+      };
+
+      /**
+       * Resize the matrix to the given size. Returns a copy of the matrix when
+       * `copy=true`, otherwise return the matrix itself (resize in place).
+       *
+       * @param {number[]} size           The new size the matrix should have.
+       * @param {*} [defaultValue=0]      Default value, filled in on new entries.
+       *                                  If not provided, the matrix elements will
+       *                                  be filled with zeros.
+       * @param {boolean} [copy]          Return a resized copy of the matrix
+       *
+       * @return {Matrix}                 The resized matrix
+       */
+      Matrix.prototype.resize = function (size, defaultValue) {
+        // must be implemented by each of the Matrix implementations
+        throw new Error('Cannot invoke resize on a Matrix interface')
+      };
+
+      /**
+       * Reshape the matrix to the given size. Returns a copy of the matrix when
+       * `copy=true`, otherwise return the matrix itself (reshape in place).
+       *
+       * @param {number[]} size           The new size the matrix should have.
+       * @param {boolean} [copy]          Return a reshaped copy of the matrix
+       *
+       * @return {Matrix}                 The reshaped matrix
+       */
+      Matrix.prototype.reshape = function (size, defaultValue) {
+        // must be implemented by each of the Matrix implementations
+        throw new Error('Cannot invoke reshape on a Matrix interface')
+      };
+
+      /**
+       * Create a clone of the matrix
+       * @return {Matrix} clone
+       */
+      Matrix.prototype.clone = function () {
+        // must be implemented by each of the Matrix implementations
+        throw new Error('Cannot invoke clone on a Matrix interface')
+      };
+
+      /**
+       * Retrieve the size of the matrix.
+       * @returns {number[]} size
+       */
+      Matrix.prototype.size = function () {
+        // must be implemented by each of the Matrix implementations
+        throw new Error('Cannot invoke size on a Matrix interface')
+      };
+
+      /**
+       * Create a new matrix with the results of the callback function executed on
+       * each entry of the matrix.
+       * @param {Function} callback   The callback function is invoked with three
+       *                              parameters: the value of the element, the index
+       *                              of the element, and the Matrix being traversed.
+       * @param {boolean} [skipZeros] Invoke callback function for non-zero values only.
+       *
+       * @return {Matrix} matrix
+       */
+      Matrix.prototype.map = function (callback, skipZeros) {
+        // must be implemented by each of the Matrix implementations
+        throw new Error('Cannot invoke map on a Matrix interface')
+      };
+
+      /**
+       * Execute a callback function on each entry of the matrix.
+       * @param {Function} callback   The callback function is invoked with three
+       *                              parameters: the value of the element, the index
+       *                              of the element, and the Matrix being traversed.
+       */
+      Matrix.prototype.forEach = function (callback) {
+        // must be implemented by each of the Matrix implementations
+        throw new Error('Cannot invoke forEach on a Matrix interface')
+      };
+
+      /**
+       * Create an Array with a copy of the data of the Matrix
+       * @returns {Array} array
+       */
+      Matrix.prototype.toArray = function () {
+        // must be implemented by each of the Matrix implementations
+        throw new Error('Cannot invoke toArray on a Matrix interface')
+      };
+
+      /**
+       * Get the primitive value of the Matrix: a multidimensional array
+       * @returns {Array} array
+       */
+      Matrix.prototype.valueOf = function () {
+        // must be implemented by each of the Matrix implementations
+        throw new Error('Cannot invoke valueOf on a Matrix interface')
+      };
+
+      /**
+       * Get a string representation of the matrix, with optional formatting options.
+       * @param {Object | number | Function} [options]  Formatting options. See
+       *                                                lib/utils/number:format for a
+       *                                                description of the available
+       *                                                options.
+       * @returns {string} str
+       */
+      Matrix.prototype.format = function (options) {
+        // must be implemented by each of the Matrix implementations
+        throw new Error('Cannot invoke format on a Matrix interface')
+      };
+
+      /**
+       * Get a string representation of the matrix
+       * @returns {string} str
+       */
+      Matrix.prototype.toString = function () {
+        // must be implemented by each of the Matrix implementations
+        throw new Error('Cannot invoke toString on a Matrix interface')
+      };
+
+      return Matrix
+    }, { isClass: true });
+
+    const name$4 = 'DenseMatrix';
+    const dependencies$5 = [
+      'Matrix'
+    ];
+
+    const createDenseMatrixClass = /* #__PURE__ */ factory(name$4, dependencies$5, ({ Matrix }) => {
+      /**
+       * Dense Matrix implementation. A regular, dense matrix, supporting multi-dimensional matrices. This is the default matrix type.
+       * @class DenseMatrix
+       */
+      function DenseMatrix (data, datatype) {
+        if (!(this instanceof DenseMatrix)) { throw new SyntaxError('Constructor must be called with the new operator') }
+        if (datatype && !isString(datatype)) { throw new Error('Invalid datatype: ' + datatype) }
+
+        if (isMatrix(data)) {
+          // check data is a DenseMatrix
+          if (data.type === 'DenseMatrix') {
+            // clone data & size
+            this._data = clone(data._data);
+            this._size = clone(data._size);
+            this._datatype = datatype || data._datatype;
+          } else {
+            // build data from existing matrix
+            this._data = data.toArray();
+            this._size = data.size();
+            this._datatype = datatype || data._datatype;
+          }
+        } else if (data && isArray(data.data) && isArray(data.size)) {
+          // initialize fields from JSON representation
+          this._data = data.data;
+          this._size = data.size;
+          this._datatype = datatype || data.datatype;
+        } else if (isArray(data)) {
+          // replace nested Matrices with Arrays
+          this._data = preprocess(data);
+          // get the dimensions of the array
+          this._size = arraySize(this._data);
+          // verify the dimensions of the array, TODO: compute size while processing array
+          validate(this._data, this._size);
+          // data type unknown
+          this._datatype = datatype;
+        } else if (data) {
+          // unsupported type
+          throw new TypeError('Unsupported type of data (' + typeOf(data) + ')')
+        } else {
+          // nothing provided
+          this._data = [];
+          this._size = [0];
+          this._datatype = datatype;
+        }
+      }
+
+      DenseMatrix.prototype = new Matrix();
+
+      /**
+       * Create a new DenseMatrix
+       */
+      DenseMatrix.prototype.createDenseMatrix = function (data, datatype) {
+        return new DenseMatrix(data, datatype)
+      };
+
+      /**
+       * Attach type information
+       */
+      DenseMatrix.prototype.type = 'DenseMatrix';
+      DenseMatrix.prototype.isDenseMatrix = true;
+
+      /**
+       * Get the matrix type
+       *
+       * Usage:
+       *    const matrixType = matrix.getDataType()  // retrieves the matrix type
+       *
+       * @memberOf DenseMatrix
+       * @return {string}   type information; if multiple types are found from the Matrix, it will return "mixed"
+       */
+      DenseMatrix.prototype.getDataType = function () {
+        return getArrayDataType(this._data, typeOf)
+      };
+
+      /**
+       * Get the storage format used by the matrix.
+       *
+       * Usage:
+       *     const format = matrix.storage()  // retrieve storage format
+       *
+       * @memberof DenseMatrix
+       * @return {string}           The storage format.
+       */
+      DenseMatrix.prototype.storage = function () {
+        return 'dense'
+      };
+
+      /**
+       * Get the datatype of the data stored in the matrix.
+       *
+       * Usage:
+       *     const format = matrix.datatype()   // retrieve matrix datatype
+       *
+       * @memberof DenseMatrix
+       * @return {string}           The datatype.
+       */
+      DenseMatrix.prototype.datatype = function () {
+        return this._datatype
+      };
+
+      /**
+       * Create a new DenseMatrix
+       * @memberof DenseMatrix
+       * @param {Array} data
+       * @param {string} [datatype]
+       */
+      DenseMatrix.prototype.create = function (data, datatype) {
+        return new DenseMatrix(data, datatype)
+      };
+
+      /**
+       * Get a subset of the matrix, or replace a subset of the matrix.
+       *
+       * Usage:
+       *     const subset = matrix.subset(index)               // retrieve subset
+       *     const value = matrix.subset(index, replacement)   // replace subset
+       *
+       * @memberof DenseMatrix
+       * @param {Index} index
+       * @param {Array | Matrix | *} [replacement]
+       * @param {*} [defaultValue=0]      Default value, filled in on new entries when
+       *                                  the matrix is resized. If not provided,
+       *                                  new matrix elements will be filled with zeros.
+       */
+      DenseMatrix.prototype.subset = function (index, replacement, defaultValue) {
+        switch (arguments.length) {
+          case 1:
+            return _get(this, index)
+
+            // intentional fall through
+          case 2:
+          case 3:
+            return _set(this, index, replacement, defaultValue)
+
+          default:
+            throw new SyntaxError('Wrong number of arguments')
+        }
+      };
+
+      /**
+       * Get a single element from the matrix.
+       * @memberof DenseMatrix
+       * @param {number[]} index   Zero-based index
+       * @return {*} value
+       */
+      DenseMatrix.prototype.get = function (index) {
+        if (!isArray(index)) { throw new TypeError('Array expected') }
+        if (index.length !== this._size.length) { throw new DimensionError(index.length, this._size.length) }
+
+        // check index
+        for (let x = 0; x < index.length; x++) { validateIndex(index[x], this._size[x]); }
+
+        let data = this._data;
+        for (let i = 0, ii = index.length; i < ii; i++) {
+          const indexI = index[i];
+          validateIndex(indexI, data.length);
+          data = data[indexI];
+        }
+
+        return data
+      };
+
+      /**
+       * Replace a single element in the matrix.
+       * @memberof DenseMatrix
+       * @param {number[]} index   Zero-based index
+       * @param {*} value
+       * @param {*} [defaultValue]        Default value, filled in on new entries when
+       *                                  the matrix is resized. If not provided,
+       *                                  new matrix elements will be left undefined.
+       * @return {DenseMatrix} self
+       */
+      DenseMatrix.prototype.set = function (index, value, defaultValue) {
+        if (!isArray(index)) { throw new TypeError('Array expected') }
+        if (index.length < this._size.length) { throw new DimensionError(index.length, this._size.length, '<') }
+
+        let i, ii, indexI;
+
+        // enlarge matrix when needed
+        const size = index.map(function (i) {
+          return i + 1
+        });
+        _fit(this, size, defaultValue);
+
+        // traverse over the dimensions
+        let data = this._data;
+        for (i = 0, ii = index.length - 1; i < ii; i++) {
+          indexI = index[i];
+          validateIndex(indexI, data.length);
+          data = data[indexI];
+        }
+
+        // set new value
+        indexI = index[index.length - 1];
+        validateIndex(indexI, data.length);
+        data[indexI] = value;
+
+        return this
+      };
+
+      /**
+       * Get a submatrix of this matrix
+       * @memberof DenseMatrix
+       * @param {DenseMatrix} matrix
+       * @param {Index} index   Zero-based index
+       * @private
+       */
+      function _get (matrix, index) {
+        if (!isIndex(index)) {
+          throw new TypeError('Invalid index')
+        }
+
+        const isScalar = index.isScalar();
+        if (isScalar) {
+          // return a scalar
+          return matrix.get(index.min())
+        } else {
+          // validate dimensions
+          const size = index.size();
+          if (size.length !== matrix._size.length) {
+            throw new DimensionError(size.length, matrix._size.length)
+          }
+
+          // validate if any of the ranges in the index is out of range
+          const min = index.min();
+          const max = index.max();
+          for (let i = 0, ii = matrix._size.length; i < ii; i++) {
+            validateIndex(min[i], matrix._size[i]);
+            validateIndex(max[i], matrix._size[i]);
+          }
+
+          // retrieve submatrix
+          // TODO: more efficient when creating an empty matrix and setting _data and _size manually
+          return new DenseMatrix(_getSubmatrix(matrix._data, index, size.length, 0), matrix._datatype)
+        }
+      }
+
+      /**
+       * Recursively get a submatrix of a multi dimensional matrix.
+       * Index is not checked for correct number or length of dimensions.
+       * @memberof DenseMatrix
+       * @param {Array} data
+       * @param {Index} index
+       * @param {number} dims   Total number of dimensions
+       * @param {number} dim    Current dimension
+       * @return {Array} submatrix
+       * @private
+       */
+      function _getSubmatrix (data, index, dims, dim) {
+        const last = (dim === dims - 1);
+        const range = index.dimension(dim);
+
+        if (last) {
+          return range.map(function (i) {
+            validateIndex(i, data.length);
+            return data[i]
+          }).valueOf()
+        } else {
+          return range.map(function (i) {
+            validateIndex(i, data.length);
+            const child = data[i];
+            return _getSubmatrix(child, index, dims, dim + 1)
+          }).valueOf()
+        }
+      }
+
+      /**
+       * Replace a submatrix in this matrix
+       * Indexes are zero-based.
+       * @memberof DenseMatrix
+       * @param {DenseMatrix} matrix
+       * @param {Index} index
+       * @param {DenseMatrix | Array | *} submatrix
+       * @param {*} defaultValue          Default value, filled in on new entries when
+       *                                  the matrix is resized.
+       * @return {DenseMatrix} matrix
+       * @private
+       */
+      function _set (matrix, index, submatrix, defaultValue) {
+        if (!index || index.isIndex !== true) {
+          throw new TypeError('Invalid index')
+        }
+
+        // get index size and check whether the index contains a single value
+        const iSize = index.size();
+        const isScalar = index.isScalar();
+
+        // calculate the size of the submatrix, and convert it into an Array if needed
+        let sSize;
+        if (isMatrix(submatrix)) {
+          sSize = submatrix.size();
+          submatrix = submatrix.valueOf();
+        } else {
+          sSize = arraySize(submatrix);
+        }
+
+        if (isScalar) {
+          // set a scalar
+
+          // check whether submatrix is a scalar
+          if (sSize.length !== 0) {
+            throw new TypeError('Scalar expected')
+          }
+
+          matrix.set(index.min(), submatrix, defaultValue);
+        } else {
+          // set a submatrix
+
+          // validate dimensions
+          if (iSize.length < matrix._size.length) {
+            throw new DimensionError(iSize.length, matrix._size.length, '<')
+          }
+
+          if (sSize.length < iSize.length) {
+            // calculate number of missing outer dimensions
+            let i = 0;
+            let outer = 0;
+            while (iSize[i] === 1 && sSize[i] === 1) {
+              i++;
+            }
+            while (iSize[i] === 1) {
+              outer++;
+              i++;
+            }
+
+            // unsqueeze both outer and inner dimensions
+            submatrix = unsqueeze(submatrix, iSize.length, outer, sSize);
+          }
+
+          // check whether the size of the submatrix matches the index size
+          if (!deepStrictEqual(iSize, sSize)) {
+            throw new DimensionError(iSize, sSize, '>')
+          }
+
+          // enlarge matrix when needed
+          const size = index.max().map(function (i) {
+            return i + 1
+          });
+          _fit(matrix, size, defaultValue);
+
+          // insert the sub matrix
+          const dims = iSize.length;
+          const dim = 0;
+          _setSubmatrix(matrix._data, index, submatrix, dims, dim);
+        }
+
+        return matrix
+      }
+
+      /**
+       * Replace a submatrix of a multi dimensional matrix.
+       * @memberof DenseMatrix
+       * @param {Array} data
+       * @param {Index} index
+       * @param {Array} submatrix
+       * @param {number} dims   Total number of dimensions
+       * @param {number} dim
+       * @private
+       */
+      function _setSubmatrix (data, index, submatrix, dims, dim) {
+        const last = (dim === dims - 1);
+        const range = index.dimension(dim);
+
+        if (last) {
+          range.forEach(function (dataIndex, subIndex) {
+            validateIndex(dataIndex);
+            data[dataIndex] = submatrix[subIndex[0]];
+          });
+        } else {
+          range.forEach(function (dataIndex, subIndex) {
+            validateIndex(dataIndex);
+            _setSubmatrix(data[dataIndex], index, submatrix[subIndex[0]], dims, dim + 1);
+          });
+        }
+      }
+
+      /**
+       * Resize the matrix to the given size. Returns a copy of the matrix when
+       * `copy=true`, otherwise return the matrix itself (resize in place).
+       *
+       * @memberof DenseMatrix
+       * @param {number[]} size           The new size the matrix should have.
+       * @param {*} [defaultValue=0]      Default value, filled in on new entries.
+       *                                  If not provided, the matrix elements will
+       *                                  be filled with zeros.
+       * @param {boolean} [copy]          Return a resized copy of the matrix
+       *
+       * @return {Matrix}                 The resized matrix
+       */
+      DenseMatrix.prototype.resize = function (size, defaultValue, copy) {
+        // validate arguments
+        if (!isArray(size)) { throw new TypeError('Array expected') }
+
+        // matrix to resize
+        const m = copy ? this.clone() : this;
+        // resize matrix
+        return _resize(m, size, defaultValue)
+      };
+
+      function _resize (matrix, size, defaultValue) {
+        // check size
+        if (size.length === 0) {
+          // first value in matrix
+          let v = matrix._data;
+          // go deep
+          while (isArray(v)) {
+            v = v[0];
+          }
+          return v
+        }
+        // resize matrix
+        matrix._size = size.slice(0); // copy the array
+        matrix._data = resize(matrix._data, matrix._size, defaultValue);
+        // return matrix
+        return matrix
+      }
+
+      /**
+       * Reshape the matrix to the given size. Returns a copy of the matrix when
+       * `copy=true`, otherwise return the matrix itself (reshape in place).
+       *
+       * NOTE: This might be better suited to copy by default, instead of modifying
+       *       in place. For now, it operates in place to remain consistent with
+       *       resize().
+       *
+       * @memberof DenseMatrix
+       * @param {number[]} size           The new size the matrix should have.
+       * @param {boolean} [copy]          Return a reshaped copy of the matrix
+       *
+       * @return {Matrix}                 The reshaped matrix
+       */
+      DenseMatrix.prototype.reshape = function (size, copy) {
+        const m = copy ? this.clone() : this;
+
+        m._data = reshape(m._data, size);
+        m._size = size.slice(0);
+        return m
+      };
+
+      /**
+       * Enlarge the matrix when it is smaller than given size.
+       * If the matrix is larger or equal sized, nothing is done.
+       * @memberof DenseMatrix
+       * @param {DenseMatrix} matrix           The matrix to be resized
+       * @param {number[]} size
+       * @param {*} defaultValue          Default value, filled in on new entries.
+       * @private
+       */
+      function _fit (matrix, size, defaultValue) {
+        const // copy the array
+          newSize = matrix._size.slice(0);
+
+        let changed = false;
+
+        // add dimensions when needed
+        while (newSize.length < size.length) {
+          newSize.push(0);
+          changed = true;
+        }
+
+        // enlarge size when needed
+        for (let i = 0, ii = size.length; i < ii; i++) {
+          if (size[i] > newSize[i]) {
+            newSize[i] = size[i];
+            changed = true;
+          }
+        }
+
+        if (changed) {
+          // resize only when size is changed
+          _resize(matrix, newSize, defaultValue);
+        }
+      }
+
+      /**
+       * Create a clone of the matrix
+       * @memberof DenseMatrix
+       * @return {DenseMatrix} clone
+       */
+      DenseMatrix.prototype.clone = function () {
+        const m = new DenseMatrix({
+          data: clone(this._data),
+          size: clone(this._size),
+          datatype: this._datatype
+        });
+        return m
+      };
+
+      /**
+       * Retrieve the size of the matrix.
+       * @memberof DenseMatrix
+       * @returns {number[]} size
+       */
+      DenseMatrix.prototype.size = function () {
+        return this._size.slice(0) // return a clone of _size
+      };
+
+      /**
+       * Create a new matrix with the results of the callback function executed on
+       * each entry of the matrix.
+       * @memberof DenseMatrix
+       * @param {Function} callback   The callback function is invoked with three
+       *                              parameters: the value of the element, the index
+       *                              of the element, and the Matrix being traversed.
+       *
+       * @return {DenseMatrix} matrix
+       */
+      DenseMatrix.prototype.map = function (callback) {
+        // matrix instance
+        const me = this;
+        const recurse = function (value, index) {
+          if (isArray(value)) {
+            return value.map(function (child, i) {
+              return recurse(child, index.concat(i))
+            })
+          } else {
+            return callback(value, index, me)
+          }
+        };
+        // return dense format
+        return new DenseMatrix({
+          data: recurse(this._data, []),
+          size: clone(this._size),
+          datatype: this._datatype
+        })
+      };
+
+      /**
+       * Execute a callback function on each entry of the matrix.
+       * @memberof DenseMatrix
+       * @param {Function} callback   The callback function is invoked with three
+       *                              parameters: the value of the element, the index
+       *                              of the element, and the Matrix being traversed.
+       */
+      DenseMatrix.prototype.forEach = function (callback) {
+        // matrix instance
+        const me = this;
+        const recurse = function (value, index) {
+          if (isArray(value)) {
+            value.forEach(function (child, i) {
+              recurse(child, index.concat(i));
+            });
+          } else {
+            callback(value, index, me);
+          }
+        };
+        recurse(this._data, []);
+      };
+
+      /**
+       * Create an Array with a copy of the data of the DenseMatrix
+       * @memberof DenseMatrix
+       * @returns {Array} array
+       */
+      DenseMatrix.prototype.toArray = function () {
+        return clone(this._data)
+      };
+
+      /**
+       * Get the primitive value of the DenseMatrix: a multidimensional array
+       * @memberof DenseMatrix
+       * @returns {Array} array
+       */
+      DenseMatrix.prototype.valueOf = function () {
+        return this._data
+      };
+
+      /**
+       * Get a string representation of the matrix, with optional formatting options.
+       * @memberof DenseMatrix
+       * @param {Object | number | Function} [options]  Formatting options. See
+       *                                                lib/utils/number:format for a
+       *                                                description of the available
+       *                                                options.
+       * @returns {string} str
+       */
+      DenseMatrix.prototype.format = function (options) {
+        return format$2(this._data, options)
+      };
+
+      /**
+       * Get a string representation of the matrix
+       * @memberof DenseMatrix
+       * @returns {string} str
+       */
+      DenseMatrix.prototype.toString = function () {
+        return format$2(this._data)
+      };
+
+      /**
+       * Get a JSON representation of the matrix
+       * @memberof DenseMatrix
+       * @returns {Object}
+       */
+      DenseMatrix.prototype.toJSON = function () {
+        return {
+          mathjs: 'DenseMatrix',
+          data: this._data,
+          size: this._size,
+          datatype: this._datatype
+        }
+      };
+
+      /**
+       * Get the kth Matrix diagonal.
+       *
+       * @memberof DenseMatrix
+       * @param {number | BigNumber} [k=0]     The kth diagonal where the vector will retrieved.
+       *
+       * @returns {Matrix}                     The matrix with the diagonal values.
+       */
+      DenseMatrix.prototype.diagonal = function (k) {
+        // validate k if any
+        if (k) {
+          // convert BigNumber to a number
+          if (isBigNumber(k)) { k = k.toNumber(); }
+          // is must be an integer
+          if (!isNumber(k) || !isInteger(k)) {
+            throw new TypeError('The parameter k must be an integer number')
+          }
+        } else {
+          // default value
+          k = 0;
+        }
+
+        const kSuper = k > 0 ? k : 0;
+        const kSub = k < 0 ? -k : 0;
+
+        // rows & columns
+        const rows = this._size[0];
+        const columns = this._size[1];
+
+        // number diagonal values
+        const n = Math.min(rows - kSub, columns - kSuper);
+
+        // x is a matrix get diagonal from matrix
+        const data = [];
+
+        // loop rows
+        for (let i = 0; i < n; i++) {
+          data[i] = this._data[i + kSub][i + kSuper];
+        }
+
+        // create DenseMatrix
+        return new DenseMatrix({
+          data: data,
+          size: [n],
+          datatype: this._datatype
+        })
+      };
+
+      /**
+       * Create a diagonal matrix.
+       *
+       * @memberof DenseMatrix
+       * @param {Array} size                     The matrix size.
+       * @param {number | Matrix | Array } value The values for the diagonal.
+       * @param {number | BigNumber} [k=0]       The kth diagonal where the vector will be filled in.
+       * @param {number} [defaultValue]          The default value for non-diagonal
+       * @param {string} [datatype]              The datatype for the diagonal
+       *
+       * @returns {DenseMatrix}
+       */
+      DenseMatrix.diagonal = function (size, value, k, defaultValue) {
+        if (!isArray(size)) { throw new TypeError('Array expected, size parameter') }
+        if (size.length !== 2) { throw new Error('Only two dimensions matrix are supported') }
+
+        // map size & validate
+        size = size.map(function (s) {
+          // check it is a big number
+          if (isBigNumber(s)) {
+            // convert it
+            s = s.toNumber();
+          }
+          // validate arguments
+          if (!isNumber(s) || !isInteger(s) || s < 1) {
+            throw new Error('Size values must be positive integers')
+          }
+          return s
+        });
+
+        // validate k if any
+        if (k) {
+          // convert BigNumber to a number
+          if (isBigNumber(k)) { k = k.toNumber(); }
+          // is must be an integer
+          if (!isNumber(k) || !isInteger(k)) {
+            throw new TypeError('The parameter k must be an integer number')
+          }
+        } else {
+          // default value
+          k = 0;
+        }
+
+        const kSuper = k > 0 ? k : 0;
+        const kSub = k < 0 ? -k : 0;
+
+        // rows and columns
+        const rows = size[0];
+        const columns = size[1];
+
+        // number of non-zero items
+        const n = Math.min(rows - kSub, columns - kSuper);
+
+        // value extraction function
+        let _value;
+
+        // check value
+        if (isArray(value)) {
+          // validate array
+          if (value.length !== n) {
+            // number of values in array must be n
+            throw new Error('Invalid value array length')
+          }
+          // define function
+          _value = function (i) {
+            // return value @ i
+            return value[i]
+          };
+        } else if (isMatrix(value)) {
+          // matrix size
+          const ms = value.size();
+          // validate matrix
+          if (ms.length !== 1 || ms[0] !== n) {
+            // number of values in array must be n
+            throw new Error('Invalid matrix length')
+          }
+          // define function
+          _value = function (i) {
+            // return value @ i
+            return value.get([i])
+          };
+        } else {
+          // define function
+          _value = function () {
+            // return value
+            return value
+          };
+        }
+
+        // discover default value if needed
+        if (!defaultValue) {
+          // check first value in array
+          defaultValue = isBigNumber(_value(0))
+            ? _value(0).mul(0) // trick to create a BigNumber with value zero
+            : 0;
+        }
+
+        // empty array
+        let data = [];
+
+        // check we need to resize array
+        if (size.length > 0) {
+          // resize array
+          data = resize(data, size, defaultValue);
+          // fill diagonal
+          for (let d = 0; d < n; d++) {
+            data[d + kSub][d + kSuper] = _value(d);
+          }
+        }
+
+        // create DenseMatrix
+        return new DenseMatrix({
+          data: data,
+          size: [rows, columns]
+        })
+      };
+
+      /**
+       * Generate a matrix from a JSON object
+       * @memberof DenseMatrix
+       * @param {Object} json  An object structured like
+       *                       `{"mathjs": "DenseMatrix", data: [], size: []}`,
+       *                       where mathjs is optional
+       * @returns {DenseMatrix}
+       */
+      DenseMatrix.fromJSON = function (json) {
+        return new DenseMatrix(json)
+      };
+
+      /**
+       * Swap rows i and j in Matrix.
+       *
+       * @memberof DenseMatrix
+       * @param {number} i       Matrix row index 1
+       * @param {number} j       Matrix row index 2
+       *
+       * @return {Matrix}        The matrix reference
+       */
+      DenseMatrix.prototype.swapRows = function (i, j) {
+        // check index
+        if (!isNumber(i) || !isInteger(i) || !isNumber(j) || !isInteger(j)) {
+          throw new Error('Row index must be positive integers')
+        }
+        // check dimensions
+        if (this._size.length !== 2) {
+          throw new Error('Only two dimensional matrix is supported')
+        }
+        // validate index
+        validateIndex(i, this._size[0]);
+        validateIndex(j, this._size[0]);
+
+        // swap rows
+        DenseMatrix._swapRows(i, j, this._data);
+        // return current instance
+        return this
+      };
+
+      /**
+       * Swap rows i and j in Dense Matrix data structure.
+       *
+       * @param {number} i       Matrix row index 1
+       * @param {number} j       Matrix row index 2
+       * @param {Array} data     Matrix data
+       */
+      DenseMatrix._swapRows = function (i, j, data) {
+        // swap values i <-> j
+        const vi = data[i];
+        data[i] = data[j];
+        data[j] = vi;
+      };
+
+      /**
+       * Preprocess data, which can be an Array or DenseMatrix with nested Arrays and
+       * Matrices. Replaces all nested Matrices with Arrays
+       * @memberof DenseMatrix
+       * @param {Array} data
+       * @return {Array} data
+       */
+      function preprocess (data) {
+        for (let i = 0, ii = data.length; i < ii; i++) {
+          const elem = data[i];
+          if (isArray(elem)) {
+            data[i] = preprocess(elem);
+          } else if (elem && elem.isMatrix === true) {
+            data[i] = preprocess(elem.valueOf());
+          }
+        }
+
+        return data
+      }
+
+      return DenseMatrix
+    }, { isClass: true });
+
+    /**
+     * Compares two BigNumbers.
+     * @param {BigNumber} x       First value to compare
+     * @param {BigNumber} y       Second value to compare
+     * @param {number} [epsilon]  The maximum relative difference between x and y
+     *                            If epsilon is undefined or null, the function will
+     *                            test whether x and y are exactly equal.
+     * @return {boolean} whether the two numbers are nearly equal
+     */
+    function nearlyEqual$1 (x, y, epsilon) {
+      // if epsilon is null or undefined, test whether x and y are exactly equal
+      if (epsilon === null || epsilon === undefined) {
+        return x.eq(y)
+      }
+
+      // use "==" operator, handles infinities
+      if (x.eq(y)) {
+        return true
+      }
+
+      // NaN
+      if (x.isNaN() || y.isNaN()) {
+        return false
+      }
+
+      // at this point x and y should be finite
+      if (x.isFinite() && y.isFinite()) {
+        // check numbers are very close, needed when comparing numbers near zero
+        const diff = x.minus(y).abs();
+        if (diff.isZero()) {
+          return true
+        } else {
+          // use relative error
+          const max = x.constructor.max(x.abs(), y.abs());
+          return diff.lte(max.times(epsilon))
+        }
+      }
+
+      // Infinite and Number or negative Infinite and positive Infinite cases
+      return false
+    }
+
+    /**
+     * Test whether two complex values are equal provided a given epsilon.
+     * Does not use or change the global Complex.EPSILON setting
+     * @param {Complex} x
+     * @param {Complex} y
+     * @param {number} epsilon
+     * @returns {boolean}
+     */
+    function complexEquals (x, y, epsilon) {
+      return nearlyEqual(x.re, y.re, epsilon) && nearlyEqual(x.im, y.im, epsilon)
+    }
+
+    const name$5 = 'equalScalar';
+    const dependencies$6 = ['typed', 'config'];
+
+    const createEqualScalar = /* #__PURE__ */ factory(name$5, dependencies$6, ({ typed, config }) => {
+      /**
+       * Test whether two scalar values are nearly equal.
+       *
+       * @param  {number | BigNumber | Fraction | boolean | Complex | Unit} x   First value to compare
+       * @param  {number | BigNumber | Fraction | boolean | Complex} y          Second value to compare
+       * @return {boolean}                                                  Returns true when the compared values are equal, else returns false
+       * @private
+       */
+      const equalScalar = typed(name$5, {
+
+        'boolean, boolean': function (x, y) {
+          return x === y
+        },
+
+        'number, number': function (x, y) {
+          return nearlyEqual(x, y, config.epsilon)
+        },
+
+        'BigNumber, BigNumber': function (x, y) {
+          return x.eq(y) || nearlyEqual$1(x, y, config.epsilon)
+        },
+
+        'Fraction, Fraction': function (x, y) {
+          return x.equals(y)
+        },
+
+        'Complex, Complex': function (x, y) {
+          return complexEquals(x, y, config.epsilon)
+        },
+
+        'Unit, Unit': function (x, y) {
+          if (!x.equalBase(y)) {
+            throw new Error('Cannot compare units with different base')
+          }
+          return equalScalar(x.value, y.value)
+        }
+      });
+
+      return equalScalar
+    });
+
+    const createEqualScalarNumber = factory(name$5, ['typed', 'config'], ({ typed, config }) => {
+      return typed(name$5, {
+        'number, number': function (x, y) {
+          return nearlyEqual(x, y, config.epsilon)
+        }
+      })
+    });
+
+    const name$6 = 'SparseMatrix';
+    const dependencies$7 = [
+      'typed',
+      'equalScalar',
+      'Matrix'
+    ];
+
+    const createSparseMatrixClass = /* #__PURE__ */ factory(name$6, dependencies$7, ({ typed, equalScalar, Matrix }) => {
+      /**
+       * Sparse Matrix implementation. This type implements a Compressed Column Storage format
+       * for sparse matrices.
+       * @class SparseMatrix
+       */
+      function SparseMatrix (data, datatype) {
+        if (!(this instanceof SparseMatrix)) { throw new SyntaxError('Constructor must be called with the new operator') }
+        if (datatype && !isString(datatype)) { throw new Error('Invalid datatype: ' + datatype) }
+
+        if (isMatrix(data)) {
+          // create from matrix
+          _createFromMatrix(this, data, datatype);
+        } else if (data && isArray(data.index) && isArray(data.ptr) && isArray(data.size)) {
+          // initialize fields
+          this._values = data.values;
+          this._index = data.index;
+          this._ptr = data.ptr;
+          this._size = data.size;
+          this._datatype = datatype || data.datatype;
+        } else if (isArray(data)) {
+          // create from array
+          _createFromArray(this, data, datatype);
+        } else if (data) {
+          // unsupported type
+          throw new TypeError('Unsupported type of data (' + typeOf(data) + ')')
+        } else {
+          // nothing provided
+          this._values = [];
+          this._index = [];
+          this._ptr = [0];
+          this._size = [0, 0];
+          this._datatype = datatype;
+        }
+      }
+
+      function _createFromMatrix (matrix, source, datatype) {
+        // check matrix type
+        if (source.type === 'SparseMatrix') {
+          // clone arrays
+          matrix._values = source._values ? clone(source._values) : undefined;
+          matrix._index = clone(source._index);
+          matrix._ptr = clone(source._ptr);
+          matrix._size = clone(source._size);
+          matrix._datatype = datatype || source._datatype;
+        } else {
+          // build from matrix data
+          _createFromArray(matrix, source.valueOf(), datatype || source._datatype);
+        }
+      }
+
+      function _createFromArray (matrix, data, datatype) {
+        // initialize fields
+        matrix._values = [];
+        matrix._index = [];
+        matrix._ptr = [];
+        matrix._datatype = datatype;
+        // discover rows & columns, do not use math.size() to avoid looping array twice
+        const rows = data.length;
+        let columns = 0;
+
+        // equal signature to use
+        let eq = equalScalar;
+        // zero value
+        let zero = 0;
+
+        if (isString(datatype)) {
+          // find signature that matches (datatype, datatype)
+          eq = typed.find(equalScalar, [datatype, datatype]) || equalScalar;
+          // convert 0 to the same datatype
+          zero = typed.convert(0, datatype);
+        }
+
+        // check we have rows (empty array)
+        if (rows > 0) {
+          // column index
+          let j = 0;
+          do {
+            // store pointer to values index
+            matrix._ptr.push(matrix._index.length);
+            // loop rows
+            for (let i = 0; i < rows; i++) {
+              // current row
+              const row = data[i];
+              // check row is an array
+              if (isArray(row)) {
+                // update columns if needed (only on first column)
+                if (j === 0 && columns < row.length) { columns = row.length; }
+                // check row has column
+                if (j < row.length) {
+                  // value
+                  const v = row[j];
+                  // check value != 0
+                  if (!eq(v, zero)) {
+                    // store value
+                    matrix._values.push(v);
+                    // index
+                    matrix._index.push(i);
+                  }
+                }
+              } else {
+                // update columns if needed (only on first column)
+                if (j === 0 && columns < 1) { columns = 1; }
+                // check value != 0 (row is a scalar)
+                if (!eq(row, zero)) {
+                  // store value
+                  matrix._values.push(row);
+                  // index
+                  matrix._index.push(i);
+                }
+              }
+            }
+            // increment index
+            j++;
+          }
+          while (j < columns)
+        }
+        // store number of values in ptr
+        matrix._ptr.push(matrix._index.length);
+        // size
+        matrix._size = [rows, columns];
+      }
+
+      SparseMatrix.prototype = new Matrix();
+
+      /**
+       * Create a new SparseMatrix
+       */
+      SparseMatrix.prototype.createSparseMatrix = function (data, datatype) {
+        return new SparseMatrix(data, datatype)
+      };
+
+      /**
+       * Attach type information
+       */
+      SparseMatrix.prototype.type = 'SparseMatrix';
+      SparseMatrix.prototype.isSparseMatrix = true;
+
+      /**
+       * Get the matrix type
+       *
+       * Usage:
+       *    const matrixType = matrix.getDataType()  // retrieves the matrix type
+       *
+       * @memberOf SparseMatrix
+       * @return {string}   type information; if multiple types are found from the Matrix, it will return "mixed"
+       */
+      SparseMatrix.prototype.getDataType = function () {
+        return getArrayDataType(this._values, typeOf)
+      };
+
+      /**
+       * Get the storage format used by the matrix.
+       *
+       * Usage:
+       *     const format = matrix.storage()   // retrieve storage format
+       *
+       * @memberof SparseMatrix
+       * @return {string}           The storage format.
+       */
+      SparseMatrix.prototype.storage = function () {
+        return 'sparse'
+      };
+
+      /**
+       * Get the datatype of the data stored in the matrix.
+       *
+       * Usage:
+       *     const format = matrix.datatype()    // retrieve matrix datatype
+       *
+       * @memberof SparseMatrix
+       * @return {string}           The datatype.
+       */
+      SparseMatrix.prototype.datatype = function () {
+        return this._datatype
+      };
+
+      /**
+       * Create a new SparseMatrix
+       * @memberof SparseMatrix
+       * @param {Array} data
+       * @param {string} [datatype]
+       */
+      SparseMatrix.prototype.create = function (data, datatype) {
+        return new SparseMatrix(data, datatype)
+      };
+
+      /**
+       * Get the matrix density.
+       *
+       * Usage:
+       *     const density = matrix.density()                   // retrieve matrix density
+       *
+       * @memberof SparseMatrix
+       * @return {number}           The matrix density.
+       */
+      SparseMatrix.prototype.density = function () {
+        // rows & columns
+        const rows = this._size[0];
+        const columns = this._size[1];
+        // calculate density
+        return rows !== 0 && columns !== 0 ? (this._index.length / (rows * columns)) : 0
+      };
+
+      /**
+       * Get a subset of the matrix, or replace a subset of the matrix.
+       *
+       * Usage:
+       *     const subset = matrix.subset(index)               // retrieve subset
+       *     const value = matrix.subset(index, replacement)   // replace subset
+       *
+       * @memberof SparseMatrix
+       * @param {Index} index
+       * @param {Array | Matrix | *} [replacement]
+       * @param {*} [defaultValue=0]      Default value, filled in on new entries when
+       *                                  the matrix is resized. If not provided,
+       *                                  new matrix elements will be filled with zeros.
+       */
+      SparseMatrix.prototype.subset = function (index, replacement, defaultValue) { // check it is a pattern matrix
+        if (!this._values) { throw new Error('Cannot invoke subset on a Pattern only matrix') }
+
+        // check arguments
+        switch (arguments.length) {
+          case 1:
+            return _getsubset(this, index)
+
+            // intentional fall through
+          case 2:
+          case 3:
+            return _setsubset(this, index, replacement, defaultValue)
+
+          default:
+            throw new SyntaxError('Wrong number of arguments')
+        }
+      };
+
+      function _getsubset (matrix, idx) {
+        // check idx
+        if (!isIndex(idx)) {
+          throw new TypeError('Invalid index')
+        }
+
+        const isScalar = idx.isScalar();
+        if (isScalar) {
+          // return a scalar
+          return matrix.get(idx.min())
+        }
+        // validate dimensions
+        const size = idx.size();
+        if (size.length !== matrix._size.length) {
+          throw new DimensionError(size.length, matrix._size.length)
+        }
+
+        // vars
+        let i, ii, k, kk;
+
+        // validate if any of the ranges in the index is out of range
+        const min = idx.min();
+        const max = idx.max();
+        for (i = 0, ii = matrix._size.length; i < ii; i++) {
+          validateIndex(min[i], matrix._size[i]);
+          validateIndex(max[i], matrix._size[i]);
+        }
+
+        // matrix arrays
+        const mvalues = matrix._values;
+        const mindex = matrix._index;
+        const mptr = matrix._ptr;
+
+        // rows & columns dimensions for result matrix
+        const rows = idx.dimension(0);
+        const columns = idx.dimension(1);
+
+        // workspace & permutation vector
+        const w = [];
+        const pv = [];
+
+        // loop rows in resulting matrix
+        rows.forEach(function (i, r) {
+          // update permutation vector
+          pv[i] = r[0];
+          // mark i in workspace
+          w[i] = true;
+        });
+
+        // result matrix arrays
+        const values = mvalues ? [] : undefined;
+        const index = [];
+        const ptr = [];
+
+        // loop columns in result matrix
+        columns.forEach(function (j) {
+          // update ptr
+          ptr.push(index.length);
+          // loop values in column j
+          for (k = mptr[j], kk = mptr[j + 1]; k < kk; k++) {
+            // row
+            i = mindex[k];
+            // check row is in result matrix
+            if (w[i] === true) {
+              // push index
+              index.push(pv[i]);
+              // check we need to process values
+              if (values) { values.push(mvalues[k]); }
+            }
+          }
+        });
+        // update ptr
+        ptr.push(index.length);
+
+        // return matrix
+        return new SparseMatrix({
+          values: values,
+          index: index,
+          ptr: ptr,
+          size: size,
+          datatype: matrix._datatype
+        })
+      }
+
+      function _setsubset (matrix, index, submatrix, defaultValue) {
+        // check index
+        if (!index || index.isIndex !== true) {
+          throw new TypeError('Invalid index')
+        }
+
+        // get index size and check whether the index contains a single value
+        const iSize = index.size();
+        const isScalar = index.isScalar();
+
+        // calculate the size of the submatrix, and convert it into an Array if needed
+        let sSize;
+        if (isMatrix(submatrix)) {
+          // submatrix size
+          sSize = submatrix.size();
+          // use array representation
+          submatrix = submatrix.toArray();
+        } else {
+          // get submatrix size (array, scalar)
+          sSize = arraySize(submatrix);
+        }
+
+        // check index is a scalar
+        if (isScalar) {
+          // verify submatrix is a scalar
+          if (sSize.length !== 0) {
+            throw new TypeError('Scalar expected')
+          }
+          // set value
+          matrix.set(index.min(), submatrix, defaultValue);
+        } else {
+          // validate dimensions, index size must be one or two dimensions
+          if (iSize.length !== 1 && iSize.length !== 2) {
+            throw new DimensionError(iSize.length, matrix._size.length, '<')
+          }
+
+          // check submatrix and index have the same dimensions
+          if (sSize.length < iSize.length) {
+            // calculate number of missing outer dimensions
+            let i = 0;
+            let outer = 0;
+            while (iSize[i] === 1 && sSize[i] === 1) {
+              i++;
+            }
+            while (iSize[i] === 1) {
+              outer++;
+              i++;
+            }
+            // unsqueeze both outer and inner dimensions
+            submatrix = unsqueeze(submatrix, iSize.length, outer, sSize);
+          }
+
+          // check whether the size of the submatrix matches the index size
+          if (!deepStrictEqual(iSize, sSize)) {
+            throw new DimensionError(iSize, sSize, '>')
+          }
+
+          // offsets
+          const x0 = index.min()[0];
+          const y0 = index.min()[1];
+
+          // submatrix rows and columns
+          const m = sSize[0];
+          const n = sSize[1];
+
+          // loop submatrix
+          for (let x = 0; x < m; x++) {
+            // loop columns
+            for (let y = 0; y < n; y++) {
+              // value at i, j
+              const v = submatrix[x][y];
+              // invoke set (zero value will remove entry from matrix)
+              matrix.set([x + x0, y + y0], v, defaultValue);
+            }
+          }
+        }
+        return matrix
+      }
+
+      /**
+       * Get a single element from the matrix.
+       * @memberof SparseMatrix
+       * @param {number[]} index   Zero-based index
+       * @return {*} value
+       */
+      SparseMatrix.prototype.get = function (index) {
+        if (!isArray(index)) { throw new TypeError('Array expected') }
+        if (index.length !== this._size.length) { throw new DimensionError(index.length, this._size.length) }
+
+        // check it is a pattern matrix
+        if (!this._values) { throw new Error('Cannot invoke get on a Pattern only matrix') }
+
+        // row and column
+        const i = index[0];
+        const j = index[1];
+
+        // check i, j are valid
+        validateIndex(i, this._size[0]);
+        validateIndex(j, this._size[1]);
+
+        // find value index
+        const k = _getValueIndex(i, this._ptr[j], this._ptr[j + 1], this._index);
+        // check k is prior to next column k and it is in the correct row
+        if (k < this._ptr[j + 1] && this._index[k] === i) { return this._values[k] }
+
+        return 0
+      };
+
+      /**
+       * Replace a single element in the matrix.
+       * @memberof SparseMatrix
+       * @param {number[]} index   Zero-based index
+       * @param {*} v
+       * @param {*} [defaultValue]        Default value, filled in on new entries when
+       *                                  the matrix is resized. If not provided,
+       *                                  new matrix elements will be set to zero.
+       * @return {SparseMatrix} self
+       */
+      SparseMatrix.prototype.set = function (index, v, defaultValue) {
+        if (!isArray(index)) { throw new TypeError('Array expected') }
+        if (index.length !== this._size.length) { throw new DimensionError(index.length, this._size.length) }
+
+        // check it is a pattern matrix
+        if (!this._values) { throw new Error('Cannot invoke set on a Pattern only matrix') }
+
+        // row and column
+        const i = index[0];
+        const j = index[1];
+
+        // rows & columns
+        let rows = this._size[0];
+        let columns = this._size[1];
+
+        // equal signature to use
+        let eq = equalScalar;
+        // zero value
+        let zero = 0;
+
+        if (isString(this._datatype)) {
+          // find signature that matches (datatype, datatype)
+          eq = typed.find(equalScalar, [this._datatype, this._datatype]) || equalScalar;
+          // convert 0 to the same datatype
+          zero = typed.convert(0, this._datatype);
+        }
+
+        // check we need to resize matrix
+        if (i > rows - 1 || j > columns - 1) {
+          // resize matrix
+          _resize(this, Math.max(i + 1, rows), Math.max(j + 1, columns), defaultValue);
+          // update rows & columns
+          rows = this._size[0];
+          columns = this._size[1];
+        }
+
+        // check i, j are valid
+        validateIndex(i, rows);
+        validateIndex(j, columns);
+
+        // find value index
+        const k = _getValueIndex(i, this._ptr[j], this._ptr[j + 1], this._index);
+        // check k is prior to next column k and it is in the correct row
+        if (k < this._ptr[j + 1] && this._index[k] === i) {
+          // check value != 0
+          if (!eq(v, zero)) {
+            // update value
+            this._values[k] = v;
+          } else {
+            // remove value from matrix
+            _remove(k, j, this._values, this._index, this._ptr);
+          }
+        } else {
+          // insert value @ (i, j)
+          _insert(k, i, j, v, this._values, this._index, this._ptr);
+        }
+
+        return this
+      };
+
+      function _getValueIndex (i, top, bottom, index) {
+        // check row is on the bottom side
+        if (bottom - top === 0) { return bottom }
+        // loop rows [top, bottom[
+        for (let r = top; r < bottom; r++) {
+          // check we found value index
+          if (index[r] === i) { return r }
+        }
+        // we did not find row
+        return top
+      }
+
+      function _remove (k, j, values, index, ptr) {
+        // remove value @ k
+        values.splice(k, 1);
+        index.splice(k, 1);
+        // update pointers
+        for (let x = j + 1; x < ptr.length; x++) { ptr[x]--; }
+      }
+
+      function _insert (k, i, j, v, values, index, ptr) {
+        // insert value
+        values.splice(k, 0, v);
+        // update row for k
+        index.splice(k, 0, i);
+        // update column pointers
+        for (let x = j + 1; x < ptr.length; x++) { ptr[x]++; }
+      }
+
+      /**
+       * Resize the matrix to the given size. Returns a copy of the matrix when
+       * `copy=true`, otherwise return the matrix itself (resize in place).
+       *
+       * @memberof SparseMatrix
+       * @param {number[]} size           The new size the matrix should have.
+       * @param {*} [defaultValue=0]      Default value, filled in on new entries.
+       *                                  If not provided, the matrix elements will
+       *                                  be filled with zeros.
+       * @param {boolean} [copy]          Return a resized copy of the matrix
+       *
+       * @return {Matrix}                 The resized matrix
+       */
+      SparseMatrix.prototype.resize = function (size, defaultValue, copy) {
+        // validate arguments
+        if (!isArray(size)) { throw new TypeError('Array expected') }
+        if (size.length !== 2) { throw new Error('Only two dimensions matrix are supported') }
+
+        // check sizes
+        size.forEach(function (value) {
+          if (!isNumber(value) || !isInteger(value) || value < 0) {
+            throw new TypeError('Invalid size, must contain positive integers ' +
+                                '(size: ' + format$2(size) + ')')
+          }
+        });
+
+        // matrix to resize
+        const m = copy ? this.clone() : this;
+        // resize matrix
+        return _resize(m, size[0], size[1], defaultValue)
+      };
+
+      function _resize (matrix, rows, columns, defaultValue) {
+        // value to insert at the time of growing matrix
+        let value = defaultValue || 0;
+
+        // equal signature to use
+        let eq = equalScalar;
+        // zero value
+        let zero = 0;
+
+        if (isString(matrix._datatype)) {
+          // find signature that matches (datatype, datatype)
+          eq = typed.find(equalScalar, [matrix._datatype, matrix._datatype]) || equalScalar;
+          // convert 0 to the same datatype
+          zero = typed.convert(0, matrix._datatype);
+          // convert value to the same datatype
+          value = typed.convert(value, matrix._datatype);
+        }
+
+        // should we insert the value?
+        const ins = !eq(value, zero);
+
+        // old columns and rows
+        const r = matrix._size[0];
+        let c = matrix._size[1];
+
+        let i, j, k;
+
+        // check we need to increase columns
+        if (columns > c) {
+          // loop new columns
+          for (j = c; j < columns; j++) {
+            // update matrix._ptr for current column
+            matrix._ptr[j] = matrix._values.length;
+            // check we need to insert matrix._values
+            if (ins) {
+              // loop rows
+              for (i = 0; i < r; i++) {
+                // add new matrix._values
+                matrix._values.push(value);
+                // update matrix._index
+                matrix._index.push(i);
+              }
+            }
+          }
+          // store number of matrix._values in matrix._ptr
+          matrix._ptr[columns] = matrix._values.length;
+        } else if (columns < c) {
+          // truncate matrix._ptr
+          matrix._ptr.splice(columns + 1, c - columns);
+          // truncate matrix._values and matrix._index
+          matrix._values.splice(matrix._ptr[columns], matrix._values.length);
+          matrix._index.splice(matrix._ptr[columns], matrix._index.length);
+        }
+        // update columns
+        c = columns;
+
+        // check we need to increase rows
+        if (rows > r) {
+          // check we have to insert values
+          if (ins) {
+            // inserts
+            let n = 0;
+            // loop columns
+            for (j = 0; j < c; j++) {
+              // update matrix._ptr for current column
+              matrix._ptr[j] = matrix._ptr[j] + n;
+              // where to insert matrix._values
+              k = matrix._ptr[j + 1] + n;
+              // pointer
+              let p = 0;
+              // loop new rows, initialize pointer
+              for (i = r; i < rows; i++, p++) {
+                // add value
+                matrix._values.splice(k + p, 0, value);
+                // update matrix._index
+                matrix._index.splice(k + p, 0, i);
+                // increment inserts
+                n++;
+              }
+            }
+            // store number of matrix._values in matrix._ptr
+            matrix._ptr[c] = matrix._values.length;
+          }
+        } else if (rows < r) {
+          // deletes
+          let d = 0;
+          // loop columns
+          for (j = 0; j < c; j++) {
+            // update matrix._ptr for current column
+            matrix._ptr[j] = matrix._ptr[j] - d;
+            // where matrix._values start for next column
+            const k0 = matrix._ptr[j];
+            const k1 = matrix._ptr[j + 1] - d;
+            // loop matrix._index
+            for (k = k0; k < k1; k++) {
+              // row
+              i = matrix._index[k];
+              // check we need to delete value and matrix._index
+              if (i > rows - 1) {
+                // remove value
+                matrix._values.splice(k, 1);
+                // remove item from matrix._index
+                matrix._index.splice(k, 1);
+                // increase deletes
+                d++;
+              }
+            }
+          }
+          // update matrix._ptr for current column
+          matrix._ptr[j] = matrix._values.length;
+        }
+        // update matrix._size
+        matrix._size[0] = rows;
+        matrix._size[1] = columns;
+        // return matrix
+        return matrix
+      }
+
+      /**
+       * Reshape the matrix to the given size. Returns a copy of the matrix when
+       * `copy=true`, otherwise return the matrix itself (reshape in place).
+       *
+       * NOTE: This might be better suited to copy by default, instead of modifying
+       *       in place. For now, it operates in place to remain consistent with
+       *       resize().
+       *
+       * @memberof SparseMatrix
+       * @param {number[]} size           The new size the matrix should have.
+       * @param {boolean} [copy]          Return a reshaped copy of the matrix
+       *
+       * @return {Matrix}                 The reshaped matrix
+       */
+      SparseMatrix.prototype.reshape = function (size, copy) {
+        // validate arguments
+        if (!isArray(size)) { throw new TypeError('Array expected') }
+        if (size.length !== 2) { throw new Error('Sparse matrices can only be reshaped in two dimensions') }
+
+        // check sizes
+        size.forEach(function (value) {
+          if (!isNumber(value) || !isInteger(value) || value < 0) {
+            throw new TypeError('Invalid size, must contain positive integers ' +
+                                '(size: ' + format$2(size) + ')')
+          }
+        });
+
+        // m * n must not change
+        if (this._size[0] * this._size[1] !== size[0] * size[1]) {
+          throw new Error('Reshaping sparse matrix will result in the wrong number of elements')
+        }
+
+        // matrix to reshape
+        const m = copy ? this.clone() : this;
+
+        // return unchanged if the same shape
+        if (this._size[0] === size[0] && this._size[1] === size[1]) {
+          return m
+        }
+
+        // Convert to COO format (generate a column index)
+        const colIndex = [];
+        for (let i = 0; i < m._ptr.length; i++) {
+          for (let j = 0; j < m._ptr[i + 1] - m._ptr[i]; j++) {
+            colIndex.push(i);
+          }
+        }
+
+        // Clone the values array
+        const values = m._values.slice();
+
+        // Clone the row index array
+        const rowIndex = m._index.slice();
+
+        // Transform the (row, column) indices
+        for (let i = 0; i < m._index.length; i++) {
+          const r1 = rowIndex[i];
+          const c1 = colIndex[i];
+          const flat = r1 * m._size[1] + c1;
+          colIndex[i] = flat % size[1];
+          rowIndex[i] = Math.floor(flat / size[1]);
+        }
+
+        // Now reshaping is supposed to preserve the row-major order, BUT these sparse matrices are stored
+        // in column-major order, so we have to reorder the value array now. One option is to use a multisort,
+        // sorting several arrays based on some other array.
+
+        // OR, we could easily just:
+
+        // 1. Remove all values from the matrix
+        m._values.length = 0;
+        m._index.length = 0;
+        m._ptr.length = size[1] + 1;
+        m._size = size.slice();
+        for (let i = 0; i < m._ptr.length; i++) {
+          m._ptr[i] = 0;
+        }
+
+        // 2. Re-insert all elements in the proper order (simplified code from SparseMatrix.prototype.set)
+        // This step is probably the most time-consuming
+        for (let h = 0; h < values.length; h++) {
+          const i = rowIndex[h];
+          const j = colIndex[h];
+          const v = values[h];
+          const k = _getValueIndex(i, m._ptr[j], m._ptr[j + 1], m._index);
+          _insert(k, i, j, v, m._values, m._index, m._ptr);
+        }
+
+        // The value indices are inserted out of order, but apparently that's... still OK?
+
+        return m
+      };
+
+      /**
+       * Create a clone of the matrix
+       * @memberof SparseMatrix
+       * @return {SparseMatrix} clone
+       */
+      SparseMatrix.prototype.clone = function () {
+        const m = new SparseMatrix({
+          values: this._values ? clone(this._values) : undefined,
+          index: clone(this._index),
+          ptr: clone(this._ptr),
+          size: clone(this._size),
+          datatype: this._datatype
+        });
+        return m
+      };
+
+      /**
+       * Retrieve the size of the matrix.
+       * @memberof SparseMatrix
+       * @returns {number[]} size
+       */
+      SparseMatrix.prototype.size = function () {
+        return this._size.slice(0) // copy the Array
+      };
+
+      /**
+       * Create a new matrix with the results of the callback function executed on
+       * each entry of the matrix.
+       * @memberof SparseMatrix
+       * @param {Function} callback   The callback function is invoked with three
+       *                              parameters: the value of the element, the index
+       *                              of the element, and the Matrix being traversed.
+       * @param {boolean} [skipZeros] Invoke callback function for non-zero values only.
+       *
+       * @return {SparseMatrix} matrix
+       */
+      SparseMatrix.prototype.map = function (callback, skipZeros) {
+        // check it is a pattern matrix
+        if (!this._values) { throw new Error('Cannot invoke map on a Pattern only matrix') }
+        // matrix instance
+        const me = this;
+        // rows and columns
+        const rows = this._size[0];
+        const columns = this._size[1];
+        // invoke callback
+        const invoke = function (v, i, j) {
+          // invoke callback
+          return callback(v, [i, j], me)
+        };
+        // invoke _map
+        return _map(this, 0, rows - 1, 0, columns - 1, invoke, skipZeros)
+      };
+
+      /**
+       * Create a new matrix with the results of the callback function executed on the interval
+       * [minRow..maxRow, minColumn..maxColumn].
+       */
+      function _map (matrix, minRow, maxRow, minColumn, maxColumn, callback, skipZeros) {
+        // result arrays
+        const values = [];
+        const index = [];
+        const ptr = [];
+
+        // equal signature to use
+        let eq = equalScalar;
+        // zero value
+        let zero = 0;
+
+        if (isString(matrix._datatype)) {
+          // find signature that matches (datatype, datatype)
+          eq = typed.find(equalScalar, [matrix._datatype, matrix._datatype]) || equalScalar;
+          // convert 0 to the same datatype
+          zero = typed.convert(0, matrix._datatype);
+        }
+
+        // invoke callback
+        const invoke = function (v, x, y) {
+          // invoke callback
+          v = callback(v, x, y);
+          // check value != 0
+          if (!eq(v, zero)) {
+            // store value
+            values.push(v);
+            // index
+            index.push(x);
+          }
+        };
+        // loop columns
+        for (let j = minColumn; j <= maxColumn; j++) {
+          // store pointer to values index
+          ptr.push(values.length);
+          // k0 <= k < k1 where k0 = _ptr[j] && k1 = _ptr[j+1]
+          const k0 = matrix._ptr[j];
+          const k1 = matrix._ptr[j + 1];
+
+          if (skipZeros) {
+            // loop k within [k0, k1[
+            for (let k = k0; k < k1; k++) {
+              // row index
+              const i = matrix._index[k];
+              // check i is in range
+              if (i >= minRow && i <= maxRow) {
+                // value @ k
+                invoke(matrix._values[k], i - minRow, j - minColumn);
+              }
+            }
+          } else {
+            // create a cache holding all defined values
+            const values = {};
+            for (let k = k0; k < k1; k++) {
+              const i = matrix._index[k];
+              values[i] = matrix._values[k];
+            }
+
+            // loop over all rows (indexes can be unordered so we can't use that),
+            // and either read the value or zero
+            for (let i = minRow; i <= maxRow; i++) {
+              const value = (i in values) ? values[i] : 0;
+              invoke(value, i - minRow, j - minColumn);
+            }
+          }
+        }
+
+        // store number of values in ptr
+        ptr.push(values.length);
+        // return sparse matrix
+        return new SparseMatrix({
+          values: values,
+          index: index,
+          ptr: ptr,
+          size: [maxRow - minRow + 1, maxColumn - minColumn + 1]
+        })
+      }
+
+      /**
+       * Execute a callback function on each entry of the matrix.
+       * @memberof SparseMatrix
+       * @param {Function} callback   The callback function is invoked with three
+       *                              parameters: the value of the element, the index
+       *                              of the element, and the Matrix being traversed.
+       * @param {boolean} [skipZeros] Invoke callback function for non-zero values only.
+       */
+      SparseMatrix.prototype.forEach = function (callback, skipZeros) {
+        // check it is a pattern matrix
+        if (!this._values) { throw new Error('Cannot invoke forEach on a Pattern only matrix') }
+        // matrix instance
+        const me = this;
+        // rows and columns
+        const rows = this._size[0];
+        const columns = this._size[1];
+        // loop columns
+        for (let j = 0; j < columns; j++) {
+          // k0 <= k < k1 where k0 = _ptr[j] && k1 = _ptr[j+1]
+          const k0 = this._ptr[j];
+          const k1 = this._ptr[j + 1];
+
+          if (skipZeros) {
+            // loop k within [k0, k1[
+            for (let k = k0; k < k1; k++) {
+              // row index
+              const i = this._index[k];
+
+              // value @ k
+              callback(this._values[k], [i, j], me);
+            }
+          } else {
+            // create a cache holding all defined values
+            const values = {};
+            for (let k = k0; k < k1; k++) {
+              const i = this._index[k];
+              values[i] = this._values[k];
+            }
+
+            // loop over all rows (indexes can be unordered so we can't use that),
+            // and either read the value or zero
+            for (let i = 0; i < rows; i++) {
+              const value = (i in values) ? values[i] : 0;
+              callback(value, [i, j], me);
+            }
+          }
+        }
+      };
+
+      /**
+       * Create an Array with a copy of the data of the SparseMatrix
+       * @memberof SparseMatrix
+       * @returns {Array} array
+       */
+      SparseMatrix.prototype.toArray = function () {
+        return _toArray(this._values, this._index, this._ptr, this._size, true)
+      };
+
+      /**
+       * Get the primitive value of the SparseMatrix: a two dimensions array
+       * @memberof SparseMatrix
+       * @returns {Array} array
+       */
+      SparseMatrix.prototype.valueOf = function () {
+        return _toArray(this._values, this._index, this._ptr, this._size, false)
+      };
+
+      function _toArray (values, index, ptr, size, copy) {
+        // rows and columns
+        const rows = size[0];
+        const columns = size[1];
+        // result
+        const a = [];
+        // vars
+        let i, j;
+        // initialize array
+        for (i = 0; i < rows; i++) {
+          a[i] = [];
+          for (j = 0; j < columns; j++) { a[i][j] = 0; }
+        }
+
+        // loop columns
+        for (j = 0; j < columns; j++) {
+          // k0 <= k < k1 where k0 = _ptr[j] && k1 = _ptr[j+1]
+          const k0 = ptr[j];
+          const k1 = ptr[j + 1];
+          // loop k within [k0, k1[
+          for (let k = k0; k < k1; k++) {
+            // row index
+            i = index[k];
+            // set value (use one for pattern matrix)
+            a[i][j] = values ? (copy ? clone(values[k]) : values[k]) : 1;
+          }
+        }
+        return a
+      }
+
+      /**
+       * Get a string representation of the matrix, with optional formatting options.
+       * @memberof SparseMatrix
+       * @param {Object | number | Function} [options]  Formatting options. See
+       *                                                lib/utils/number:format for a
+       *                                                description of the available
+       *                                                options.
+       * @returns {string} str
+       */
+      SparseMatrix.prototype.format = function (options) {
+        // rows and columns
+        const rows = this._size[0];
+        const columns = this._size[1];
+        // density
+        const density = this.density();
+        // rows & columns
+        let str = 'Sparse Matrix [' + format$2(rows, options) + ' x ' + format$2(columns, options) + '] density: ' + format$2(density, options) + '\n';
+        // loop columns
+        for (let j = 0; j < columns; j++) {
+          // k0 <= k < k1 where k0 = _ptr[j] && k1 = _ptr[j+1]
+          const k0 = this._ptr[j];
+          const k1 = this._ptr[j + 1];
+          // loop k within [k0, k1[
+          for (let k = k0; k < k1; k++) {
+            // row index
+            const i = this._index[k];
+            // append value
+            str += '\n    (' + format$2(i, options) + ', ' + format$2(j, options) + ') ==> ' + (this._values ? format$2(this._values[k], options) : 'X');
+          }
+        }
+        return str
+      };
+
+      /**
+       * Get a string representation of the matrix
+       * @memberof SparseMatrix
+       * @returns {string} str
+       */
+      SparseMatrix.prototype.toString = function () {
+        return format$2(this.toArray())
+      };
+
+      /**
+       * Get a JSON representation of the matrix
+       * @memberof SparseMatrix
+       * @returns {Object}
+       */
+      SparseMatrix.prototype.toJSON = function () {
+        return {
+          mathjs: 'SparseMatrix',
+          values: this._values,
+          index: this._index,
+          ptr: this._ptr,
+          size: this._size,
+          datatype: this._datatype
+        }
+      };
+
+      /**
+       * Get the kth Matrix diagonal.
+       *
+       * @memberof SparseMatrix
+       * @param {number | BigNumber} [k=0]     The kth diagonal where the vector will retrieved.
+       *
+       * @returns {Matrix}                     The matrix vector with the diagonal values.
+       */
+      SparseMatrix.prototype.diagonal = function (k) {
+        // validate k if any
+        if (k) {
+          // convert BigNumber to a number
+          if (isBigNumber(k)) { k = k.toNumber(); }
+          // is must be an integer
+          if (!isNumber(k) || !isInteger(k)) {
+            throw new TypeError('The parameter k must be an integer number')
+          }
+        } else {
+          // default value
+          k = 0;
+        }
+
+        const kSuper = k > 0 ? k : 0;
+        const kSub = k < 0 ? -k : 0;
+
+        // rows & columns
+        const rows = this._size[0];
+        const columns = this._size[1];
+
+        // number diagonal values
+        const n = Math.min(rows - kSub, columns - kSuper);
+
+        // diagonal arrays
+        const values = [];
+        const index = [];
+        const ptr = [];
+        // initial ptr value
+        ptr[0] = 0;
+        // loop columns
+        for (let j = kSuper; j < columns && values.length < n; j++) {
+          // k0 <= k < k1 where k0 = _ptr[j] && k1 = _ptr[j+1]
+          const k0 = this._ptr[j];
+          const k1 = this._ptr[j + 1];
+          // loop x within [k0, k1[
+          for (let x = k0; x < k1; x++) {
+            // row index
+            const i = this._index[x];
+            // check row
+            if (i === j - kSuper + kSub) {
+              // value on this column
+              values.push(this._values[x]);
+              // store row
+              index[values.length - 1] = i - kSub;
+              // exit loop
+              break
+            }
+          }
+        }
+        // close ptr
+        ptr.push(values.length);
+        // return matrix
+        return new SparseMatrix({
+          values: values,
+          index: index,
+          ptr: ptr,
+          size: [n, 1]
+        })
+      };
+
+      /**
+       * Generate a matrix from a JSON object
+       * @memberof SparseMatrix
+       * @param {Object} json  An object structured like
+       *                       `{"mathjs": "SparseMatrix", "values": [], "index": [], "ptr": [], "size": []}`,
+       *                       where mathjs is optional
+       * @returns {SparseMatrix}
+       */
+      SparseMatrix.fromJSON = function (json) {
+        return new SparseMatrix(json)
+      };
+
+      /**
+       * Create a diagonal matrix.
+       *
+       * @memberof SparseMatrix
+       * @param {Array} size                       The matrix size.
+       * @param {number | Array | Matrix } value   The values for the diagonal.
+       * @param {number | BigNumber} [k=0]         The kth diagonal where the vector will be filled in.
+       * @param {number} [defaultValue]            The default value for non-diagonal
+       * @param {string} [datatype]                The Matrix datatype, values must be of this datatype.
+       *
+       * @returns {SparseMatrix}
+       */
+      SparseMatrix.diagonal = function (size, value, k, defaultValue, datatype) {
+        if (!isArray(size)) { throw new TypeError('Array expected, size parameter') }
+        if (size.length !== 2) { throw new Error('Only two dimensions matrix are supported') }
+
+        // map size & validate
+        size = size.map(function (s) {
+          // check it is a big number
+          if (isBigNumber(s)) {
+            // convert it
+            s = s.toNumber();
+          }
+          // validate arguments
+          if (!isNumber(s) || !isInteger(s) || s < 1) {
+            throw new Error('Size values must be positive integers')
+          }
+          return s
+        });
+
+        // validate k if any
+        if (k) {
+          // convert BigNumber to a number
+          if (isBigNumber(k)) { k = k.toNumber(); }
+          // is must be an integer
+          if (!isNumber(k) || !isInteger(k)) {
+            throw new TypeError('The parameter k must be an integer number')
+          }
+        } else {
+          // default value
+          k = 0;
+        }
+
+        // equal signature to use
+        let eq = equalScalar;
+        // zero value
+        let zero = 0;
+
+        if (isString(datatype)) {
+          // find signature that matches (datatype, datatype)
+          eq = typed.find(equalScalar, [datatype, datatype]) || equalScalar;
+          // convert 0 to the same datatype
+          zero = typed.convert(0, datatype);
+        }
+
+        const kSuper = k > 0 ? k : 0;
+        const kSub = k < 0 ? -k : 0;
+
+        // rows and columns
+        const rows = size[0];
+        const columns = size[1];
+
+        // number of non-zero items
+        const n = Math.min(rows - kSub, columns - kSuper);
+
+        // value extraction function
+        let _value;
+
+        // check value
+        if (isArray(value)) {
+          // validate array
+          if (value.length !== n) {
+            // number of values in array must be n
+            throw new Error('Invalid value array length')
+          }
+          // define function
+          _value = function (i) {
+            // return value @ i
+            return value[i]
+          };
+        } else if (isMatrix(value)) {
+          // matrix size
+          const ms = value.size();
+          // validate matrix
+          if (ms.length !== 1 || ms[0] !== n) {
+            // number of values in array must be n
+            throw new Error('Invalid matrix length')
+          }
+          // define function
+          _value = function (i) {
+            // return value @ i
+            return value.get([i])
+          };
+        } else {
+          // define function
+          _value = function () {
+            // return value
+            return value
+          };
+        }
+
+        // create arrays
+        const values = [];
+        const index = [];
+        const ptr = [];
+
+        // loop items
+        for (let j = 0; j < columns; j++) {
+          // number of rows with value
+          ptr.push(values.length);
+          // diagonal index
+          const i = j - kSuper;
+          // check we need to set diagonal value
+          if (i >= 0 && i < n) {
+            // get value @ i
+            const v = _value(i);
+            // check for zero
+            if (!eq(v, zero)) {
+              // column
+              index.push(i + kSub);
+              // add value
+              values.push(v);
+            }
+          }
+        }
+        // last value should be number of values
+        ptr.push(values.length);
+        // create SparseMatrix
+        return new SparseMatrix({
+          values: values,
+          index: index,
+          ptr: ptr,
+          size: [rows, columns]
+        })
+      };
+
+      /**
+       * Swap rows i and j in Matrix.
+       *
+       * @memberof SparseMatrix
+       * @param {number} i       Matrix row index 1
+       * @param {number} j       Matrix row index 2
+       *
+       * @return {Matrix}        The matrix reference
+       */
+      SparseMatrix.prototype.swapRows = function (i, j) {
+        // check index
+        if (!isNumber(i) || !isInteger(i) || !isNumber(j) || !isInteger(j)) {
+          throw new Error('Row index must be positive integers')
+        }
+        // check dimensions
+        if (this._size.length !== 2) {
+          throw new Error('Only two dimensional matrix is supported')
+        }
+        // validate index
+        validateIndex(i, this._size[0]);
+        validateIndex(j, this._size[0]);
+
+        // swap rows
+        SparseMatrix._swapRows(i, j, this._size[1], this._values, this._index, this._ptr);
+        // return current instance
+        return this
+      };
+
+      /**
+       * Loop rows with data in column j.
+       *
+       * @param {number} j            Column
+       * @param {Array} values        Matrix values
+       * @param {Array} index         Matrix row indeces
+       * @param {Array} ptr           Matrix column pointers
+       * @param {Function} callback   Callback function invoked for every row in column j
+       */
+      SparseMatrix._forEachRow = function (j, values, index, ptr, callback) {
+        // indeces for column j
+        const k0 = ptr[j];
+        const k1 = ptr[j + 1];
+        // loop
+        for (let k = k0; k < k1; k++) {
+          // invoke callback
+          callback(index[k], values[k]);
+        }
+      };
+
+      /**
+       * Swap rows x and y in Sparse Matrix data structures.
+       *
+       * @param {number} x         Matrix row index 1
+       * @param {number} y         Matrix row index 2
+       * @param {number} columns   Number of columns in matrix
+       * @param {Array} values     Matrix values
+       * @param {Array} index      Matrix row indeces
+       * @param {Array} ptr        Matrix column pointers
+       */
+      SparseMatrix._swapRows = function (x, y, columns, values, index, ptr) {
+        // loop columns
+        for (let j = 0; j < columns; j++) {
+          // k0 <= k < k1 where k0 = _ptr[j] && k1 = _ptr[j+1]
+          const k0 = ptr[j];
+          const k1 = ptr[j + 1];
+          // find value index @ x
+          const kx = _getValueIndex(x, k0, k1, index);
+          // find value index @ x
+          const ky = _getValueIndex(y, k0, k1, index);
+          // check both rows exist in matrix
+          if (kx < k1 && ky < k1 && index[kx] === x && index[ky] === y) {
+            // swap values (check for pattern matrix)
+            if (values) {
+              const v = values[kx];
+              values[kx] = values[ky];
+              values[ky] = v;
+            }
+            // next column
+            continue
+          }
+          // check x row exist & no y row
+          if (kx < k1 && index[kx] === x && (ky >= k1 || index[ky] !== y)) {
+            // value @ x (check for pattern matrix)
+            const vx = values ? values[kx] : undefined;
+            // insert value @ y
+            index.splice(ky, 0, y);
+            if (values) { values.splice(ky, 0, vx); }
+            // remove value @ x (adjust array index if needed)
+            index.splice(ky <= kx ? kx + 1 : kx, 1);
+            if (values) { values.splice(ky <= kx ? kx + 1 : kx, 1); }
+            // next column
+            continue
+          }
+          // check y row exist & no x row
+          if (ky < k1 && index[ky] === y && (kx >= k1 || index[kx] !== x)) {
+            // value @ y (check for pattern matrix)
+            const vy = values ? values[ky] : undefined;
+            // insert value @ x
+            index.splice(kx, 0, x);
+            if (values) { values.splice(kx, 0, vy); }
+            // remove value @ y (adjust array index if needed)
+            index.splice(kx <= ky ? ky + 1 : ky, 1);
+            if (values) { values.splice(kx <= ky ? ky + 1 : ky, 1); }
+          }
+        }
+      };
+
+      return SparseMatrix
+    }, { isClass: true });
+
+    const name$7 = 'matrix';
+    const dependencies$8 = [ 'typed', 'Matrix', 'DenseMatrix', 'SparseMatrix' ];
+
+    const createMatrix = /* #__PURE__ */ factory(name$7, dependencies$8, ({ typed, Matrix, DenseMatrix, SparseMatrix }) => {
+      /**
+       * Create a Matrix. The function creates a new `math.Matrix` object from
+       * an `Array`. A Matrix has utility functions to manipulate the data in the
+       * matrix, like getting the size and getting or setting values in the matrix.
+       * Supported storage formats are 'dense' and 'sparse'.
+       *
+       * Syntax:
+       *
+       *    math.matrix()                         // creates an empty matrix using default storage format (dense).
+       *    math.matrix(data)                     // creates a matrix with initial data using default storage format (dense).
+       *    math.matrix('dense')                  // creates an empty matrix using the given storage format.
+       *    math.matrix(data, 'dense')            // creates a matrix with initial data using the given storage format.
+       *    math.matrix(data, 'sparse')           // creates a sparse matrix with initial data.
+       *    math.matrix(data, 'sparse', 'number') // creates a sparse matrix with initial data, number data type.
+       *
+       * Examples:
+       *
+       *    let m = math.matrix([[1, 2], [3, 4]])
+       *    m.size()                        // Array [2, 2]
+       *    m.resize([3, 2], 5)
+       *    m.valueOf()                     // Array [[1, 2], [3, 4], [5, 5]]
+       *    m.get([1, 0])                    // number 3
+       *
+       * See also:
+       *
+       *    bignumber, boolean, complex, index, number, string, unit, sparse
+       *
+       * @param {Array | Matrix} [data]    A multi dimensional array
+       * @param {string} [format]          The Matrix storage format
+       *
+       * @return {Matrix} The created matrix
+       */
+      return typed(name$7, {
+        '': function () {
+          return _create([])
+        },
+
+        'string': function (format) {
+          return _create([], format)
+        },
+
+        'string, string': function (format, datatype) {
+          return _create([], format, datatype)
+        },
+
+        'Array': function (data) {
+          return _create(data)
+        },
+
+        'Matrix': function (data) {
+          return _create(data, data.storage())
+        },
+
+        'Array | Matrix, string': _create,
+
+        'Array | Matrix, string, string': _create
+      })
+
+      /**
+       * Create a new Matrix with given storage format
+       * @param {Array} data
+       * @param {string} [format]
+       * @param {string} [datatype]
+       * @returns {Matrix} Returns a new Matrix
+       * @private
+       */
+      function _create (data, format, datatype) {
+        // get storage format constructor
+        if (format === 'dense' || format === 'default' || format === undefined) {
+          return new DenseMatrix(data, datatype)
+        }
+
+        if (format === 'sparse') {
+          return new SparseMatrix(data, datatype)
+        }
+
+        throw new TypeError('Unknown matrix type ' + JSON.stringify(format) + '.')
+      }
+    });
+
+    const name$8 = 'algorithm13';
+    const dependencies$9 = ['typed'];
+
+    const createAlgorithm13 = /* #__PURE__ */ factory(name$8, dependencies$9, ({ typed }) => {
+      /**
+       * Iterates over DenseMatrix items and invokes the callback function f(Aij..z, Bij..z).
+       * Callback function invoked MxN times.
+       *
+       * C(i,j,...z) = f(Aij..z, Bij..z)
+       *
+       * @param {Matrix}   a                 The DenseMatrix instance (A)
+       * @param {Matrix}   b                 The DenseMatrix instance (B)
+       * @param {Function} callback          The f(Aij..z,Bij..z) operation to invoke
+       *
+       * @return {Matrix}                    DenseMatrix (C)
+       *
+       * https://github.com/josdejong/mathjs/pull/346#issuecomment-97658658
+       */
+      return function algorithm13 (a, b, callback) {
+        // a arrays
+        const adata = a._data;
+        const asize = a._size;
+        const adt = a._datatype;
+        // b arrays
+        const bdata = b._data;
+        const bsize = b._size;
+        const bdt = b._datatype;
+        // c arrays
+        const csize = [];
+
+        // validate dimensions
+        if (asize.length !== bsize.length) { throw new DimensionError(asize.length, bsize.length) }
+
+        // validate each one of the dimension sizes
+        for (let s = 0; s < asize.length; s++) {
+          // must match
+          if (asize[s] !== bsize[s]) { throw new RangeError('Dimension mismatch. Matrix A (' + asize + ') must match Matrix B (' + bsize + ')') }
+          // update dimension in c
+          csize[s] = asize[s];
+        }
+
+        // datatype
+        let dt;
+        // callback signature to use
+        let cf = callback;
+
+        // process data types
+        if (typeof adt === 'string' && adt === bdt) {
+          // datatype
+          dt = adt;
+          // callback
+          cf = typed.find(callback, [dt, dt]);
+        }
+
+        // populate cdata, iterate through dimensions
+        const cdata = csize.length > 0 ? _iterate(cf, 0, csize, csize[0], adata, bdata) : [];
+
+        // c matrix
+        return a.createDenseMatrix({
+          data: cdata,
+          size: csize,
+          datatype: dt
+        })
+      }
+
+      // recursive function
+      function _iterate (f, level, s, n, av, bv) {
+        // initialize array for this level
+        const cv = [];
+        // check we reach the last level
+        if (level === s.length - 1) {
+          // loop arrays in last level
+          for (let i = 0; i < n; i++) {
+            // invoke callback and store value
+            cv[i] = f(av[i], bv[i]);
+          }
+        } else {
+          // iterate current level
+          for (let j = 0; j < n; j++) {
+            // iterate next level
+            cv[j] = _iterate(f, level + 1, s, s[level + 1], av[j], bv[j]);
+          }
+        }
+        return cv
+      }
+    });
+
+    const name$9 = 'algorithm14';
+    const dependencies$a = ['typed'];
+
+    const createAlgorithm14 = /* #__PURE__ */ factory(name$9, dependencies$a, ({ typed }) => {
+      /**
+       * Iterates over DenseMatrix items and invokes the callback function f(Aij..z, b).
+       * Callback function invoked MxN times.
+       *
+       * C(i,j,...z) = f(Aij..z, b)
+       *
+       * @param {Matrix}   a                 The DenseMatrix instance (A)
+       * @param {Scalar}   b                 The Scalar value
+       * @param {Function} callback          The f(Aij..z,b) operation to invoke
+       * @param {boolean}  inverse           A true value indicates callback should be invoked f(b,Aij..z)
+       *
+       * @return {Matrix}                    DenseMatrix (C)
+       *
+       * https://github.com/josdejong/mathjs/pull/346#issuecomment-97659042
+       */
+      return function algorithm14 (a, b, callback, inverse) {
+        // a arrays
+        const adata = a._data;
+        const asize = a._size;
+        const adt = a._datatype;
+
+        // datatype
+        let dt;
+        // callback signature to use
+        let cf = callback;
+
+        // process data types
+        if (typeof adt === 'string') {
+          // datatype
+          dt = adt;
+          // convert b to the same datatype
+          b = typed.convert(b, dt);
+          // callback
+          cf = typed.find(callback, [dt, dt]);
+        }
+
+        // populate cdata, iterate through dimensions
+        const cdata = asize.length > 0 ? _iterate(cf, 0, asize, asize[0], adata, b, inverse) : [];
+
+        // c matrix
+        return a.createDenseMatrix({
+          data: cdata,
+          size: clone(asize),
+          datatype: dt
+        })
+      }
+
+      // recursive function
+      function _iterate (f, level, s, n, av, bv, inverse) {
+        // initialize array for this level
+        const cv = [];
+        // check we reach the last level
+        if (level === s.length - 1) {
+          // loop arrays in last level
+          for (let i = 0; i < n; i++) {
+            // invoke callback and store value
+            cv[i] = inverse ? f(bv, av[i]) : f(av[i], bv);
+          }
+        } else {
+          // iterate current level
+          for (let j = 0; j < n; j++) {
+            // iterate next level
+            cv[j] = _iterate(f, level + 1, s, s[level + 1], av[j], bv, inverse);
+          }
+        }
+        return cv
+      }
+    });
+
+    const name$a = 'algorithm03';
+    const dependencies$b = ['typed'];
+
+    const createAlgorithm03 = /* #__PURE__ */ factory(name$a, dependencies$b, ({ typed }) => {
+      /**
+       * Iterates over SparseMatrix items and invokes the callback function f(Dij, Sij).
+       * Callback function invoked M*N times.
+       *
+       *
+       *          ┌  f(Dij, Sij)  ; S(i,j) !== 0
+       * C(i,j) = ┤
+       *          └  f(Dij, 0)    ; otherwise
+       *
+       *
+       * @param {Matrix}   denseMatrix       The DenseMatrix instance (D)
+       * @param {Matrix}   sparseMatrix      The SparseMatrix instance (C)
+       * @param {Function} callback          The f(Dij,Sij) operation to invoke, where Dij = DenseMatrix(i,j) and Sij = SparseMatrix(i,j)
+       * @param {boolean}  inverse           A true value indicates callback should be invoked f(Sij,Dij)
+       *
+       * @return {Matrix}                    DenseMatrix (C)
+       *
+       * see https://github.com/josdejong/mathjs/pull/346#issuecomment-97477571
+       */
+      return function algorithm03 (denseMatrix, sparseMatrix, callback, inverse) {
+        // dense matrix arrays
+        const adata = denseMatrix._data;
+        const asize = denseMatrix._size;
+        const adt = denseMatrix._datatype;
+        // sparse matrix arrays
+        const bvalues = sparseMatrix._values;
+        const bindex = sparseMatrix._index;
+        const bptr = sparseMatrix._ptr;
+        const bsize = sparseMatrix._size;
+        const bdt = sparseMatrix._datatype;
+
+        // validate dimensions
+        if (asize.length !== bsize.length) { throw new DimensionError(asize.length, bsize.length) }
+
+        // check rows & columns
+        if (asize[0] !== bsize[0] || asize[1] !== bsize[1]) { throw new RangeError('Dimension mismatch. Matrix A (' + asize + ') must match Matrix B (' + bsize + ')') }
+
+        // sparse matrix cannot be a Pattern matrix
+        if (!bvalues) { throw new Error('Cannot perform operation on Dense Matrix and Pattern Sparse Matrix') }
+
+        // rows & columns
+        const rows = asize[0];
+        const columns = asize[1];
+
+        // datatype
+        let dt;
+        // zero value
+        let zero = 0;
+        // callback signature to use
+        let cf = callback;
+
+        // process data types
+        if (typeof adt === 'string' && adt === bdt) {
+          // datatype
+          dt = adt;
+          // convert 0 to the same datatype
+          zero = typed.convert(0, dt);
+          // callback
+          cf = typed.find(callback, [dt, dt]);
+        }
+
+        // result (DenseMatrix)
+        const cdata = [];
+
+        // initialize dense matrix
+        for (let z = 0; z < rows; z++) {
+          // initialize row
+          cdata[z] = [];
+        }
+
+        // workspace
+        const x = [];
+        // marks indicating we have a value in x for a given column
+        const w = [];
+
+        // loop columns in b
+        for (let j = 0; j < columns; j++) {
+          // column mark
+          const mark = j + 1;
+          // values in column j
+          for (let k0 = bptr[j], k1 = bptr[j + 1], k = k0; k < k1; k++) {
+            // row
+            const i = bindex[k];
+            // update workspace
+            x[i] = inverse ? cf(bvalues[k], adata[i][j]) : cf(adata[i][j], bvalues[k]);
+            w[i] = mark;
+          }
+          // process workspace
+          for (let y = 0; y < rows; y++) {
+            // check we have a calculated value for current row
+            if (w[y] === mark) {
+              // use calculated value
+              cdata[y][j] = x[y];
+            } else {
+              // calculate value
+              cdata[y][j] = inverse ? cf(zero, adata[y][j]) : cf(adata[y][j], zero);
+            }
+          }
+        }
+
+        // return dense matrix
+        return denseMatrix.createDenseMatrix({
+          data: cdata,
+          size: [rows, columns],
+          datatype: dt
+        })
+      }
+    });
+
+    const name$b = 'algorithm12';
+    const dependencies$c = ['typed', 'DenseMatrix'];
+
+    const createAlgorithm12 = /* #__PURE__ */ factory(name$b, dependencies$c, ({ typed, DenseMatrix }) => {
+      /**
+       * Iterates over SparseMatrix S nonzero items and invokes the callback function f(Sij, b).
+       * Callback function invoked MxN times.
+       *
+       *
+       *          ┌  f(Sij, b)  ; S(i,j) !== 0
+       * C(i,j) = ┤
+       *          └  f(0, b)    ; otherwise
+       *
+       *
+       * @param {Matrix}   s                 The SparseMatrix instance (S)
+       * @param {Scalar}   b                 The Scalar value
+       * @param {Function} callback          The f(Aij,b) operation to invoke
+       * @param {boolean}  inverse           A true value indicates callback should be invoked f(b,Sij)
+       *
+       * @return {Matrix}                    DenseMatrix (C)
+       *
+       * https://github.com/josdejong/mathjs/pull/346#issuecomment-97626813
+       */
+      return function algorithm12 (s, b, callback, inverse) {
+        // sparse matrix arrays
+        const avalues = s._values;
+        const aindex = s._index;
+        const aptr = s._ptr;
+        const asize = s._size;
+        const adt = s._datatype;
+
+        // sparse matrix cannot be a Pattern matrix
+        if (!avalues) { throw new Error('Cannot perform operation on Pattern Sparse Matrix and Scalar value') }
+
+        // rows & columns
+        const rows = asize[0];
+        const columns = asize[1];
+
+        // datatype
+        let dt;
+        // callback signature to use
+        let cf = callback;
+
+        // process data types
+        if (typeof adt === 'string') {
+          // datatype
+          dt = adt;
+          // convert b to the same datatype
+          b = typed.convert(b, dt);
+          // callback
+          cf = typed.find(callback, [dt, dt]);
+        }
+
+        // result arrays
+        const cdata = [];
+        // matrix
+        const c = new DenseMatrix({
+          data: cdata,
+          size: [rows, columns],
+          datatype: dt
+        });
+
+        // workspaces
+        const x = [];
+        // marks indicating we have a value in x for a given column
+        const w = [];
+
+        // loop columns
+        for (let j = 0; j < columns; j++) {
+          // columns mark
+          const mark = j + 1;
+          // values in j
+          for (let k0 = aptr[j], k1 = aptr[j + 1], k = k0; k < k1; k++) {
+            // row
+            const r = aindex[k];
+            // update workspace
+            x[r] = avalues[k];
+            w[r] = mark;
+          }
+          // loop rows
+          for (let i = 0; i < rows; i++) {
+            // initialize C on first column
+            if (j === 0) {
+              // create row array
+              cdata[i] = [];
+            }
+            // check sparse matrix has a value @ i,j
+            if (w[i] === mark) {
+              // invoke callback, update C
+              cdata[i][j] = inverse ? cf(b, x[i]) : cf(x[i], b);
+            } else {
+              // dense matrix value @ i, j
+              cdata[i][j] = inverse ? cf(b, 0) : cf(0, b);
+            }
+          }
+        }
+
+        // return sparse matrix
+        return c
+      }
+    });
+
+    const name$c = 'algorithm07';
+    const dependencies$d = ['typed', 'DenseMatrix'];
+
+    const createAlgorithm07 = /* #__PURE__ */ factory(name$c, dependencies$d, ({ typed, DenseMatrix }) => {
+      /**
+       * Iterates over SparseMatrix A and SparseMatrix B items (zero and nonzero) and invokes the callback function f(Aij, Bij).
+       * Callback function invoked MxN times.
+       *
+       * C(i,j) = f(Aij, Bij)
+       *
+       * @param {Matrix}   a                 The SparseMatrix instance (A)
+       * @param {Matrix}   b                 The SparseMatrix instance (B)
+       * @param {Function} callback          The f(Aij,Bij) operation to invoke
+       *
+       * @return {Matrix}                    DenseMatrix (C)
+       *
+       * see https://github.com/josdejong/mathjs/pull/346#issuecomment-97620294
+       */
+      return function algorithm07 (a, b, callback) {
+        // sparse matrix arrays
+        const asize = a._size;
+        const adt = a._datatype;
+        // sparse matrix arrays
+        const bsize = b._size;
+        const bdt = b._datatype;
+
+        // validate dimensions
+        if (asize.length !== bsize.length) { throw new DimensionError(asize.length, bsize.length) }
+
+        // check rows & columns
+        if (asize[0] !== bsize[0] || asize[1] !== bsize[1]) { throw new RangeError('Dimension mismatch. Matrix A (' + asize + ') must match Matrix B (' + bsize + ')') }
+
+        // rows & columns
+        const rows = asize[0];
+        const columns = asize[1];
+
+        // datatype
+        let dt;
+        // zero value
+        let zero = 0;
+        // callback signature to use
+        let cf = callback;
+
+        // process data types
+        if (typeof adt === 'string' && adt === bdt) {
+          // datatype
+          dt = adt;
+          // convert 0 to the same datatype
+          zero = typed.convert(0, dt);
+          // callback
+          cf = typed.find(callback, [dt, dt]);
+        }
+
+        // vars
+        let i, j;
+
+        // result arrays
+        const cdata = [];
+        // initialize c
+        for (i = 0; i < rows; i++) { cdata[i] = []; }
+
+        // matrix
+        const c = new DenseMatrix({
+          data: cdata,
+          size: [rows, columns],
+          datatype: dt
+        });
+
+        // workspaces
+        const xa = [];
+        const xb = [];
+        // marks indicating we have a value in x for a given column
+        const wa = [];
+        const wb = [];
+
+        // loop columns
+        for (j = 0; j < columns; j++) {
+          // columns mark
+          const mark = j + 1;
+          // scatter the values of A(:,j) into workspace
+          _scatter(a, j, wa, xa, mark);
+          // scatter the values of B(:,j) into workspace
+          _scatter(b, j, wb, xb, mark);
+          // loop rows
+          for (i = 0; i < rows; i++) {
+            // matrix values @ i,j
+            const va = wa[i] === mark ? xa[i] : zero;
+            const vb = wb[i] === mark ? xb[i] : zero;
+            // invoke callback
+            cdata[i][j] = cf(va, vb);
+          }
+        }
+
+        // return sparse matrix
+        return c
+      }
+
+      function _scatter (m, j, w, x, mark) {
+        // a arrays
+        const values = m._values;
+        const index = m._index;
+        const ptr = m._ptr;
+        // loop values in column j
+        for (let k = ptr[j], k1 = ptr[j + 1]; k < k1; k++) {
+          // row
+          const i = index[k];
+          // update workspace
+          w[i] = mark;
+          x[i] = values[k];
+        }
+      }
+    });
+
+    const name$d = 'equal';
+    const dependencies$e = [
+      'typed',
+      'matrix',
+      'equalScalar',
+      'DenseMatrix'
+    ];
+
+    const createEqual = /* #__PURE__ */ factory(name$d, dependencies$e, ({ typed, matrix, equalScalar, DenseMatrix }) => {
+      const algorithm03 = createAlgorithm03({ typed });
+      const algorithm07 = createAlgorithm07({ typed, DenseMatrix });
+      const algorithm12 = createAlgorithm12({ typed, DenseMatrix });
+      const algorithm13 = createAlgorithm13({ typed });
+      const algorithm14 = createAlgorithm14({ typed });
+
+      /**
+       * Test whether two values are equal.
+       *
+       * The function tests whether the relative difference between x and y is
+       * smaller than the configured epsilon. The function cannot be used to
+       * compare values smaller than approximately 2.22e-16.
+       *
+       * For matrices, the function is evaluated element wise.
+       * In case of complex numbers, x.re must equal y.re, and x.im must equal y.im.
+       *
+       * Values `null` and `undefined` are compared strictly, thus `null` is only
+       * equal to `null` and nothing else, and `undefined` is only equal to
+       * `undefined` and nothing else. Strings are compared by their numerical value.
+       *
+       * Syntax:
+       *
+       *    math.equal(x, y)
+       *
+       * Examples:
+       *
+       *    math.equal(2 + 2, 3)         // returns false
+       *    math.equal(2 + 2, 4)         // returns true
+       *
+       *    const a = math.unit('50 cm')
+       *    const b = math.unit('5 m')
+       *    math.equal(a, b)             // returns true
+       *
+       *    const c = [2, 5, 1]
+       *    const d = [2, 7, 1]
+       *
+       *    math.equal(c, d)             // returns [true, false, true]
+       *    math.deepEqual(c, d)         // returns false
+       *
+       *    math.equal("1000", "1e3")    // returns true
+       *    math.equal(0, null)          // returns false
+       *
+       * See also:
+       *
+       *    unequal, smaller, smallerEq, larger, largerEq, compare, deepEqual, equalText
+       *
+       * @param  {number | BigNumber | boolean | Complex | Unit | string | Array | Matrix} x First value to compare
+       * @param  {number | BigNumber | boolean | Complex | Unit | string | Array | Matrix} y Second value to compare
+       * @return {boolean | Array | Matrix} Returns true when the compared values are equal, else returns false
+       */
+      const equal = typed(name$d, {
+
+        'any, any': function (x, y) {
+          // strict equality for null and undefined?
+          if (x === null) { return y === null }
+          if (y === null) { return x === null }
+          if (x === undefined) { return y === undefined }
+          if (y === undefined) { return x === undefined }
+
+          return equalScalar(x, y)
+        },
+
+        'SparseMatrix, SparseMatrix': function (x, y) {
+          return algorithm07(x, y, equalScalar)
+        },
+
+        'SparseMatrix, DenseMatrix': function (x, y) {
+          return algorithm03(y, x, equalScalar, true)
+        },
+
+        'DenseMatrix, SparseMatrix': function (x, y) {
+          return algorithm03(x, y, equalScalar, false)
+        },
+
+        'DenseMatrix, DenseMatrix': function (x, y) {
+          return algorithm13(x, y, equalScalar)
+        },
+
+        'Array, Array': function (x, y) {
+          // use matrix implementation
+          return equal(matrix(x), matrix(y)).valueOf()
+        },
+
+        'Array, Matrix': function (x, y) {
+          // use matrix implementation
+          return equal(matrix(x), y)
+        },
+
+        'Matrix, Array': function (x, y) {
+          // use matrix implementation
+          return equal(x, matrix(y))
+        },
+
+        'SparseMatrix, any': function (x, y) {
+          return algorithm12(x, y, equalScalar, false)
+        },
+
+        'DenseMatrix, any': function (x, y) {
+          return algorithm14(x, y, equalScalar, false)
+        },
+
+        'any, SparseMatrix': function (x, y) {
+          return algorithm12(y, x, equalScalar, true)
+        },
+
+        'any, DenseMatrix': function (x, y) {
+          return algorithm14(y, x, equalScalar, true)
+        },
+
+        'Array, any': function (x, y) {
+          // use matrix implementation
+          return algorithm14(matrix(x), y, equalScalar, false).valueOf()
+        },
+
+        'any, Array': function (x, y) {
+          // use matrix implementation
+          return algorithm14(matrix(y), x, equalScalar, true).valueOf()
+        }
+      });
+
+      return equal
+    });
+
+    const createEqualNumber = factory(name$d, ['typed', 'equalScalar'], ({ typed, equalScalar }) => {
+      return typed(name$d, {
+        'any, any': function (x, y) {
+          // strict equality for null and undefined?
+          if (x === null) { return y === null }
+          if (y === null) { return x === null }
+          if (x === undefined) { return y === undefined }
+          if (y === undefined) { return x === undefined }
+
+          return equalScalar(x, y)
+        }
+      })
+    });
+
+    const name$e = 'deepEqual';
+    const dependencies$f = [
+      'typed',
+      'equal'
+    ];
+
+    const createDeepEqual = /* #__PURE__ */ factory(name$e, dependencies$f, ({ typed, equal }) => {
+      /**
+       * Test element wise whether two matrices are equal.
+       * The function accepts both matrices and scalar values.
+       *
+       * Strings are compared by their numerical value.
+       *
+       * Syntax:
+       *
+       *    math.deepEqual(x, y)
+       *
+       * Examples:
+       *
+       *    math.deepEqual(2, 4)   // returns false
+       *
+       *    a = [2, 5, 1]
+       *    b = [2, 7, 1]
+       *
+       *    math.deepEqual(a, b)   // returns false
+       *    math.equal(a, b)       // returns [true, false, true]
+       *
+       * See also:
+       *
+       *    equal, unequal
+       *
+       * @param  {number | BigNumber | Fraction | Complex | Unit | Array | Matrix} x First matrix to compare
+       * @param  {number | BigNumber | Fraction | Complex | Unit | Array | Matrix} y Second matrix to compare
+       * @return {number | BigNumber | Fraction | Complex | Unit | Array | Matrix}
+       *            Returns true when the input matrices have the same size and each of their elements is equal.
+       */
+      return typed(name$e, {
+        'any, any': function (x, y) {
+          return _deepEqual(x.valueOf(), y.valueOf())
+        }
+      })
+
+      /**
+       * Test whether two arrays have the same size and all elements are equal
+       * @param {Array | *} x
+       * @param {Array | *} y
+       * @return {boolean} Returns true if both arrays are deep equal
+       */
+      function _deepEqual (x, y) {
+        if (Array.isArray(x)) {
+          if (Array.isArray(y)) {
+            const len = x.length;
+            if (len !== y.length) {
+              return false
+            }
+
+            for (let i = 0; i < len; i++) {
+              if (!_deepEqual(x[i], y[i])) {
+                return false
+              }
+            }
+
+            return true
+          } else {
+            return false
+          }
+        } else {
+          if (Array.isArray(y)) {
+            return false
+          } else {
+            return equal(x, y)
+          }
+        }
+      }
+    });
+
+    /**
+     * THIS FILE IS AUTO-GENERATED
+     * DON'T MAKE CHANGES HERE
+     */
+    const Complex$1 = /* #__PURE__ */ createComplexClass({});
+    const BigNumber = /* #__PURE__ */ createBigNumberClass({ config });
+    const Matrix = /* #__PURE__ */ createMatrixClass({});
+    const Fraction$1 = /* #__PURE__ */ createFractionClass({});
+    const DenseMatrix = /* #__PURE__ */ createDenseMatrixClass({ Matrix });
+    const typed = /* #__PURE__ */ createTyped({ BigNumber, Complex: Complex$1, DenseMatrix, Fraction: Fraction$1 });
+    const equalScalar = /* #__PURE__ */ createEqualScalar({ config, typed });
+    const SparseMatrix = /* #__PURE__ */ createSparseMatrixClass({ Matrix, equalScalar, typed });
+    const matrix = /* #__PURE__ */ createMatrix({ DenseMatrix, Matrix, SparseMatrix, typed });
+    const equal$1 = /* #__PURE__ */ createEqual({ DenseMatrix, equalScalar, matrix, typed });
+    const deepEqual = /* #__PURE__ */ createDeepEqual({ equal: equal$1, typed });
+
+    var generateTotals = function (colors, solution) {
+        var layerTotals = [];
+        for (var i = 0; i < colors.length; i += 1) {
+            var row = [];
+            for (var rowIndex = 0; rowIndex < solution.length; rowIndex += 1) {
+                var total = [];
+                var inGroup = 0;
+                for (var colIndex = 0; colIndex < solution[rowIndex].length; colIndex += 1) {
+                    var current = solution[rowIndex][colIndex];
+                    if (!!inGroup) {
+                        if (current === i) {
+                            inGroup += 1;
+                        }
+                        else {
+                            if (inGroup) {
+                                total.push(inGroup);
+                                inGroup = 0;
+                            }
+                        }
+                    }
+                    else {
+                        if (current === i) {
+                            inGroup += 1;
+                        }
+                    }
+                    if (colIndex === solution[rowIndex].length - 1
+                        && current
+                        && inGroup) {
+                        total.push(inGroup);
+                    }
+                }
+                row.push(total);
+            }
+            var col = [];
+            for (var colIndex = 0; colIndex < solution[0].length; colIndex += 1) {
+                var total = [];
+                var inGroup = 0;
+                for (var rowIndex = 0; rowIndex < solution.length; rowIndex += 1) {
+                    var current = solution[rowIndex][colIndex];
+                    if (inGroup) {
+                        if (current === i) {
+                            inGroup += 1;
+                        }
+                        else {
+                            if (inGroup) {
+                                total.push(inGroup);
+                                inGroup = 0;
+                            }
+                        }
+                    }
+                    else {
+                        if (current === i) {
+                            inGroup += 1;
+                        }
+                    }
+                    if (rowIndex === solution.length - 1
+                        && current
+                        && inGroup) {
+                        total.push(inGroup);
+                    }
+                }
+                col.push(total);
+            }
+            layerTotals.push([row, col]);
+        }
+        console.log(layerTotals);
+        return layerTotals;
+    };
+    //# sourceMappingURL=utils.js.map
+
     /* src/Block.svelte generated by Svelte v3.6.7 */
-    const { console: console_1 } = globals;
 
     const file = "src/Block.svelte";
 
@@ -17439,7 +41666,7 @@ var app = (function () {
     			set_style(div, "color", ctx.textColor);
     			set_style(div, "transition", "all " + ctx.transitionTime + "s ease-in-out");
     			attr(div, "class", "svelte-qgbta2");
-    			add_location(div, file, 34, 0, 677);
+    			add_location(div, file, 33, 0, 641);
 
     			dispose = [
     				listen(div, "click", ctx.click_handler),
@@ -17509,13 +41736,11 @@ var app = (function () {
     const red = '#d22';
 
     function instance($$self, $$props, $$invalidate) {
-    	let { row, col, state = 0, enabledColor, onClick, onRightClick, transitionTime = 0.2 } = $$props;
+    	let { row, col, state = -1, color, onClick, onRightClick, transitionTime = 0.2 } = $$props;
 
-      console.log(enabledColor);
-
-    	const writable_props = ['row', 'col', 'state', 'enabledColor', 'onClick', 'onRightClick', 'transitionTime'];
+    	const writable_props = ['row', 'col', 'state', 'color', 'onClick', 'onRightClick', 'transitionTime'];
     	Object.keys($$props).forEach(key => {
-    		if (!writable_props.includes(key) && !key.startsWith('$$')) console_1.warn(`<Block> was created with unknown prop '${key}'`);
+    		if (!writable_props.includes(key) && !key.startsWith('$$')) console.warn(`<Block> was created with unknown prop '${key}'`);
     	});
 
     	let { $$slots = {}, $$scope } = $$props;
@@ -17537,7 +41762,7 @@ var app = (function () {
     		if ('row' in $$props) $$invalidate('row', row = $$props.row);
     		if ('col' in $$props) $$invalidate('col', col = $$props.col);
     		if ('state' in $$props) $$invalidate('state', state = $$props.state);
-    		if ('enabledColor' in $$props) $$invalidate('enabledColor', enabledColor = $$props.enabledColor);
+    		if ('color' in $$props) $$invalidate('color', color = $$props.color);
     		if ('onClick' in $$props) $$invalidate('onClick', onClick = $$props.onClick);
     		if ('onRightClick' in $$props) $$invalidate('onRightClick', onRightClick = $$props.onRightClick);
     		if ('transitionTime' in $$props) $$invalidate('transitionTime', transitionTime = $$props.transitionTime);
@@ -17546,8 +41771,8 @@ var app = (function () {
 
     	let bg, textColor;
 
-    	$$self.$$.update = ($$dirty = { state: 1, enabledColor: 1, bg: 1 }) => {
-    		if ($$dirty.state || $$dirty.enabledColor) { $$invalidate('bg', bg = state < 0 ? red : (state > 0 ? enabledColor : white)); }
+    	$$self.$$.update = ($$dirty = { state: 1, color: 1, bg: 1 }) => {
+    		if ($$dirty.state || $$dirty.color) { $$invalidate('bg', bg = state === -2 ? red : (state === -1 ? white : color)); }
     		if ($$dirty.bg) { $$invalidate('textColor', textColor = bg === white ? black : white); }
     	};
 
@@ -17555,7 +41780,7 @@ var app = (function () {
     		row,
     		col,
     		state,
-    		enabledColor,
+    		color,
     		onClick,
     		onRightClick,
     		transitionTime,
@@ -17571,24 +41796,24 @@ var app = (function () {
     class Block extends SvelteComponentDev {
     	constructor(options) {
     		super(options);
-    		init(this, options, instance, create_fragment, safe_not_equal, ["row", "col", "state", "enabledColor", "onClick", "onRightClick", "transitionTime"]);
+    		init(this, options, instance, create_fragment, safe_not_equal, ["row", "col", "state", "color", "onClick", "onRightClick", "transitionTime"]);
 
     		const { ctx } = this.$$;
     		const props = options.props || {};
     		if (ctx.row === undefined && !('row' in props)) {
-    			console_1.warn("<Block> was created without expected prop 'row'");
+    			console.warn("<Block> was created without expected prop 'row'");
     		}
     		if (ctx.col === undefined && !('col' in props)) {
-    			console_1.warn("<Block> was created without expected prop 'col'");
+    			console.warn("<Block> was created without expected prop 'col'");
     		}
-    		if (ctx.enabledColor === undefined && !('enabledColor' in props)) {
-    			console_1.warn("<Block> was created without expected prop 'enabledColor'");
+    		if (ctx.color === undefined && !('color' in props)) {
+    			console.warn("<Block> was created without expected prop 'color'");
     		}
     		if (ctx.onClick === undefined && !('onClick' in props)) {
-    			console_1.warn("<Block> was created without expected prop 'onClick'");
+    			console.warn("<Block> was created without expected prop 'onClick'");
     		}
     		if (ctx.onRightClick === undefined && !('onRightClick' in props)) {
-    			console_1.warn("<Block> was created without expected prop 'onRightClick'");
+    			console.warn("<Block> was created without expected prop 'onRightClick'");
     		}
     	}
 
@@ -17616,11 +41841,11 @@ var app = (function () {
     		throw new Error("<Block>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
     	}
 
-    	get enabledColor() {
+    	get color() {
     		throw new Error("<Block>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
     	}
 
-    	set enabledColor(value) {
+    	set color(value) {
     		throw new Error("<Block>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
     	}
 
@@ -17648,65 +41873,6 @@ var app = (function () {
     		throw new Error("<Block>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
     	}
     }
-
-    let generateTotals = (solution) => {
-    		let rowTotals = [];
-    		for (let rowIndex = 0; rowIndex < solution.length; rowIndex += 1) {
-    			let total = [];
-    			let inGroup = 0;
-
-    			for (let colIndex = 0; colIndex < solution[rowIndex].length; colIndex += 1) {
-    				let current = solution[rowIndex][colIndex];
-
-    				if (inGroup) {
-    					if (current) {
-    						inGroup += 1;
-    					} else {
-    						total.push(inGroup);
-    						inGroup = 0;
-    					}
-    				} else {
-    					if (current) {
-    						inGroup += 1;
-    					}
-    				}
-
-    				if (colIndex === solution[rowIndex].length - 1 && current) {
-    					total.push(inGroup);
-    				}
-    			}
-    			rowTotals.push(total);
-    		}
-
-    		let colTotals = [];
-    		for (let colIndex = 0; colIndex < solution[0].length; colIndex += 1) {
-    			let total = [];
-    			let inGroup = 0;
-
-    			for (let rowIndex = 0; rowIndex < solution.length; rowIndex += 1) {
-    				let current = solution[rowIndex][colIndex];
-
-    				if (inGroup) {
-    					if (current) {
-    						inGroup += 1;
-    					} else {
-    						total.push(inGroup);
-    						inGroup = 0;
-    					}
-    				} else {
-    					if (current) {
-    						inGroup += 1;
-    					}
-    				}
-
-    				if (rowIndex === solution.length - 1 && current) {
-    					total.push(inGroup);
-    				}
-    			}
-    			colTotals.push(total);
-    		}
-    		return [rowTotals, colTotals];
-      };
 
     /* src/Griddler.svelte generated by Svelte v3.6.7 */
 
@@ -17757,7 +41923,7 @@ var app = (function () {
     	return child_ctx;
     }
 
-    // (93:4) <Block       state={1}       enabledColor={color}       onClick={() => { setLayerIndex(index); }}     >
+    // (74:4) <Block       state={1}       color={color}       onClick={() => { setLayerIndex(index); }}     >
     function create_default_slot_4(ctx) {
     	var t0_value = ctx.color, t0, t1;
 
@@ -17787,7 +41953,7 @@ var app = (function () {
     	};
     }
 
-    // (92:2) {#each colors as color, index}
+    // (73:2) {#each colors as color, index}
     function create_each_block_6(ctx) {
     	var current;
 
@@ -17798,7 +41964,7 @@ var app = (function () {
     	var block = new Block({
     		props: {
     		state: 1,
-    		enabledColor: ctx.color,
+    		color: ctx.color,
     		onClick: func,
     		$$slots: { default: [create_default_slot_4] },
     		$$scope: { ctx }
@@ -17819,7 +41985,7 @@ var app = (function () {
     		p: function update(changed, new_ctx) {
     			ctx = new_ctx;
     			var block_changes = {};
-    			if (changed.colors) block_changes.enabledColor = ctx.color;
+    			if (changed.colors) block_changes.color = ctx.color;
     			if (changed.setLayerIndex) block_changes.onClick = func;
     			if (changed.$$scope || changed.colors) block_changes.$$scope = { changed, ctx };
     			block.$set(block_changes);
@@ -17843,43 +42009,40 @@ var app = (function () {
     	};
     }
 
-    // (105:4) <Block       enabledColor={currentColor}       state={1}     >
+    // (90:4) <Block       color={color}       state={1}     >
     function create_default_slot_3(ctx) {
-    	var t0_value = ctx.total, t0, t1;
+    	var t_value = ctx.total, t;
 
     	return {
     		c: function create() {
-    			t0 = text(t0_value);
-    			t1 = space();
+    			t = text(t_value);
     		},
 
     		m: function mount(target, anchor) {
-    			insert(target, t0, anchor);
-    			insert(target, t1, anchor);
+    			insert(target, t, anchor);
     		},
 
     		p: function update(changed, ctx) {
-    			if ((changed.colTotals) && t0_value !== (t0_value = ctx.total)) {
-    				set_data(t0, t0_value);
+    			if ((changed.colTotals) && t_value !== (t_value = ctx.total)) {
+    				set_data(t, t_value);
     			}
     		},
 
     		d: function destroy(detaching) {
     			if (detaching) {
-    				detach(t0);
-    				detach(t1);
+    				detach(t);
     			}
     		}
     	};
     }
 
-    // (104:2) {#each colTotals as total}
+    // (89:2) {#each colTotals as total}
     function create_each_block_5(ctx) {
     	var current;
 
     	var block = new Block({
     		props: {
-    		enabledColor: ctx.currentColor,
+    		color: ctx.color,
     		state: 1,
     		$$slots: { default: [create_default_slot_3] },
     		$$scope: { ctx }
@@ -17899,7 +42062,7 @@ var app = (function () {
 
     		p: function update(changed, ctx) {
     			var block_changes = {};
-    			if (changed.currentColor) block_changes.enabledColor = ctx.currentColor;
+    			if (changed.color) block_changes.color = ctx.color;
     			if (changed.$$scope || changed.colTotals) block_changes.$$scope = { changed, ctx };
     			block.$set(block_changes);
     		},
@@ -17922,7 +42085,7 @@ var app = (function () {
     	};
     }
 
-    // (117:6) <Block         enabledColor={currentColor}         state={1}       >
+    // (106:6) <Block         color={color}         state={1}       >
     function create_default_slot_2(ctx) {
     	var t0_value = ctx.total, t0, t1;
 
@@ -17952,13 +42115,13 @@ var app = (function () {
     	};
     }
 
-    // (116:4) {#each rowTotals as total}
+    // (105:4) {#each rowTotals as total}
     function create_each_block_4(ctx) {
     	var current;
 
     	var block = new Block({
     		props: {
-    		enabledColor: ctx.currentColor,
+    		color: ctx.color,
     		state: 1,
     		$$slots: { default: [create_default_slot_2] },
     		$$scope: { ctx }
@@ -17978,7 +42141,7 @@ var app = (function () {
 
     		p: function update(changed, ctx) {
     			var block_changes = {};
-    			if (changed.currentColor) block_changes.enabledColor = ctx.currentColor;
+    			if (changed.color) block_changes.color = ctx.color;
     			if (changed.$$scope || changed.rowTotals) block_changes.$$scope = { changed, ctx };
     			block.$set(block_changes);
     		},
@@ -18001,7 +42164,7 @@ var app = (function () {
     	};
     }
 
-    // (128:8) {#each row as item, colIndex}
+    // (117:8) {#each row as item, colIndex}
     function create_each_block_3(ctx) {
     	var current;
 
@@ -18012,7 +42175,7 @@ var app = (function () {
     		col: ctx.colIndex,
     		onClick: ctx.toggleEnabled,
     		onRightClick: ctx.toggleDisabled,
-    		enabledColor: ctx.currentColor
+    		color: ctx.colors[ctx.item]
     	},
     		$$inline: true
     	});
@@ -18029,10 +42192,10 @@ var app = (function () {
 
     		p: function update(changed, ctx) {
     			var block_changes = {};
-    			if (changed.currentBoard) block_changes.state = ctx.item;
+    			if (changed.board) block_changes.state = ctx.item;
     			if (changed.toggleEnabled) block_changes.onClick = ctx.toggleEnabled;
     			if (changed.toggleDisabled) block_changes.onRightClick = ctx.toggleDisabled;
-    			if (changed.currentColor) block_changes.enabledColor = ctx.currentColor;
+    			if (changed.colors || changed.board) block_changes.color = ctx.colors[ctx.item];
     			block.$set(block_changes);
     		},
 
@@ -18054,7 +42217,7 @@ var app = (function () {
     	};
     }
 
-    // (127:6) {#each currentBoard as row, rowIndex}
+    // (116:6) {#each board as row, rowIndex}
     function create_each_block_2(ctx) {
     	var each_1_anchor, current;
 
@@ -18089,7 +42252,7 @@ var app = (function () {
     		},
 
     		p: function update(changed, ctx) {
-    			if (changed.currentBoard || changed.toggleEnabled || changed.toggleDisabled || changed.currentColor) {
+    			if (changed.board || changed.toggleEnabled || changed.toggleDisabled || changed.colors) {
     				each_value_3 = ctx.row;
 
     				for (var i = 0; i < each_value_3.length; i += 1) {
@@ -18136,7 +42299,7 @@ var app = (function () {
     	};
     }
 
-    // (143:6) <Block         enabledColor={currentColor}         state={1}       >
+    // (132:6) <Block         color={color}         state={1}       >
     function create_default_slot_1(ctx) {
     	var t0_value = ctx.total, t0, t1;
 
@@ -18166,13 +42329,13 @@ var app = (function () {
     	};
     }
 
-    // (142:4) {#each rowTotals as total}
+    // (131:4) {#each rowTotals as total}
     function create_each_block_1(ctx) {
     	var current;
 
     	var block = new Block({
     		props: {
-    		enabledColor: ctx.currentColor,
+    		color: ctx.color,
     		state: 1,
     		$$slots: { default: [create_default_slot_1] },
     		$$scope: { ctx }
@@ -18192,7 +42355,7 @@ var app = (function () {
 
     		p: function update(changed, ctx) {
     			var block_changes = {};
-    			if (changed.currentColor) block_changes.enabledColor = ctx.currentColor;
+    			if (changed.color) block_changes.color = ctx.color;
     			if (changed.$$scope || changed.rowTotals) block_changes.$$scope = { changed, ctx };
     			block.$set(block_changes);
     		},
@@ -18215,43 +42378,40 @@ var app = (function () {
     	};
     }
 
-    // (155:4) <Block       enabledColor={currentColor}       state={1}     >
+    // (148:4) <Block       color={color}       state={1}     >
     function create_default_slot(ctx) {
-    	var t0_value = ctx.total, t0, t1;
+    	var t_value = ctx.total, t;
 
     	return {
     		c: function create() {
-    			t0 = text(t0_value);
-    			t1 = space();
+    			t = text(t_value);
     		},
 
     		m: function mount(target, anchor) {
-    			insert(target, t0, anchor);
-    			insert(target, t1, anchor);
+    			insert(target, t, anchor);
     		},
 
     		p: function update(changed, ctx) {
-    			if ((changed.colTotals) && t0_value !== (t0_value = ctx.total)) {
-    				set_data(t0, t0_value);
+    			if ((changed.colTotals) && t_value !== (t_value = ctx.total)) {
+    				set_data(t, t_value);
     			}
     		},
 
     		d: function destroy(detaching) {
     			if (detaching) {
-    				detach(t0);
-    				detach(t1);
+    				detach(t);
     			}
     		}
     	};
     }
 
-    // (154:2) {#each colTotals as total}
+    // (147:2) {#each colTotals as total}
     function create_each_block(ctx) {
     	var current;
 
     	var block = new Block({
     		props: {
-    		enabledColor: ctx.currentColor,
+    		color: ctx.color,
     		state: 1,
     		$$slots: { default: [create_default_slot] },
     		$$scope: { ctx }
@@ -18271,7 +42431,7 @@ var app = (function () {
 
     		p: function update(changed, ctx) {
     			var block_changes = {};
-    			if (changed.currentColor) block_changes.enabledColor = ctx.currentColor;
+    			if (changed.color) block_changes.color = ctx.color;
     			if (changed.$$scope || changed.colTotals) block_changes.$$scope = { changed, ctx };
     			block.$set(block_changes);
     		},
@@ -18295,7 +42455,7 @@ var app = (function () {
     }
 
     function create_fragment$1(ctx) {
-    	var h1, t0, t1, div0, t2, div1, t3, div5, div2, t4, div3, section, t5, div4, t6, div6, t7, div7, t8_value = ctx.same.toString(), t8, current;
+    	var h1, t0, t1, div0, t2, div1, t3, t4, t5, div5, div2, t6, div3, section, t7, div4, t8, div6, t9, t10, t11, div7, t12_value = ctx.same.toString(), t12, current;
 
     	var each_value_6 = ctx.colors;
 
@@ -18307,6 +42467,14 @@ var app = (function () {
 
     	const out = i => transition_out(each_blocks_5[i], 1, 1, () => {
     		each_blocks_5[i] = null;
+    	});
+
+    	var block0 = new Block({
+    		props: {
+    		color: ctx.color,
+    		state: 1
+    	},
+    		$$inline: true
     	});
 
     	var each_value_5 = ctx.colTotals;
@@ -18321,6 +42489,14 @@ var app = (function () {
     		each_blocks_4[i] = null;
     	});
 
+    	var block1 = new Block({
+    		props: {
+    		color: ctx.color,
+    		state: 1
+    	},
+    		$$inline: true
+    	});
+
     	var each_value_4 = ctx.rowTotals;
 
     	var each_blocks_3 = [];
@@ -18333,7 +42509,7 @@ var app = (function () {
     		each_blocks_3[i] = null;
     	});
 
-    	var each_value_2 = ctx.currentBoard;
+    	var each_value_2 = ctx.board;
 
     	var each_blocks_2 = [];
 
@@ -18357,6 +42533,14 @@ var app = (function () {
     		each_blocks_1[i] = null;
     	});
 
+    	var block2 = new Block({
+    		props: {
+    		color: ctx.color,
+    		state: 1
+    	},
+    		$$inline: true
+    	});
+
     	var each_value = ctx.colTotals;
 
     	var each_blocks = [];
@@ -18367,6 +42551,14 @@ var app = (function () {
 
     	const out_5 = i => transition_out(each_blocks[i], 1, 1, () => {
     		each_blocks[i] = null;
+    	});
+
+    	var block3 = new Block({
+    		props: {
+    		color: ctx.color,
+    		state: 1
+    	},
+    		$$inline: true
     	});
 
     	return {
@@ -18382,12 +42574,16 @@ var app = (function () {
 
     			t2 = space();
     			div1 = element("div");
+    			block0.$$.fragment.c();
+    			t3 = space();
 
     			for (var i = 0; i < each_blocks_4.length; i += 1) {
     				each_blocks_4[i].c();
     			}
 
-    			t3 = space();
+    			t4 = space();
+    			block1.$$.fragment.c();
+    			t5 = space();
     			div5 = element("div");
     			div2 = element("div");
 
@@ -18395,7 +42591,7 @@ var app = (function () {
     				each_blocks_3[i].c();
     			}
 
-    			t4 = space();
+    			t6 = space();
     			div3 = element("div");
     			section = element("section");
 
@@ -18403,43 +42599,47 @@ var app = (function () {
     				each_blocks_2[i].c();
     			}
 
-    			t5 = space();
+    			t7 = space();
     			div4 = element("div");
 
     			for (var i = 0; i < each_blocks_1.length; i += 1) {
     				each_blocks_1[i].c();
     			}
 
-    			t6 = space();
+    			t8 = space();
     			div6 = element("div");
+    			block2.$$.fragment.c();
+    			t9 = space();
 
     			for (var i = 0; i < each_blocks.length; i += 1) {
     				each_blocks[i].c();
     			}
 
-    			t7 = space();
+    			t10 = space();
+    			block3.$$.fragment.c();
+    			t11 = space();
     			div7 = element("div");
-    			t8 = text(t8_value);
-    			attr(h1, "class", "svelte-1krvpgr");
-    			add_location(h1, file$1, 88, 0, 1902);
-    			attr(div0, "class", "flex-row justify-center margin-bottom svelte-1krvpgr");
-    			add_location(div0, file$1, 90, 0, 1920);
-    			attr(div1, "class", "flex-row justify-center svelte-1krvpgr");
-    			add_location(div1, file$1, 102, 0, 2158);
-    			attr(div2, "class", "flex-col svelte-1krvpgr");
-    			add_location(div2, file$1, 114, 2, 2377);
-    			attr(section, "class", "board svelte-1krvpgr");
-    			add_location(section, file$1, 125, 4, 2587);
-    			attr(div3, "class", "flex-row svelte-1krvpgr");
-    			add_location(div3, file$1, 124, 2, 2560);
-    			attr(div4, "class", "flex-col svelte-1krvpgr");
-    			add_location(div4, file$1, 140, 2, 2976);
-    			attr(div5, "class", "flex-row justify-center svelte-1krvpgr");
-    			add_location(div5, file$1, 113, 0, 2337);
-    			attr(div6, "class", "flex-row justify-center svelte-1krvpgr");
-    			add_location(div6, file$1, 152, 0, 3165);
-    			attr(div7, "class", "flex-row justify-center svelte-1krvpgr");
-    			add_location(div7, file$1, 163, 0, 3344);
+    			t12 = text(t12_value);
+    			attr(h1, "class", "svelte-lqfnwg");
+    			add_location(h1, file$1, 69, 0, 1356);
+    			attr(div0, "class", "flex-row justify-center margin-bottom svelte-lqfnwg");
+    			add_location(div0, file$1, 71, 0, 1374);
+    			attr(div1, "class", "flex-row justify-center svelte-lqfnwg");
+    			add_location(div1, file$1, 83, 0, 1605);
+    			attr(div2, "class", "flex-col svelte-lqfnwg");
+    			add_location(div2, file$1, 103, 2, 1902);
+    			attr(section, "class", "board svelte-lqfnwg");
+    			add_location(section, file$1, 114, 4, 2098);
+    			attr(div3, "class", "flex-row svelte-lqfnwg");
+    			add_location(div3, file$1, 113, 2, 2071);
+    			attr(div4, "class", "flex-col svelte-lqfnwg");
+    			add_location(div4, file$1, 129, 2, 2473);
+    			attr(div5, "class", "flex-row justify-center svelte-lqfnwg");
+    			add_location(div5, file$1, 102, 0, 1862);
+    			attr(div6, "class", "flex-row justify-center svelte-lqfnwg");
+    			add_location(div6, file$1, 141, 0, 2648);
+    			attr(div7, "class", "flex-row justify-center svelte-lqfnwg");
+    			add_location(div7, file$1, 160, 0, 2905);
     		},
 
     		l: function claim(nodes) {
@@ -18458,12 +42658,16 @@ var app = (function () {
 
     			insert(target, t2, anchor);
     			insert(target, div1, anchor);
+    			mount_component(block0, div1, null);
+    			append(div1, t3);
 
     			for (var i = 0; i < each_blocks_4.length; i += 1) {
     				each_blocks_4[i].m(div1, null);
     			}
 
-    			insert(target, t3, anchor);
+    			append(div1, t4);
+    			mount_component(block1, div1, null);
+    			insert(target, t5, anchor);
     			insert(target, div5, anchor);
     			append(div5, div2);
 
@@ -18471,7 +42675,7 @@ var app = (function () {
     				each_blocks_3[i].m(div2, null);
     			}
 
-    			append(div5, t4);
+    			append(div5, t6);
     			append(div5, div3);
     			append(div3, section);
 
@@ -18479,23 +42683,27 @@ var app = (function () {
     				each_blocks_2[i].m(section, null);
     			}
 
-    			append(div5, t5);
+    			append(div5, t7);
     			append(div5, div4);
 
     			for (var i = 0; i < each_blocks_1.length; i += 1) {
     				each_blocks_1[i].m(div4, null);
     			}
 
-    			insert(target, t6, anchor);
+    			insert(target, t8, anchor);
     			insert(target, div6, anchor);
+    			mount_component(block2, div6, null);
+    			append(div6, t9);
 
     			for (var i = 0; i < each_blocks.length; i += 1) {
     				each_blocks[i].m(div6, null);
     			}
 
-    			insert(target, t7, anchor);
+    			append(div6, t10);
+    			mount_component(block3, div6, null);
+    			insert(target, t11, anchor);
     			insert(target, div7, anchor);
-    			append(div7, t8);
+    			append(div7, t12);
     			current = true;
     		},
 
@@ -18526,7 +42734,11 @@ var app = (function () {
     				check_outros();
     			}
 
-    			if (changed.currentColor || changed.colTotals) {
+    			var block0_changes = {};
+    			if (changed.color) block0_changes.color = ctx.color;
+    			block0.$set(block0_changes);
+
+    			if (changed.color || changed.colTotals) {
     				each_value_5 = ctx.colTotals;
 
     				for (var i = 0; i < each_value_5.length; i += 1) {
@@ -18539,7 +42751,7 @@ var app = (function () {
     						each_blocks_4[i] = create_each_block_5(child_ctx);
     						each_blocks_4[i].c();
     						transition_in(each_blocks_4[i], 1);
-    						each_blocks_4[i].m(div1, null);
+    						each_blocks_4[i].m(div1, t4);
     					}
     				}
 
@@ -18548,7 +42760,11 @@ var app = (function () {
     				check_outros();
     			}
 
-    			if (changed.currentColor || changed.rowTotals) {
+    			var block1_changes = {};
+    			if (changed.color) block1_changes.color = ctx.color;
+    			block1.$set(block1_changes);
+
+    			if (changed.color || changed.rowTotals) {
     				each_value_4 = ctx.rowTotals;
 
     				for (var i = 0; i < each_value_4.length; i += 1) {
@@ -18570,8 +42786,8 @@ var app = (function () {
     				check_outros();
     			}
 
-    			if (changed.currentBoard || changed.toggleEnabled || changed.toggleDisabled || changed.currentColor) {
-    				each_value_2 = ctx.currentBoard;
+    			if (changed.board || changed.toggleEnabled || changed.toggleDisabled || changed.colors) {
+    				each_value_2 = ctx.board;
 
     				for (var i = 0; i < each_value_2.length; i += 1) {
     					const child_ctx = get_each_context_2(ctx, each_value_2, i);
@@ -18592,7 +42808,7 @@ var app = (function () {
     				check_outros();
     			}
 
-    			if (changed.currentColor || changed.rowTotals) {
+    			if (changed.color || changed.rowTotals) {
     				each_value_1 = ctx.rowTotals;
 
     				for (var i = 0; i < each_value_1.length; i += 1) {
@@ -18614,7 +42830,11 @@ var app = (function () {
     				check_outros();
     			}
 
-    			if (changed.currentColor || changed.colTotals) {
+    			var block2_changes = {};
+    			if (changed.color) block2_changes.color = ctx.color;
+    			block2.$set(block2_changes);
+
+    			if (changed.color || changed.colTotals) {
     				each_value = ctx.colTotals;
 
     				for (var i = 0; i < each_value.length; i += 1) {
@@ -18627,7 +42847,7 @@ var app = (function () {
     						each_blocks[i] = create_each_block(child_ctx);
     						each_blocks[i].c();
     						transition_in(each_blocks[i], 1);
-    						each_blocks[i].m(div6, null);
+    						each_blocks[i].m(div6, t10);
     					}
     				}
 
@@ -18636,8 +42856,12 @@ var app = (function () {
     				check_outros();
     			}
 
-    			if ((!current || changed.same) && t8_value !== (t8_value = ctx.same.toString())) {
-    				set_data(t8, t8_value);
+    			var block3_changes = {};
+    			if (changed.color) block3_changes.color = ctx.color;
+    			block3.$set(block3_changes);
+
+    			if ((!current || changed.same) && t12_value !== (t12_value = ctx.same.toString())) {
+    				set_data(t12, t12_value);
     			}
     		},
 
@@ -18645,7 +42869,11 @@ var app = (function () {
     			if (current) return;
     			for (var i = 0; i < each_value_6.length; i += 1) transition_in(each_blocks_5[i]);
 
+    			transition_in(block0.$$.fragment, local);
+
     			for (var i = 0; i < each_value_5.length; i += 1) transition_in(each_blocks_4[i]);
+
+    			transition_in(block1.$$.fragment, local);
 
     			for (var i = 0; i < each_value_4.length; i += 1) transition_in(each_blocks_3[i]);
 
@@ -18653,7 +42881,11 @@ var app = (function () {
 
     			for (var i = 0; i < each_value_1.length; i += 1) transition_in(each_blocks_1[i]);
 
+    			transition_in(block2.$$.fragment, local);
+
     			for (var i = 0; i < each_value.length; i += 1) transition_in(each_blocks[i]);
+
+    			transition_in(block3.$$.fragment, local);
 
     			current = true;
     		},
@@ -18662,8 +42894,12 @@ var app = (function () {
     			each_blocks_5 = each_blocks_5.filter(Boolean);
     			for (let i = 0; i < each_blocks_5.length; i += 1) transition_out(each_blocks_5[i]);
 
+    			transition_out(block0.$$.fragment, local);
+
     			each_blocks_4 = each_blocks_4.filter(Boolean);
     			for (let i = 0; i < each_blocks_4.length; i += 1) transition_out(each_blocks_4[i]);
+
+    			transition_out(block1.$$.fragment, local);
 
     			each_blocks_3 = each_blocks_3.filter(Boolean);
     			for (let i = 0; i < each_blocks_3.length; i += 1) transition_out(each_blocks_3[i]);
@@ -18674,9 +42910,12 @@ var app = (function () {
     			each_blocks_1 = each_blocks_1.filter(Boolean);
     			for (let i = 0; i < each_blocks_1.length; i += 1) transition_out(each_blocks_1[i]);
 
+    			transition_out(block2.$$.fragment, local);
+
     			each_blocks = each_blocks.filter(Boolean);
     			for (let i = 0; i < each_blocks.length; i += 1) transition_out(each_blocks[i]);
 
+    			transition_out(block3.$$.fragment, local);
     			current = false;
     		},
 
@@ -18694,10 +42933,14 @@ var app = (function () {
     				detach(div1);
     			}
 
+    			destroy_component(block0, );
+
     			destroy_each(each_blocks_4, detaching);
 
+    			destroy_component(block1, );
+
     			if (detaching) {
-    				detach(t3);
+    				detach(t5);
     				detach(div5);
     			}
 
@@ -18708,14 +42951,18 @@ var app = (function () {
     			destroy_each(each_blocks_1, detaching);
 
     			if (detaching) {
-    				detach(t6);
+    				detach(t8);
     				detach(div6);
     			}
 
+    			destroy_component(block2, );
+
     			destroy_each(each_blocks, detaching);
 
+    			destroy_component(block3, );
+
     			if (detaching) {
-    				detach(t7);
+    				detach(t11);
     				detach(div7);
     			}
     		}
@@ -18725,47 +42972,27 @@ var app = (function () {
     function instance$1($$self, $$props, $$invalidate) {
     	
 
-      let { level } = $$props;
+      let { level, board } = $$props;
 
       let layerIndex = 0;
+      let same = false;
 
       const setLayerIndex = index => { $$invalidate('layerIndex', layerIndex = index); };
 
       const toggleDisabled = (row, col) => { const $$result = (
-        currentBoard[row][col] = currentBoard[row][col] === -1 ? 0 : -1
-      ); $$invalidate('currentBoard', currentBoard), $$invalidate('boards', boards), $$invalidate('layerIndex', layerIndex), $$invalidate('layers', layers), $$invalidate('level', level); return $$result; };
+        board[row][col] = board[row][col] === -2
+          ? -1
+          : -2
+      ); $$invalidate('board', board); return $$result; };
 
-      const toggleEnabled = (row, col) => { const $$result = (
-        currentBoard[row][col] = currentBoard[row][col] === -1
-          ? 0
-          : (currentBoard[row][col] === 1 ? 0 : 1)
-      ); $$invalidate('currentBoard', currentBoard), $$invalidate('boards', boards), $$invalidate('layerIndex', layerIndex), $$invalidate('layers', layers), $$invalidate('level', level); return $$result; };
-
-      const checkLayers = (layers) => {
-        let same = true;
-
-        for (let i = 0; i < layers.length; i += 1) {
-          const solution = solutions[i];
-          const board = boards[i];
-
-          solution.forEach(
-            (solutionRow, rowIndex) => {
-              solutionRow.forEach(
-                (solutionColumn, columnIndex) => {
-                  let guess = Math.max(board[rowIndex][columnIndex], 0);
-                  if (solutionColumn !== guess) {
-                    same = false;
-                  }
-                }
-              );
-            }
-          );
-        }
-
-    		return same;
+      const toggleEnabled = (row, col) => {
+        board[row][col] = board[row][col] === -1
+          ? layerIndex
+          : -1; $$invalidate('board', board);
+        $$invalidate('same', same = deepEqual(matrix(solution), matrix(board)));
       };
 
-    	const writable_props = ['level'];
+    	const writable_props = ['level', 'board'];
     	Object.keys($$props).forEach(key => {
     		if (!writable_props.includes(key) && !key.startsWith('$$')) console.warn(`<Griddler> was created with unknown prop '${key}'`);
     	});
@@ -18774,35 +43001,31 @@ var app = (function () {
 
     	$$self.$set = $$props => {
     		if ('level' in $$props) $$invalidate('level', level = $$props.level);
+    		if ('board' in $$props) $$invalidate('board', board = $$props.board);
     	};
 
-    	let title, layers, colors, solutions, boards, currentColor, currentSolution, currentBoard, rowTotals, colTotals, same;
+    	let title, colors, solution, color, rowTotals, colTotals;
 
-    	$$self.$$.update = ($$dirty = { level: 1, layers: 1, colors: 1, layerIndex: 1, solutions: 1, boards: 1, currentSolution: 1 }) => {
+    	$$self.$$.update = ($$dirty = { level: 1, colors: 1, layerIndex: 1, solution: 1 }) => {
     		if ($$dirty.level) { $$invalidate('title', title = level.title); }
-    		if ($$dirty.level) { $$invalidate('layers', layers = level.layers); }
-    		if ($$dirty.layers) { $$invalidate('colors', colors = layers.map(layer => layer.color)); }
-    		if ($$dirty.layers) { $$invalidate('solutions', solutions = layers.map(layer => layer.solution)); }
-    		if ($$dirty.layers) { $$invalidate('boards', boards = layers.map(layer => layer.board)); }
-    		if ($$dirty.colors || $$dirty.layerIndex) { $$invalidate('currentColor', currentColor = colors[layerIndex]); }
-    		if ($$dirty.solutions || $$dirty.layerIndex) { $$invalidate('currentSolution', currentSolution = solutions[layerIndex]); }
-    		if ($$dirty.boards || $$dirty.layerIndex) { $$invalidate('currentBoard', currentBoard = boards[layerIndex]); }
-    		if ($$dirty.currentSolution) { [rowTotals, colTotals] = generateTotals(currentSolution); $$invalidate('rowTotals', rowTotals), $$invalidate('currentSolution', currentSolution), $$invalidate('solutions', solutions), $$invalidate('layerIndex', layerIndex), $$invalidate('layers', layers), $$invalidate('level', level); $$invalidate('colTotals', colTotals), $$invalidate('currentSolution', currentSolution), $$invalidate('solutions', solutions), $$invalidate('layerIndex', layerIndex), $$invalidate('layers', layers), $$invalidate('level', level); }
-    		if ($$dirty.layers) { $$invalidate('same', same = checkLayers(layers)); }
+    		if ($$dirty.level) { $$invalidate('colors', colors = level.colors); }
+    		if ($$dirty.level) { $$invalidate('solution', solution = level.solution); }
+    		if ($$dirty.colors || $$dirty.layerIndex) { $$invalidate('color', color = colors[layerIndex]); }
+    		if ($$dirty.colors || $$dirty.solution || $$dirty.layerIndex) { [rowTotals, colTotals] = generateTotals(colors, solution)[layerIndex]; $$invalidate('rowTotals', rowTotals), $$invalidate('colors', colors), $$invalidate('solution', solution), $$invalidate('layerIndex', layerIndex), $$invalidate('level', level); $$invalidate('colTotals', colTotals), $$invalidate('colors', colors), $$invalidate('solution', solution), $$invalidate('layerIndex', layerIndex), $$invalidate('level', level); }
     	};
 
     	return {
     		level,
+    		board,
+    		same,
     		setLayerIndex,
     		toggleDisabled,
     		toggleEnabled,
     		title,
     		colors,
-    		currentColor,
-    		currentBoard,
+    		color,
     		rowTotals,
     		colTotals,
-    		same,
     		func
     	};
     }
@@ -18810,12 +43033,15 @@ var app = (function () {
     class Griddler extends SvelteComponentDev {
     	constructor(options) {
     		super(options);
-    		init(this, options, instance$1, create_fragment$1, safe_not_equal, ["level"]);
+    		init(this, options, instance$1, create_fragment$1, safe_not_equal, ["level", "board"]);
 
     		const { ctx } = this.$$;
     		const props = options.props || {};
     		if (ctx.level === undefined && !('level' in props)) {
     			console.warn("<Griddler> was created without expected prop 'level'");
+    		}
+    		if (ctx.board === undefined && !('board' in props)) {
+    			console.warn("<Griddler> was created without expected prop 'board'");
     		}
     	}
 
@@ -18826,7 +43052,1981 @@ var app = (function () {
     	set level(value) {
     		throw new Error("<Griddler>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
     	}
+
+    	get board() {
+    		throw new Error("<Griddler>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	set board(value) {
+    		throw new Error("<Griddler>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
     }
+
+    var colorName = {
+    	"aliceblue": [240, 248, 255],
+    	"antiquewhite": [250, 235, 215],
+    	"aqua": [0, 255, 255],
+    	"aquamarine": [127, 255, 212],
+    	"azure": [240, 255, 255],
+    	"beige": [245, 245, 220],
+    	"bisque": [255, 228, 196],
+    	"black": [0, 0, 0],
+    	"blanchedalmond": [255, 235, 205],
+    	"blue": [0, 0, 255],
+    	"blueviolet": [138, 43, 226],
+    	"brown": [165, 42, 42],
+    	"burlywood": [222, 184, 135],
+    	"cadetblue": [95, 158, 160],
+    	"chartreuse": [127, 255, 0],
+    	"chocolate": [210, 105, 30],
+    	"coral": [255, 127, 80],
+    	"cornflowerblue": [100, 149, 237],
+    	"cornsilk": [255, 248, 220],
+    	"crimson": [220, 20, 60],
+    	"cyan": [0, 255, 255],
+    	"darkblue": [0, 0, 139],
+    	"darkcyan": [0, 139, 139],
+    	"darkgoldenrod": [184, 134, 11],
+    	"darkgray": [169, 169, 169],
+    	"darkgreen": [0, 100, 0],
+    	"darkgrey": [169, 169, 169],
+    	"darkkhaki": [189, 183, 107],
+    	"darkmagenta": [139, 0, 139],
+    	"darkolivegreen": [85, 107, 47],
+    	"darkorange": [255, 140, 0],
+    	"darkorchid": [153, 50, 204],
+    	"darkred": [139, 0, 0],
+    	"darksalmon": [233, 150, 122],
+    	"darkseagreen": [143, 188, 143],
+    	"darkslateblue": [72, 61, 139],
+    	"darkslategray": [47, 79, 79],
+    	"darkslategrey": [47, 79, 79],
+    	"darkturquoise": [0, 206, 209],
+    	"darkviolet": [148, 0, 211],
+    	"deeppink": [255, 20, 147],
+    	"deepskyblue": [0, 191, 255],
+    	"dimgray": [105, 105, 105],
+    	"dimgrey": [105, 105, 105],
+    	"dodgerblue": [30, 144, 255],
+    	"firebrick": [178, 34, 34],
+    	"floralwhite": [255, 250, 240],
+    	"forestgreen": [34, 139, 34],
+    	"fuchsia": [255, 0, 255],
+    	"gainsboro": [220, 220, 220],
+    	"ghostwhite": [248, 248, 255],
+    	"gold": [255, 215, 0],
+    	"goldenrod": [218, 165, 32],
+    	"gray": [128, 128, 128],
+    	"green": [0, 128, 0],
+    	"greenyellow": [173, 255, 47],
+    	"grey": [128, 128, 128],
+    	"honeydew": [240, 255, 240],
+    	"hotpink": [255, 105, 180],
+    	"indianred": [205, 92, 92],
+    	"indigo": [75, 0, 130],
+    	"ivory": [255, 255, 240],
+    	"khaki": [240, 230, 140],
+    	"lavender": [230, 230, 250],
+    	"lavenderblush": [255, 240, 245],
+    	"lawngreen": [124, 252, 0],
+    	"lemonchiffon": [255, 250, 205],
+    	"lightblue": [173, 216, 230],
+    	"lightcoral": [240, 128, 128],
+    	"lightcyan": [224, 255, 255],
+    	"lightgoldenrodyellow": [250, 250, 210],
+    	"lightgray": [211, 211, 211],
+    	"lightgreen": [144, 238, 144],
+    	"lightgrey": [211, 211, 211],
+    	"lightpink": [255, 182, 193],
+    	"lightsalmon": [255, 160, 122],
+    	"lightseagreen": [32, 178, 170],
+    	"lightskyblue": [135, 206, 250],
+    	"lightslategray": [119, 136, 153],
+    	"lightslategrey": [119, 136, 153],
+    	"lightsteelblue": [176, 196, 222],
+    	"lightyellow": [255, 255, 224],
+    	"lime": [0, 255, 0],
+    	"limegreen": [50, 205, 50],
+    	"linen": [250, 240, 230],
+    	"magenta": [255, 0, 255],
+    	"maroon": [128, 0, 0],
+    	"mediumaquamarine": [102, 205, 170],
+    	"mediumblue": [0, 0, 205],
+    	"mediumorchid": [186, 85, 211],
+    	"mediumpurple": [147, 112, 219],
+    	"mediumseagreen": [60, 179, 113],
+    	"mediumslateblue": [123, 104, 238],
+    	"mediumspringgreen": [0, 250, 154],
+    	"mediumturquoise": [72, 209, 204],
+    	"mediumvioletred": [199, 21, 133],
+    	"midnightblue": [25, 25, 112],
+    	"mintcream": [245, 255, 250],
+    	"mistyrose": [255, 228, 225],
+    	"moccasin": [255, 228, 181],
+    	"navajowhite": [255, 222, 173],
+    	"navy": [0, 0, 128],
+    	"oldlace": [253, 245, 230],
+    	"olive": [128, 128, 0],
+    	"olivedrab": [107, 142, 35],
+    	"orange": [255, 165, 0],
+    	"orangered": [255, 69, 0],
+    	"orchid": [218, 112, 214],
+    	"palegoldenrod": [238, 232, 170],
+    	"palegreen": [152, 251, 152],
+    	"paleturquoise": [175, 238, 238],
+    	"palevioletred": [219, 112, 147],
+    	"papayawhip": [255, 239, 213],
+    	"peachpuff": [255, 218, 185],
+    	"peru": [205, 133, 63],
+    	"pink": [255, 192, 203],
+    	"plum": [221, 160, 221],
+    	"powderblue": [176, 224, 230],
+    	"purple": [128, 0, 128],
+    	"rebeccapurple": [102, 51, 153],
+    	"red": [255, 0, 0],
+    	"rosybrown": [188, 143, 143],
+    	"royalblue": [65, 105, 225],
+    	"saddlebrown": [139, 69, 19],
+    	"salmon": [250, 128, 114],
+    	"sandybrown": [244, 164, 96],
+    	"seagreen": [46, 139, 87],
+    	"seashell": [255, 245, 238],
+    	"sienna": [160, 82, 45],
+    	"silver": [192, 192, 192],
+    	"skyblue": [135, 206, 235],
+    	"slateblue": [106, 90, 205],
+    	"slategray": [112, 128, 144],
+    	"slategrey": [112, 128, 144],
+    	"snow": [255, 250, 250],
+    	"springgreen": [0, 255, 127],
+    	"steelblue": [70, 130, 180],
+    	"tan": [210, 180, 140],
+    	"teal": [0, 128, 128],
+    	"thistle": [216, 191, 216],
+    	"tomato": [255, 99, 71],
+    	"turquoise": [64, 224, 208],
+    	"violet": [238, 130, 238],
+    	"wheat": [245, 222, 179],
+    	"white": [255, 255, 255],
+    	"whitesmoke": [245, 245, 245],
+    	"yellow": [255, 255, 0],
+    	"yellowgreen": [154, 205, 50]
+    };
+
+    var isArrayish = function isArrayish(obj) {
+    	if (!obj || typeof obj === 'string') {
+    		return false;
+    	}
+
+    	return obj instanceof Array || Array.isArray(obj) ||
+    		(obj.length >= 0 && (obj.splice instanceof Function ||
+    			(Object.getOwnPropertyDescriptor(obj, (obj.length - 1)) && obj.constructor.name !== 'String')));
+    };
+
+    var simpleSwizzle = createCommonjsModule(function (module) {
+
+
+
+    var concat = Array.prototype.concat;
+    var slice = Array.prototype.slice;
+
+    var swizzle = module.exports = function swizzle(args) {
+    	var results = [];
+
+    	for (var i = 0, len = args.length; i < len; i++) {
+    		var arg = args[i];
+
+    		if (isArrayish(arg)) {
+    			// http://jsperf.com/javascript-array-concat-vs-push/98
+    			results = concat.call(results, slice.call(arg));
+    		} else {
+    			results.push(arg);
+    		}
+    	}
+
+    	return results;
+    };
+
+    swizzle.wrap = function (fn) {
+    	return function () {
+    		return fn(swizzle(arguments));
+    	};
+    };
+    });
+
+    var colorString = createCommonjsModule(function (module) {
+    /* MIT license */
+
+
+
+    var reverseNames = {};
+
+    // create a list of reverse color names
+    for (var name in colorName) {
+    	if (colorName.hasOwnProperty(name)) {
+    		reverseNames[colorName[name]] = name;
+    	}
+    }
+
+    var cs = module.exports = {
+    	to: {},
+    	get: {}
+    };
+
+    cs.get = function (string) {
+    	var prefix = string.substring(0, 3).toLowerCase();
+    	var val;
+    	var model;
+    	switch (prefix) {
+    		case 'hsl':
+    			val = cs.get.hsl(string);
+    			model = 'hsl';
+    			break;
+    		case 'hwb':
+    			val = cs.get.hwb(string);
+    			model = 'hwb';
+    			break;
+    		default:
+    			val = cs.get.rgb(string);
+    			model = 'rgb';
+    			break;
+    	}
+
+    	if (!val) {
+    		return null;
+    	}
+
+    	return {model: model, value: val};
+    };
+
+    cs.get.rgb = function (string) {
+    	if (!string) {
+    		return null;
+    	}
+
+    	var abbr = /^#([a-f0-9]{3,4})$/i;
+    	var hex = /^#([a-f0-9]{6})([a-f0-9]{2})?$/i;
+    	var rgba = /^rgba?\(\s*([+-]?\d+)\s*,\s*([+-]?\d+)\s*,\s*([+-]?\d+)\s*(?:,\s*([+-]?[\d\.]+)\s*)?\)$/;
+    	var per = /^rgba?\(\s*([+-]?[\d\.]+)\%\s*,\s*([+-]?[\d\.]+)\%\s*,\s*([+-]?[\d\.]+)\%\s*(?:,\s*([+-]?[\d\.]+)\s*)?\)$/;
+    	var keyword = /(\D+)/;
+
+    	var rgb = [0, 0, 0, 1];
+    	var match;
+    	var i;
+    	var hexAlpha;
+
+    	if (match = string.match(hex)) {
+    		hexAlpha = match[2];
+    		match = match[1];
+
+    		for (i = 0; i < 3; i++) {
+    			// https://jsperf.com/slice-vs-substr-vs-substring-methods-long-string/19
+    			var i2 = i * 2;
+    			rgb[i] = parseInt(match.slice(i2, i2 + 2), 16);
+    		}
+
+    		if (hexAlpha) {
+    			rgb[3] = Math.round((parseInt(hexAlpha, 16) / 255) * 100) / 100;
+    		}
+    	} else if (match = string.match(abbr)) {
+    		match = match[1];
+    		hexAlpha = match[3];
+
+    		for (i = 0; i < 3; i++) {
+    			rgb[i] = parseInt(match[i] + match[i], 16);
+    		}
+
+    		if (hexAlpha) {
+    			rgb[3] = Math.round((parseInt(hexAlpha + hexAlpha, 16) / 255) * 100) / 100;
+    		}
+    	} else if (match = string.match(rgba)) {
+    		for (i = 0; i < 3; i++) {
+    			rgb[i] = parseInt(match[i + 1], 0);
+    		}
+
+    		if (match[4]) {
+    			rgb[3] = parseFloat(match[4]);
+    		}
+    	} else if (match = string.match(per)) {
+    		for (i = 0; i < 3; i++) {
+    			rgb[i] = Math.round(parseFloat(match[i + 1]) * 2.55);
+    		}
+
+    		if (match[4]) {
+    			rgb[3] = parseFloat(match[4]);
+    		}
+    	} else if (match = string.match(keyword)) {
+    		if (match[1] === 'transparent') {
+    			return [0, 0, 0, 0];
+    		}
+
+    		rgb = colorName[match[1]];
+
+    		if (!rgb) {
+    			return null;
+    		}
+
+    		rgb[3] = 1;
+
+    		return rgb;
+    	} else {
+    		return null;
+    	}
+
+    	for (i = 0; i < 3; i++) {
+    		rgb[i] = clamp(rgb[i], 0, 255);
+    	}
+    	rgb[3] = clamp(rgb[3], 0, 1);
+
+    	return rgb;
+    };
+
+    cs.get.hsl = function (string) {
+    	if (!string) {
+    		return null;
+    	}
+
+    	var hsl = /^hsla?\(\s*([+-]?(?:\d*\.)?\d+)(?:deg)?\s*,\s*([+-]?[\d\.]+)%\s*,\s*([+-]?[\d\.]+)%\s*(?:,\s*([+-]?[\d\.]+)\s*)?\)$/;
+    	var match = string.match(hsl);
+
+    	if (match) {
+    		var alpha = parseFloat(match[4]);
+    		var h = (parseFloat(match[1]) + 360) % 360;
+    		var s = clamp(parseFloat(match[2]), 0, 100);
+    		var l = clamp(parseFloat(match[3]), 0, 100);
+    		var a = clamp(isNaN(alpha) ? 1 : alpha, 0, 1);
+
+    		return [h, s, l, a];
+    	}
+
+    	return null;
+    };
+
+    cs.get.hwb = function (string) {
+    	if (!string) {
+    		return null;
+    	}
+
+    	var hwb = /^hwb\(\s*([+-]?\d*[\.]?\d+)(?:deg)?\s*,\s*([+-]?[\d\.]+)%\s*,\s*([+-]?[\d\.]+)%\s*(?:,\s*([+-]?[\d\.]+)\s*)?\)$/;
+    	var match = string.match(hwb);
+
+    	if (match) {
+    		var alpha = parseFloat(match[4]);
+    		var h = ((parseFloat(match[1]) % 360) + 360) % 360;
+    		var w = clamp(parseFloat(match[2]), 0, 100);
+    		var b = clamp(parseFloat(match[3]), 0, 100);
+    		var a = clamp(isNaN(alpha) ? 1 : alpha, 0, 1);
+    		return [h, w, b, a];
+    	}
+
+    	return null;
+    };
+
+    cs.to.hex = function () {
+    	var rgba = simpleSwizzle(arguments);
+
+    	return (
+    		'#' +
+    		hexDouble(rgba[0]) +
+    		hexDouble(rgba[1]) +
+    		hexDouble(rgba[2]) +
+    		(rgba[3] < 1
+    			? (hexDouble(Math.round(rgba[3] * 255)))
+    			: '')
+    	);
+    };
+
+    cs.to.rgb = function () {
+    	var rgba = simpleSwizzle(arguments);
+
+    	return rgba.length < 4 || rgba[3] === 1
+    		? 'rgb(' + Math.round(rgba[0]) + ', ' + Math.round(rgba[1]) + ', ' + Math.round(rgba[2]) + ')'
+    		: 'rgba(' + Math.round(rgba[0]) + ', ' + Math.round(rgba[1]) + ', ' + Math.round(rgba[2]) + ', ' + rgba[3] + ')';
+    };
+
+    cs.to.rgb.percent = function () {
+    	var rgba = simpleSwizzle(arguments);
+
+    	var r = Math.round(rgba[0] / 255 * 100);
+    	var g = Math.round(rgba[1] / 255 * 100);
+    	var b = Math.round(rgba[2] / 255 * 100);
+
+    	return rgba.length < 4 || rgba[3] === 1
+    		? 'rgb(' + r + '%, ' + g + '%, ' + b + '%)'
+    		: 'rgba(' + r + '%, ' + g + '%, ' + b + '%, ' + rgba[3] + ')';
+    };
+
+    cs.to.hsl = function () {
+    	var hsla = simpleSwizzle(arguments);
+    	return hsla.length < 4 || hsla[3] === 1
+    		? 'hsl(' + hsla[0] + ', ' + hsla[1] + '%, ' + hsla[2] + '%)'
+    		: 'hsla(' + hsla[0] + ', ' + hsla[1] + '%, ' + hsla[2] + '%, ' + hsla[3] + ')';
+    };
+
+    // hwb is a bit different than rgb(a) & hsl(a) since there is no alpha specific syntax
+    // (hwb have alpha optional & 1 is default value)
+    cs.to.hwb = function () {
+    	var hwba = simpleSwizzle(arguments);
+
+    	var a = '';
+    	if (hwba.length >= 4 && hwba[3] !== 1) {
+    		a = ', ' + hwba[3];
+    	}
+
+    	return 'hwb(' + hwba[0] + ', ' + hwba[1] + '%, ' + hwba[2] + '%' + a + ')';
+    };
+
+    cs.to.keyword = function (rgb) {
+    	return reverseNames[rgb.slice(0, 3)];
+    };
+
+    // helpers
+    function clamp(num, min, max) {
+    	return Math.min(Math.max(min, num), max);
+    }
+
+    function hexDouble(num) {
+    	var str = num.toString(16).toUpperCase();
+    	return (str.length < 2) ? '0' + str : str;
+    }
+    });
+    var colorString_1 = colorString.to;
+    var colorString_2 = colorString.get;
+
+    var conversions = createCommonjsModule(function (module) {
+    /* MIT license */
+
+
+    // NOTE: conversions should only return primitive values (i.e. arrays, or
+    //       values that give correct `typeof` results).
+    //       do not use box values types (i.e. Number(), String(), etc.)
+
+    var reverseKeywords = {};
+    for (var key in colorName) {
+    	if (colorName.hasOwnProperty(key)) {
+    		reverseKeywords[colorName[key]] = key;
+    	}
+    }
+
+    var convert = module.exports = {
+    	rgb: {channels: 3, labels: 'rgb'},
+    	hsl: {channels: 3, labels: 'hsl'},
+    	hsv: {channels: 3, labels: 'hsv'},
+    	hwb: {channels: 3, labels: 'hwb'},
+    	cmyk: {channels: 4, labels: 'cmyk'},
+    	xyz: {channels: 3, labels: 'xyz'},
+    	lab: {channels: 3, labels: 'lab'},
+    	lch: {channels: 3, labels: 'lch'},
+    	hex: {channels: 1, labels: ['hex']},
+    	keyword: {channels: 1, labels: ['keyword']},
+    	ansi16: {channels: 1, labels: ['ansi16']},
+    	ansi256: {channels: 1, labels: ['ansi256']},
+    	hcg: {channels: 3, labels: ['h', 'c', 'g']},
+    	apple: {channels: 3, labels: ['r16', 'g16', 'b16']},
+    	gray: {channels: 1, labels: ['gray']}
+    };
+
+    // hide .channels and .labels properties
+    for (var model in convert) {
+    	if (convert.hasOwnProperty(model)) {
+    		if (!('channels' in convert[model])) {
+    			throw new Error('missing channels property: ' + model);
+    		}
+
+    		if (!('labels' in convert[model])) {
+    			throw new Error('missing channel labels property: ' + model);
+    		}
+
+    		if (convert[model].labels.length !== convert[model].channels) {
+    			throw new Error('channel and label counts mismatch: ' + model);
+    		}
+
+    		var channels = convert[model].channels;
+    		var labels = convert[model].labels;
+    		delete convert[model].channels;
+    		delete convert[model].labels;
+    		Object.defineProperty(convert[model], 'channels', {value: channels});
+    		Object.defineProperty(convert[model], 'labels', {value: labels});
+    	}
+    }
+
+    convert.rgb.hsl = function (rgb) {
+    	var r = rgb[0] / 255;
+    	var g = rgb[1] / 255;
+    	var b = rgb[2] / 255;
+    	var min = Math.min(r, g, b);
+    	var max = Math.max(r, g, b);
+    	var delta = max - min;
+    	var h;
+    	var s;
+    	var l;
+
+    	if (max === min) {
+    		h = 0;
+    	} else if (r === max) {
+    		h = (g - b) / delta;
+    	} else if (g === max) {
+    		h = 2 + (b - r) / delta;
+    	} else if (b === max) {
+    		h = 4 + (r - g) / delta;
+    	}
+
+    	h = Math.min(h * 60, 360);
+
+    	if (h < 0) {
+    		h += 360;
+    	}
+
+    	l = (min + max) / 2;
+
+    	if (max === min) {
+    		s = 0;
+    	} else if (l <= 0.5) {
+    		s = delta / (max + min);
+    	} else {
+    		s = delta / (2 - max - min);
+    	}
+
+    	return [h, s * 100, l * 100];
+    };
+
+    convert.rgb.hsv = function (rgb) {
+    	var rdif;
+    	var gdif;
+    	var bdif;
+    	var h;
+    	var s;
+
+    	var r = rgb[0] / 255;
+    	var g = rgb[1] / 255;
+    	var b = rgb[2] / 255;
+    	var v = Math.max(r, g, b);
+    	var diff = v - Math.min(r, g, b);
+    	var diffc = function (c) {
+    		return (v - c) / 6 / diff + 1 / 2;
+    	};
+
+    	if (diff === 0) {
+    		h = s = 0;
+    	} else {
+    		s = diff / v;
+    		rdif = diffc(r);
+    		gdif = diffc(g);
+    		bdif = diffc(b);
+
+    		if (r === v) {
+    			h = bdif - gdif;
+    		} else if (g === v) {
+    			h = (1 / 3) + rdif - bdif;
+    		} else if (b === v) {
+    			h = (2 / 3) + gdif - rdif;
+    		}
+    		if (h < 0) {
+    			h += 1;
+    		} else if (h > 1) {
+    			h -= 1;
+    		}
+    	}
+
+    	return [
+    		h * 360,
+    		s * 100,
+    		v * 100
+    	];
+    };
+
+    convert.rgb.hwb = function (rgb) {
+    	var r = rgb[0];
+    	var g = rgb[1];
+    	var b = rgb[2];
+    	var h = convert.rgb.hsl(rgb)[0];
+    	var w = 1 / 255 * Math.min(r, Math.min(g, b));
+
+    	b = 1 - 1 / 255 * Math.max(r, Math.max(g, b));
+
+    	return [h, w * 100, b * 100];
+    };
+
+    convert.rgb.cmyk = function (rgb) {
+    	var r = rgb[0] / 255;
+    	var g = rgb[1] / 255;
+    	var b = rgb[2] / 255;
+    	var c;
+    	var m;
+    	var y;
+    	var k;
+
+    	k = Math.min(1 - r, 1 - g, 1 - b);
+    	c = (1 - r - k) / (1 - k) || 0;
+    	m = (1 - g - k) / (1 - k) || 0;
+    	y = (1 - b - k) / (1 - k) || 0;
+
+    	return [c * 100, m * 100, y * 100, k * 100];
+    };
+
+    /**
+     * See https://en.m.wikipedia.org/wiki/Euclidean_distance#Squared_Euclidean_distance
+     * */
+    function comparativeDistance(x, y) {
+    	return (
+    		Math.pow(x[0] - y[0], 2) +
+    		Math.pow(x[1] - y[1], 2) +
+    		Math.pow(x[2] - y[2], 2)
+    	);
+    }
+
+    convert.rgb.keyword = function (rgb) {
+    	var reversed = reverseKeywords[rgb];
+    	if (reversed) {
+    		return reversed;
+    	}
+
+    	var currentClosestDistance = Infinity;
+    	var currentClosestKeyword;
+
+    	for (var keyword in colorName) {
+    		if (colorName.hasOwnProperty(keyword)) {
+    			var value = colorName[keyword];
+
+    			// Compute comparative distance
+    			var distance = comparativeDistance(rgb, value);
+
+    			// Check if its less, if so set as closest
+    			if (distance < currentClosestDistance) {
+    				currentClosestDistance = distance;
+    				currentClosestKeyword = keyword;
+    			}
+    		}
+    	}
+
+    	return currentClosestKeyword;
+    };
+
+    convert.keyword.rgb = function (keyword) {
+    	return colorName[keyword];
+    };
+
+    convert.rgb.xyz = function (rgb) {
+    	var r = rgb[0] / 255;
+    	var g = rgb[1] / 255;
+    	var b = rgb[2] / 255;
+
+    	// assume sRGB
+    	r = r > 0.04045 ? Math.pow(((r + 0.055) / 1.055), 2.4) : (r / 12.92);
+    	g = g > 0.04045 ? Math.pow(((g + 0.055) / 1.055), 2.4) : (g / 12.92);
+    	b = b > 0.04045 ? Math.pow(((b + 0.055) / 1.055), 2.4) : (b / 12.92);
+
+    	var x = (r * 0.4124) + (g * 0.3576) + (b * 0.1805);
+    	var y = (r * 0.2126) + (g * 0.7152) + (b * 0.0722);
+    	var z = (r * 0.0193) + (g * 0.1192) + (b * 0.9505);
+
+    	return [x * 100, y * 100, z * 100];
+    };
+
+    convert.rgb.lab = function (rgb) {
+    	var xyz = convert.rgb.xyz(rgb);
+    	var x = xyz[0];
+    	var y = xyz[1];
+    	var z = xyz[2];
+    	var l;
+    	var a;
+    	var b;
+
+    	x /= 95.047;
+    	y /= 100;
+    	z /= 108.883;
+
+    	x = x > 0.008856 ? Math.pow(x, 1 / 3) : (7.787 * x) + (16 / 116);
+    	y = y > 0.008856 ? Math.pow(y, 1 / 3) : (7.787 * y) + (16 / 116);
+    	z = z > 0.008856 ? Math.pow(z, 1 / 3) : (7.787 * z) + (16 / 116);
+
+    	l = (116 * y) - 16;
+    	a = 500 * (x - y);
+    	b = 200 * (y - z);
+
+    	return [l, a, b];
+    };
+
+    convert.hsl.rgb = function (hsl) {
+    	var h = hsl[0] / 360;
+    	var s = hsl[1] / 100;
+    	var l = hsl[2] / 100;
+    	var t1;
+    	var t2;
+    	var t3;
+    	var rgb;
+    	var val;
+
+    	if (s === 0) {
+    		val = l * 255;
+    		return [val, val, val];
+    	}
+
+    	if (l < 0.5) {
+    		t2 = l * (1 + s);
+    	} else {
+    		t2 = l + s - l * s;
+    	}
+
+    	t1 = 2 * l - t2;
+
+    	rgb = [0, 0, 0];
+    	for (var i = 0; i < 3; i++) {
+    		t3 = h + 1 / 3 * -(i - 1);
+    		if (t3 < 0) {
+    			t3++;
+    		}
+    		if (t3 > 1) {
+    			t3--;
+    		}
+
+    		if (6 * t3 < 1) {
+    			val = t1 + (t2 - t1) * 6 * t3;
+    		} else if (2 * t3 < 1) {
+    			val = t2;
+    		} else if (3 * t3 < 2) {
+    			val = t1 + (t2 - t1) * (2 / 3 - t3) * 6;
+    		} else {
+    			val = t1;
+    		}
+
+    		rgb[i] = val * 255;
+    	}
+
+    	return rgb;
+    };
+
+    convert.hsl.hsv = function (hsl) {
+    	var h = hsl[0];
+    	var s = hsl[1] / 100;
+    	var l = hsl[2] / 100;
+    	var smin = s;
+    	var lmin = Math.max(l, 0.01);
+    	var sv;
+    	var v;
+
+    	l *= 2;
+    	s *= (l <= 1) ? l : 2 - l;
+    	smin *= lmin <= 1 ? lmin : 2 - lmin;
+    	v = (l + s) / 2;
+    	sv = l === 0 ? (2 * smin) / (lmin + smin) : (2 * s) / (l + s);
+
+    	return [h, sv * 100, v * 100];
+    };
+
+    convert.hsv.rgb = function (hsv) {
+    	var h = hsv[0] / 60;
+    	var s = hsv[1] / 100;
+    	var v = hsv[2] / 100;
+    	var hi = Math.floor(h) % 6;
+
+    	var f = h - Math.floor(h);
+    	var p = 255 * v * (1 - s);
+    	var q = 255 * v * (1 - (s * f));
+    	var t = 255 * v * (1 - (s * (1 - f)));
+    	v *= 255;
+
+    	switch (hi) {
+    		case 0:
+    			return [v, t, p];
+    		case 1:
+    			return [q, v, p];
+    		case 2:
+    			return [p, v, t];
+    		case 3:
+    			return [p, q, v];
+    		case 4:
+    			return [t, p, v];
+    		case 5:
+    			return [v, p, q];
+    	}
+    };
+
+    convert.hsv.hsl = function (hsv) {
+    	var h = hsv[0];
+    	var s = hsv[1] / 100;
+    	var v = hsv[2] / 100;
+    	var vmin = Math.max(v, 0.01);
+    	var lmin;
+    	var sl;
+    	var l;
+
+    	l = (2 - s) * v;
+    	lmin = (2 - s) * vmin;
+    	sl = s * vmin;
+    	sl /= (lmin <= 1) ? lmin : 2 - lmin;
+    	sl = sl || 0;
+    	l /= 2;
+
+    	return [h, sl * 100, l * 100];
+    };
+
+    // http://dev.w3.org/csswg/css-color/#hwb-to-rgb
+    convert.hwb.rgb = function (hwb) {
+    	var h = hwb[0] / 360;
+    	var wh = hwb[1] / 100;
+    	var bl = hwb[2] / 100;
+    	var ratio = wh + bl;
+    	var i;
+    	var v;
+    	var f;
+    	var n;
+
+    	// wh + bl cant be > 1
+    	if (ratio > 1) {
+    		wh /= ratio;
+    		bl /= ratio;
+    	}
+
+    	i = Math.floor(6 * h);
+    	v = 1 - bl;
+    	f = 6 * h - i;
+
+    	if ((i & 0x01) !== 0) {
+    		f = 1 - f;
+    	}
+
+    	n = wh + f * (v - wh); // linear interpolation
+
+    	var r;
+    	var g;
+    	var b;
+    	switch (i) {
+    		default:
+    		case 6:
+    		case 0: r = v; g = n; b = wh; break;
+    		case 1: r = n; g = v; b = wh; break;
+    		case 2: r = wh; g = v; b = n; break;
+    		case 3: r = wh; g = n; b = v; break;
+    		case 4: r = n; g = wh; b = v; break;
+    		case 5: r = v; g = wh; b = n; break;
+    	}
+
+    	return [r * 255, g * 255, b * 255];
+    };
+
+    convert.cmyk.rgb = function (cmyk) {
+    	var c = cmyk[0] / 100;
+    	var m = cmyk[1] / 100;
+    	var y = cmyk[2] / 100;
+    	var k = cmyk[3] / 100;
+    	var r;
+    	var g;
+    	var b;
+
+    	r = 1 - Math.min(1, c * (1 - k) + k);
+    	g = 1 - Math.min(1, m * (1 - k) + k);
+    	b = 1 - Math.min(1, y * (1 - k) + k);
+
+    	return [r * 255, g * 255, b * 255];
+    };
+
+    convert.xyz.rgb = function (xyz) {
+    	var x = xyz[0] / 100;
+    	var y = xyz[1] / 100;
+    	var z = xyz[2] / 100;
+    	var r;
+    	var g;
+    	var b;
+
+    	r = (x * 3.2406) + (y * -1.5372) + (z * -0.4986);
+    	g = (x * -0.9689) + (y * 1.8758) + (z * 0.0415);
+    	b = (x * 0.0557) + (y * -0.2040) + (z * 1.0570);
+
+    	// assume sRGB
+    	r = r > 0.0031308
+    		? ((1.055 * Math.pow(r, 1.0 / 2.4)) - 0.055)
+    		: r * 12.92;
+
+    	g = g > 0.0031308
+    		? ((1.055 * Math.pow(g, 1.0 / 2.4)) - 0.055)
+    		: g * 12.92;
+
+    	b = b > 0.0031308
+    		? ((1.055 * Math.pow(b, 1.0 / 2.4)) - 0.055)
+    		: b * 12.92;
+
+    	r = Math.min(Math.max(0, r), 1);
+    	g = Math.min(Math.max(0, g), 1);
+    	b = Math.min(Math.max(0, b), 1);
+
+    	return [r * 255, g * 255, b * 255];
+    };
+
+    convert.xyz.lab = function (xyz) {
+    	var x = xyz[0];
+    	var y = xyz[1];
+    	var z = xyz[2];
+    	var l;
+    	var a;
+    	var b;
+
+    	x /= 95.047;
+    	y /= 100;
+    	z /= 108.883;
+
+    	x = x > 0.008856 ? Math.pow(x, 1 / 3) : (7.787 * x) + (16 / 116);
+    	y = y > 0.008856 ? Math.pow(y, 1 / 3) : (7.787 * y) + (16 / 116);
+    	z = z > 0.008856 ? Math.pow(z, 1 / 3) : (7.787 * z) + (16 / 116);
+
+    	l = (116 * y) - 16;
+    	a = 500 * (x - y);
+    	b = 200 * (y - z);
+
+    	return [l, a, b];
+    };
+
+    convert.lab.xyz = function (lab) {
+    	var l = lab[0];
+    	var a = lab[1];
+    	var b = lab[2];
+    	var x;
+    	var y;
+    	var z;
+
+    	y = (l + 16) / 116;
+    	x = a / 500 + y;
+    	z = y - b / 200;
+
+    	var y2 = Math.pow(y, 3);
+    	var x2 = Math.pow(x, 3);
+    	var z2 = Math.pow(z, 3);
+    	y = y2 > 0.008856 ? y2 : (y - 16 / 116) / 7.787;
+    	x = x2 > 0.008856 ? x2 : (x - 16 / 116) / 7.787;
+    	z = z2 > 0.008856 ? z2 : (z - 16 / 116) / 7.787;
+
+    	x *= 95.047;
+    	y *= 100;
+    	z *= 108.883;
+
+    	return [x, y, z];
+    };
+
+    convert.lab.lch = function (lab) {
+    	var l = lab[0];
+    	var a = lab[1];
+    	var b = lab[2];
+    	var hr;
+    	var h;
+    	var c;
+
+    	hr = Math.atan2(b, a);
+    	h = hr * 360 / 2 / Math.PI;
+
+    	if (h < 0) {
+    		h += 360;
+    	}
+
+    	c = Math.sqrt(a * a + b * b);
+
+    	return [l, c, h];
+    };
+
+    convert.lch.lab = function (lch) {
+    	var l = lch[0];
+    	var c = lch[1];
+    	var h = lch[2];
+    	var a;
+    	var b;
+    	var hr;
+
+    	hr = h / 360 * 2 * Math.PI;
+    	a = c * Math.cos(hr);
+    	b = c * Math.sin(hr);
+
+    	return [l, a, b];
+    };
+
+    convert.rgb.ansi16 = function (args) {
+    	var r = args[0];
+    	var g = args[1];
+    	var b = args[2];
+    	var value = 1 in arguments ? arguments[1] : convert.rgb.hsv(args)[2]; // hsv -> ansi16 optimization
+
+    	value = Math.round(value / 50);
+
+    	if (value === 0) {
+    		return 30;
+    	}
+
+    	var ansi = 30
+    		+ ((Math.round(b / 255) << 2)
+    		| (Math.round(g / 255) << 1)
+    		| Math.round(r / 255));
+
+    	if (value === 2) {
+    		ansi += 60;
+    	}
+
+    	return ansi;
+    };
+
+    convert.hsv.ansi16 = function (args) {
+    	// optimization here; we already know the value and don't need to get
+    	// it converted for us.
+    	return convert.rgb.ansi16(convert.hsv.rgb(args), args[2]);
+    };
+
+    convert.rgb.ansi256 = function (args) {
+    	var r = args[0];
+    	var g = args[1];
+    	var b = args[2];
+
+    	// we use the extended greyscale palette here, with the exception of
+    	// black and white. normal palette only has 4 greyscale shades.
+    	if (r === g && g === b) {
+    		if (r < 8) {
+    			return 16;
+    		}
+
+    		if (r > 248) {
+    			return 231;
+    		}
+
+    		return Math.round(((r - 8) / 247) * 24) + 232;
+    	}
+
+    	var ansi = 16
+    		+ (36 * Math.round(r / 255 * 5))
+    		+ (6 * Math.round(g / 255 * 5))
+    		+ Math.round(b / 255 * 5);
+
+    	return ansi;
+    };
+
+    convert.ansi16.rgb = function (args) {
+    	var color = args % 10;
+
+    	// handle greyscale
+    	if (color === 0 || color === 7) {
+    		if (args > 50) {
+    			color += 3.5;
+    		}
+
+    		color = color / 10.5 * 255;
+
+    		return [color, color, color];
+    	}
+
+    	var mult = (~~(args > 50) + 1) * 0.5;
+    	var r = ((color & 1) * mult) * 255;
+    	var g = (((color >> 1) & 1) * mult) * 255;
+    	var b = (((color >> 2) & 1) * mult) * 255;
+
+    	return [r, g, b];
+    };
+
+    convert.ansi256.rgb = function (args) {
+    	// handle greyscale
+    	if (args >= 232) {
+    		var c = (args - 232) * 10 + 8;
+    		return [c, c, c];
+    	}
+
+    	args -= 16;
+
+    	var rem;
+    	var r = Math.floor(args / 36) / 5 * 255;
+    	var g = Math.floor((rem = args % 36) / 6) / 5 * 255;
+    	var b = (rem % 6) / 5 * 255;
+
+    	return [r, g, b];
+    };
+
+    convert.rgb.hex = function (args) {
+    	var integer = ((Math.round(args[0]) & 0xFF) << 16)
+    		+ ((Math.round(args[1]) & 0xFF) << 8)
+    		+ (Math.round(args[2]) & 0xFF);
+
+    	var string = integer.toString(16).toUpperCase();
+    	return '000000'.substring(string.length) + string;
+    };
+
+    convert.hex.rgb = function (args) {
+    	var match = args.toString(16).match(/[a-f0-9]{6}|[a-f0-9]{3}/i);
+    	if (!match) {
+    		return [0, 0, 0];
+    	}
+
+    	var colorString = match[0];
+
+    	if (match[0].length === 3) {
+    		colorString = colorString.split('').map(function (char) {
+    			return char + char;
+    		}).join('');
+    	}
+
+    	var integer = parseInt(colorString, 16);
+    	var r = (integer >> 16) & 0xFF;
+    	var g = (integer >> 8) & 0xFF;
+    	var b = integer & 0xFF;
+
+    	return [r, g, b];
+    };
+
+    convert.rgb.hcg = function (rgb) {
+    	var r = rgb[0] / 255;
+    	var g = rgb[1] / 255;
+    	var b = rgb[2] / 255;
+    	var max = Math.max(Math.max(r, g), b);
+    	var min = Math.min(Math.min(r, g), b);
+    	var chroma = (max - min);
+    	var grayscale;
+    	var hue;
+
+    	if (chroma < 1) {
+    		grayscale = min / (1 - chroma);
+    	} else {
+    		grayscale = 0;
+    	}
+
+    	if (chroma <= 0) {
+    		hue = 0;
+    	} else
+    	if (max === r) {
+    		hue = ((g - b) / chroma) % 6;
+    	} else
+    	if (max === g) {
+    		hue = 2 + (b - r) / chroma;
+    	} else {
+    		hue = 4 + (r - g) / chroma + 4;
+    	}
+
+    	hue /= 6;
+    	hue %= 1;
+
+    	return [hue * 360, chroma * 100, grayscale * 100];
+    };
+
+    convert.hsl.hcg = function (hsl) {
+    	var s = hsl[1] / 100;
+    	var l = hsl[2] / 100;
+    	var c = 1;
+    	var f = 0;
+
+    	if (l < 0.5) {
+    		c = 2.0 * s * l;
+    	} else {
+    		c = 2.0 * s * (1.0 - l);
+    	}
+
+    	if (c < 1.0) {
+    		f = (l - 0.5 * c) / (1.0 - c);
+    	}
+
+    	return [hsl[0], c * 100, f * 100];
+    };
+
+    convert.hsv.hcg = function (hsv) {
+    	var s = hsv[1] / 100;
+    	var v = hsv[2] / 100;
+
+    	var c = s * v;
+    	var f = 0;
+
+    	if (c < 1.0) {
+    		f = (v - c) / (1 - c);
+    	}
+
+    	return [hsv[0], c * 100, f * 100];
+    };
+
+    convert.hcg.rgb = function (hcg) {
+    	var h = hcg[0] / 360;
+    	var c = hcg[1] / 100;
+    	var g = hcg[2] / 100;
+
+    	if (c === 0.0) {
+    		return [g * 255, g * 255, g * 255];
+    	}
+
+    	var pure = [0, 0, 0];
+    	var hi = (h % 1) * 6;
+    	var v = hi % 1;
+    	var w = 1 - v;
+    	var mg = 0;
+
+    	switch (Math.floor(hi)) {
+    		case 0:
+    			pure[0] = 1; pure[1] = v; pure[2] = 0; break;
+    		case 1:
+    			pure[0] = w; pure[1] = 1; pure[2] = 0; break;
+    		case 2:
+    			pure[0] = 0; pure[1] = 1; pure[2] = v; break;
+    		case 3:
+    			pure[0] = 0; pure[1] = w; pure[2] = 1; break;
+    		case 4:
+    			pure[0] = v; pure[1] = 0; pure[2] = 1; break;
+    		default:
+    			pure[0] = 1; pure[1] = 0; pure[2] = w;
+    	}
+
+    	mg = (1.0 - c) * g;
+
+    	return [
+    		(c * pure[0] + mg) * 255,
+    		(c * pure[1] + mg) * 255,
+    		(c * pure[2] + mg) * 255
+    	];
+    };
+
+    convert.hcg.hsv = function (hcg) {
+    	var c = hcg[1] / 100;
+    	var g = hcg[2] / 100;
+
+    	var v = c + g * (1.0 - c);
+    	var f = 0;
+
+    	if (v > 0.0) {
+    		f = c / v;
+    	}
+
+    	return [hcg[0], f * 100, v * 100];
+    };
+
+    convert.hcg.hsl = function (hcg) {
+    	var c = hcg[1] / 100;
+    	var g = hcg[2] / 100;
+
+    	var l = g * (1.0 - c) + 0.5 * c;
+    	var s = 0;
+
+    	if (l > 0.0 && l < 0.5) {
+    		s = c / (2 * l);
+    	} else
+    	if (l >= 0.5 && l < 1.0) {
+    		s = c / (2 * (1 - l));
+    	}
+
+    	return [hcg[0], s * 100, l * 100];
+    };
+
+    convert.hcg.hwb = function (hcg) {
+    	var c = hcg[1] / 100;
+    	var g = hcg[2] / 100;
+    	var v = c + g * (1.0 - c);
+    	return [hcg[0], (v - c) * 100, (1 - v) * 100];
+    };
+
+    convert.hwb.hcg = function (hwb) {
+    	var w = hwb[1] / 100;
+    	var b = hwb[2] / 100;
+    	var v = 1 - b;
+    	var c = v - w;
+    	var g = 0;
+
+    	if (c < 1) {
+    		g = (v - c) / (1 - c);
+    	}
+
+    	return [hwb[0], c * 100, g * 100];
+    };
+
+    convert.apple.rgb = function (apple) {
+    	return [(apple[0] / 65535) * 255, (apple[1] / 65535) * 255, (apple[2] / 65535) * 255];
+    };
+
+    convert.rgb.apple = function (rgb) {
+    	return [(rgb[0] / 255) * 65535, (rgb[1] / 255) * 65535, (rgb[2] / 255) * 65535];
+    };
+
+    convert.gray.rgb = function (args) {
+    	return [args[0] / 100 * 255, args[0] / 100 * 255, args[0] / 100 * 255];
+    };
+
+    convert.gray.hsl = convert.gray.hsv = function (args) {
+    	return [0, 0, args[0]];
+    };
+
+    convert.gray.hwb = function (gray) {
+    	return [0, 100, gray[0]];
+    };
+
+    convert.gray.cmyk = function (gray) {
+    	return [0, 0, 0, gray[0]];
+    };
+
+    convert.gray.lab = function (gray) {
+    	return [gray[0], 0, 0];
+    };
+
+    convert.gray.hex = function (gray) {
+    	var val = Math.round(gray[0] / 100 * 255) & 0xFF;
+    	var integer = (val << 16) + (val << 8) + val;
+
+    	var string = integer.toString(16).toUpperCase();
+    	return '000000'.substring(string.length) + string;
+    };
+
+    convert.rgb.gray = function (rgb) {
+    	var val = (rgb[0] + rgb[1] + rgb[2]) / 3;
+    	return [val / 255 * 100];
+    };
+    });
+    var conversions_1 = conversions.rgb;
+    var conversions_2 = conversions.hsl;
+    var conversions_3 = conversions.hsv;
+    var conversions_4 = conversions.hwb;
+    var conversions_5 = conversions.cmyk;
+    var conversions_6 = conversions.xyz;
+    var conversions_7 = conversions.lab;
+    var conversions_8 = conversions.lch;
+    var conversions_9 = conversions.hex;
+    var conversions_10 = conversions.keyword;
+    var conversions_11 = conversions.ansi16;
+    var conversions_12 = conversions.ansi256;
+    var conversions_13 = conversions.hcg;
+    var conversions_14 = conversions.apple;
+    var conversions_15 = conversions.gray;
+
+    /*
+    	this function routes a model to all other models.
+
+    	all functions that are routed have a property `.conversion` attached
+    	to the returned synthetic function. This property is an array
+    	of strings, each with the steps in between the 'from' and 'to'
+    	color models (inclusive).
+
+    	conversions that are not possible simply are not included.
+    */
+
+    function buildGraph() {
+    	var graph = {};
+    	// https://jsperf.com/object-keys-vs-for-in-with-closure/3
+    	var models = Object.keys(conversions);
+
+    	for (var len = models.length, i = 0; i < len; i++) {
+    		graph[models[i]] = {
+    			// http://jsperf.com/1-vs-infinity
+    			// micro-opt, but this is simple.
+    			distance: -1,
+    			parent: null
+    		};
+    	}
+
+    	return graph;
+    }
+
+    // https://en.wikipedia.org/wiki/Breadth-first_search
+    function deriveBFS(fromModel) {
+    	var graph = buildGraph();
+    	var queue = [fromModel]; // unshift -> queue -> pop
+
+    	graph[fromModel].distance = 0;
+
+    	while (queue.length) {
+    		var current = queue.pop();
+    		var adjacents = Object.keys(conversions[current]);
+
+    		for (var len = adjacents.length, i = 0; i < len; i++) {
+    			var adjacent = adjacents[i];
+    			var node = graph[adjacent];
+
+    			if (node.distance === -1) {
+    				node.distance = graph[current].distance + 1;
+    				node.parent = current;
+    				queue.unshift(adjacent);
+    			}
+    		}
+    	}
+
+    	return graph;
+    }
+
+    function link(from, to) {
+    	return function (args) {
+    		return to(from(args));
+    	};
+    }
+
+    function wrapConversion(toModel, graph) {
+    	var path = [graph[toModel].parent, toModel];
+    	var fn = conversions[graph[toModel].parent][toModel];
+
+    	var cur = graph[toModel].parent;
+    	while (graph[cur].parent) {
+    		path.unshift(graph[cur].parent);
+    		fn = link(conversions[graph[cur].parent][cur], fn);
+    		cur = graph[cur].parent;
+    	}
+
+    	fn.conversion = path;
+    	return fn;
+    }
+
+    var route = function (fromModel) {
+    	var graph = deriveBFS(fromModel);
+    	var conversion = {};
+
+    	var models = Object.keys(graph);
+    	for (var len = models.length, i = 0; i < len; i++) {
+    		var toModel = models[i];
+    		var node = graph[toModel];
+
+    		if (node.parent === null) {
+    			// no possible conversion, or this node is the source model.
+    			continue;
+    		}
+
+    		conversion[toModel] = wrapConversion(toModel, graph);
+    	}
+
+    	return conversion;
+    };
+
+    var convert = {};
+
+    var models = Object.keys(conversions);
+
+    function wrapRaw(fn) {
+    	var wrappedFn = function (args) {
+    		if (args === undefined || args === null) {
+    			return args;
+    		}
+
+    		if (arguments.length > 1) {
+    			args = Array.prototype.slice.call(arguments);
+    		}
+
+    		return fn(args);
+    	};
+
+    	// preserve .conversion property if there is one
+    	if ('conversion' in fn) {
+    		wrappedFn.conversion = fn.conversion;
+    	}
+
+    	return wrappedFn;
+    }
+
+    function wrapRounded(fn) {
+    	var wrappedFn = function (args) {
+    		if (args === undefined || args === null) {
+    			return args;
+    		}
+
+    		if (arguments.length > 1) {
+    			args = Array.prototype.slice.call(arguments);
+    		}
+
+    		var result = fn(args);
+
+    		// we're assuming the result is an array here.
+    		// see notice in conversions.js; don't use box types
+    		// in conversion functions.
+    		if (typeof result === 'object') {
+    			for (var len = result.length, i = 0; i < len; i++) {
+    				result[i] = Math.round(result[i]);
+    			}
+    		}
+
+    		return result;
+    	};
+
+    	// preserve .conversion property if there is one
+    	if ('conversion' in fn) {
+    		wrappedFn.conversion = fn.conversion;
+    	}
+
+    	return wrappedFn;
+    }
+
+    models.forEach(function (fromModel) {
+    	convert[fromModel] = {};
+
+    	Object.defineProperty(convert[fromModel], 'channels', {value: conversions[fromModel].channels});
+    	Object.defineProperty(convert[fromModel], 'labels', {value: conversions[fromModel].labels});
+
+    	var routes = route(fromModel);
+    	var routeModels = Object.keys(routes);
+
+    	routeModels.forEach(function (toModel) {
+    		var fn = routes[toModel];
+
+    		convert[fromModel][toModel] = wrapRounded(fn);
+    		convert[fromModel][toModel].raw = wrapRaw(fn);
+    	});
+    });
+
+    var colorConvert = convert;
+
+    var _slice = [].slice;
+
+    var skippedModels = [
+    	// to be honest, I don't really feel like keyword belongs in color convert, but eh.
+    	'keyword',
+
+    	// gray conflicts with some method names, and has its own method defined.
+    	'gray',
+
+    	// shouldn't really be in color-convert either...
+    	'hex'
+    ];
+
+    var hashedModelKeys = {};
+    Object.keys(colorConvert).forEach(function (model) {
+    	hashedModelKeys[_slice.call(colorConvert[model].labels).sort().join('')] = model;
+    });
+
+    var limiters = {};
+
+    function Color(obj, model) {
+    	if (!(this instanceof Color)) {
+    		return new Color(obj, model);
+    	}
+
+    	if (model && model in skippedModels) {
+    		model = null;
+    	}
+
+    	if (model && !(model in colorConvert)) {
+    		throw new Error('Unknown model: ' + model);
+    	}
+
+    	var i;
+    	var channels;
+
+    	if (obj == null) { // eslint-disable-line no-eq-null,eqeqeq
+    		this.model = 'rgb';
+    		this.color = [0, 0, 0];
+    		this.valpha = 1;
+    	} else if (obj instanceof Color) {
+    		this.model = obj.model;
+    		this.color = obj.color.slice();
+    		this.valpha = obj.valpha;
+    	} else if (typeof obj === 'string') {
+    		var result = colorString.get(obj);
+    		if (result === null) {
+    			throw new Error('Unable to parse color from string: ' + obj);
+    		}
+
+    		this.model = result.model;
+    		channels = colorConvert[this.model].channels;
+    		this.color = result.value.slice(0, channels);
+    		this.valpha = typeof result.value[channels] === 'number' ? result.value[channels] : 1;
+    	} else if (obj.length) {
+    		this.model = model || 'rgb';
+    		channels = colorConvert[this.model].channels;
+    		var newArr = _slice.call(obj, 0, channels);
+    		this.color = zeroArray(newArr, channels);
+    		this.valpha = typeof obj[channels] === 'number' ? obj[channels] : 1;
+    	} else if (typeof obj === 'number') {
+    		// this is always RGB - can be converted later on.
+    		obj &= 0xFFFFFF;
+    		this.model = 'rgb';
+    		this.color = [
+    			(obj >> 16) & 0xFF,
+    			(obj >> 8) & 0xFF,
+    			obj & 0xFF
+    		];
+    		this.valpha = 1;
+    	} else {
+    		this.valpha = 1;
+
+    		var keys = Object.keys(obj);
+    		if ('alpha' in obj) {
+    			keys.splice(keys.indexOf('alpha'), 1);
+    			this.valpha = typeof obj.alpha === 'number' ? obj.alpha : 0;
+    		}
+
+    		var hashedKeys = keys.sort().join('');
+    		if (!(hashedKeys in hashedModelKeys)) {
+    			throw new Error('Unable to parse color from object: ' + JSON.stringify(obj));
+    		}
+
+    		this.model = hashedModelKeys[hashedKeys];
+
+    		var labels = colorConvert[this.model].labels;
+    		var color = [];
+    		for (i = 0; i < labels.length; i++) {
+    			color.push(obj[labels[i]]);
+    		}
+
+    		this.color = zeroArray(color);
+    	}
+
+    	// perform limitations (clamping, etc.)
+    	if (limiters[this.model]) {
+    		channels = colorConvert[this.model].channels;
+    		for (i = 0; i < channels; i++) {
+    			var limit = limiters[this.model][i];
+    			if (limit) {
+    				this.color[i] = limit(this.color[i]);
+    			}
+    		}
+    	}
+
+    	this.valpha = Math.max(0, Math.min(1, this.valpha));
+
+    	if (Object.freeze) {
+    		Object.freeze(this);
+    	}
+    }
+
+    Color.prototype = {
+    	toString: function () {
+    		return this.string();
+    	},
+
+    	toJSON: function () {
+    		return this[this.model]();
+    	},
+
+    	string: function (places) {
+    		var self = this.model in colorString.to ? this : this.rgb();
+    		self = self.round(typeof places === 'number' ? places : 1);
+    		var args = self.valpha === 1 ? self.color : self.color.concat(this.valpha);
+    		return colorString.to[self.model](args);
+    	},
+
+    	percentString: function (places) {
+    		var self = this.rgb().round(typeof places === 'number' ? places : 1);
+    		var args = self.valpha === 1 ? self.color : self.color.concat(this.valpha);
+    		return colorString.to.rgb.percent(args);
+    	},
+
+    	array: function () {
+    		return this.valpha === 1 ? this.color.slice() : this.color.concat(this.valpha);
+    	},
+
+    	object: function () {
+    		var result = {};
+    		var channels = colorConvert[this.model].channels;
+    		var labels = colorConvert[this.model].labels;
+
+    		for (var i = 0; i < channels; i++) {
+    			result[labels[i]] = this.color[i];
+    		}
+
+    		if (this.valpha !== 1) {
+    			result.alpha = this.valpha;
+    		}
+
+    		return result;
+    	},
+
+    	unitArray: function () {
+    		var rgb = this.rgb().color;
+    		rgb[0] /= 255;
+    		rgb[1] /= 255;
+    		rgb[2] /= 255;
+
+    		if (this.valpha !== 1) {
+    			rgb.push(this.valpha);
+    		}
+
+    		return rgb;
+    	},
+
+    	unitObject: function () {
+    		var rgb = this.rgb().object();
+    		rgb.r /= 255;
+    		rgb.g /= 255;
+    		rgb.b /= 255;
+
+    		if (this.valpha !== 1) {
+    			rgb.alpha = this.valpha;
+    		}
+
+    		return rgb;
+    	},
+
+    	round: function (places) {
+    		places = Math.max(places || 0, 0);
+    		return new Color(this.color.map(roundToPlace(places)).concat(this.valpha), this.model);
+    	},
+
+    	alpha: function (val) {
+    		if (arguments.length) {
+    			return new Color(this.color.concat(Math.max(0, Math.min(1, val))), this.model);
+    		}
+
+    		return this.valpha;
+    	},
+
+    	// rgb
+    	red: getset('rgb', 0, maxfn(255)),
+    	green: getset('rgb', 1, maxfn(255)),
+    	blue: getset('rgb', 2, maxfn(255)),
+
+    	hue: getset(['hsl', 'hsv', 'hsl', 'hwb', 'hcg'], 0, function (val) { return ((val % 360) + 360) % 360; }), // eslint-disable-line brace-style
+
+    	saturationl: getset('hsl', 1, maxfn(100)),
+    	lightness: getset('hsl', 2, maxfn(100)),
+
+    	saturationv: getset('hsv', 1, maxfn(100)),
+    	value: getset('hsv', 2, maxfn(100)),
+
+    	chroma: getset('hcg', 1, maxfn(100)),
+    	gray: getset('hcg', 2, maxfn(100)),
+
+    	white: getset('hwb', 1, maxfn(100)),
+    	wblack: getset('hwb', 2, maxfn(100)),
+
+    	cyan: getset('cmyk', 0, maxfn(100)),
+    	magenta: getset('cmyk', 1, maxfn(100)),
+    	yellow: getset('cmyk', 2, maxfn(100)),
+    	black: getset('cmyk', 3, maxfn(100)),
+
+    	x: getset('xyz', 0, maxfn(100)),
+    	y: getset('xyz', 1, maxfn(100)),
+    	z: getset('xyz', 2, maxfn(100)),
+
+    	l: getset('lab', 0, maxfn(100)),
+    	a: getset('lab', 1),
+    	b: getset('lab', 2),
+
+    	keyword: function (val) {
+    		if (arguments.length) {
+    			return new Color(val);
+    		}
+
+    		return colorConvert[this.model].keyword(this.color);
+    	},
+
+    	hex: function (val) {
+    		if (arguments.length) {
+    			return new Color(val);
+    		}
+
+    		return colorString.to.hex(this.rgb().round().color);
+    	},
+
+    	rgbNumber: function () {
+    		var rgb = this.rgb().color;
+    		return ((rgb[0] & 0xFF) << 16) | ((rgb[1] & 0xFF) << 8) | (rgb[2] & 0xFF);
+    	},
+
+    	luminosity: function () {
+    		// http://www.w3.org/TR/WCAG20/#relativeluminancedef
+    		var rgb = this.rgb().color;
+
+    		var lum = [];
+    		for (var i = 0; i < rgb.length; i++) {
+    			var chan = rgb[i] / 255;
+    			lum[i] = (chan <= 0.03928) ? chan / 12.92 : Math.pow(((chan + 0.055) / 1.055), 2.4);
+    		}
+
+    		return 0.2126 * lum[0] + 0.7152 * lum[1] + 0.0722 * lum[2];
+    	},
+
+    	contrast: function (color2) {
+    		// http://www.w3.org/TR/WCAG20/#contrast-ratiodef
+    		var lum1 = this.luminosity();
+    		var lum2 = color2.luminosity();
+
+    		if (lum1 > lum2) {
+    			return (lum1 + 0.05) / (lum2 + 0.05);
+    		}
+
+    		return (lum2 + 0.05) / (lum1 + 0.05);
+    	},
+
+    	level: function (color2) {
+    		var contrastRatio = this.contrast(color2);
+    		if (contrastRatio >= 7.1) {
+    			return 'AAA';
+    		}
+
+    		return (contrastRatio >= 4.5) ? 'AA' : '';
+    	},
+
+    	isDark: function () {
+    		// YIQ equation from http://24ways.org/2010/calculating-color-contrast
+    		var rgb = this.rgb().color;
+    		var yiq = (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000;
+    		return yiq < 128;
+    	},
+
+    	isLight: function () {
+    		return !this.isDark();
+    	},
+
+    	negate: function () {
+    		var rgb = this.rgb();
+    		for (var i = 0; i < 3; i++) {
+    			rgb.color[i] = 255 - rgb.color[i];
+    		}
+    		return rgb;
+    	},
+
+    	lighten: function (ratio) {
+    		var hsl = this.hsl();
+    		hsl.color[2] += hsl.color[2] * ratio;
+    		return hsl;
+    	},
+
+    	darken: function (ratio) {
+    		var hsl = this.hsl();
+    		hsl.color[2] -= hsl.color[2] * ratio;
+    		return hsl;
+    	},
+
+    	saturate: function (ratio) {
+    		var hsl = this.hsl();
+    		hsl.color[1] += hsl.color[1] * ratio;
+    		return hsl;
+    	},
+
+    	desaturate: function (ratio) {
+    		var hsl = this.hsl();
+    		hsl.color[1] -= hsl.color[1] * ratio;
+    		return hsl;
+    	},
+
+    	whiten: function (ratio) {
+    		var hwb = this.hwb();
+    		hwb.color[1] += hwb.color[1] * ratio;
+    		return hwb;
+    	},
+
+    	blacken: function (ratio) {
+    		var hwb = this.hwb();
+    		hwb.color[2] += hwb.color[2] * ratio;
+    		return hwb;
+    	},
+
+    	grayscale: function () {
+    		// http://en.wikipedia.org/wiki/Grayscale#Converting_color_to_grayscale
+    		var rgb = this.rgb().color;
+    		var val = rgb[0] * 0.3 + rgb[1] * 0.59 + rgb[2] * 0.11;
+    		return Color.rgb(val, val, val);
+    	},
+
+    	fade: function (ratio) {
+    		return this.alpha(this.valpha - (this.valpha * ratio));
+    	},
+
+    	opaquer: function (ratio) {
+    		return this.alpha(this.valpha + (this.valpha * ratio));
+    	},
+
+    	rotate: function (degrees) {
+    		var hsl = this.hsl();
+    		var hue = hsl.color[0];
+    		hue = (hue + degrees) % 360;
+    		hue = hue < 0 ? 360 + hue : hue;
+    		hsl.color[0] = hue;
+    		return hsl;
+    	},
+
+    	mix: function (mixinColor, weight) {
+    		// ported from sass implementation in C
+    		// https://github.com/sass/libsass/blob/0e6b4a2850092356aa3ece07c6b249f0221caced/functions.cpp#L209
+    		if (!mixinColor || !mixinColor.rgb) {
+    			throw new Error('Argument to "mix" was not a Color instance, but rather an instance of ' + typeof mixinColor);
+    		}
+    		var color1 = mixinColor.rgb();
+    		var color2 = this.rgb();
+    		var p = weight === undefined ? 0.5 : weight;
+
+    		var w = 2 * p - 1;
+    		var a = color1.alpha() - color2.alpha();
+
+    		var w1 = (((w * a === -1) ? w : (w + a) / (1 + w * a)) + 1) / 2.0;
+    		var w2 = 1 - w1;
+
+    		return Color.rgb(
+    				w1 * color1.red() + w2 * color2.red(),
+    				w1 * color1.green() + w2 * color2.green(),
+    				w1 * color1.blue() + w2 * color2.blue(),
+    				color1.alpha() * p + color2.alpha() * (1 - p));
+    	}
+    };
+
+    // model conversion methods and static constructors
+    Object.keys(colorConvert).forEach(function (model) {
+    	if (skippedModels.indexOf(model) !== -1) {
+    		return;
+    	}
+
+    	var channels = colorConvert[model].channels;
+
+    	// conversion methods
+    	Color.prototype[model] = function () {
+    		if (this.model === model) {
+    			return new Color(this);
+    		}
+
+    		if (arguments.length) {
+    			return new Color(arguments, model);
+    		}
+
+    		var newAlpha = typeof arguments[channels] === 'number' ? channels : this.valpha;
+    		return new Color(assertArray(colorConvert[this.model][model].raw(this.color)).concat(newAlpha), model);
+    	};
+
+    	// 'static' construction methods
+    	Color[model] = function (color) {
+    		if (typeof color === 'number') {
+    			color = zeroArray(_slice.call(arguments), channels);
+    		}
+    		return new Color(color, model);
+    	};
+    });
+
+    function roundTo(num, places) {
+    	return Number(num.toFixed(places));
+    }
+
+    function roundToPlace(places) {
+    	return function (num) {
+    		return roundTo(num, places);
+    	};
+    }
+
+    function getset(model, channel, modifier) {
+    	model = Array.isArray(model) ? model : [model];
+
+    	model.forEach(function (m) {
+    		(limiters[m] || (limiters[m] = []))[channel] = modifier;
+    	});
+
+    	model = model[0];
+
+    	return function (val) {
+    		var result;
+
+    		if (arguments.length) {
+    			if (modifier) {
+    				val = modifier(val);
+    			}
+
+    			result = this[model]();
+    			result.color[channel] = val;
+    			return result;
+    		}
+
+    		result = this[model]().color[channel];
+    		if (modifier) {
+    			result = modifier(result);
+    		}
+
+    		return result;
+    	};
+    }
+
+    function maxfn(max) {
+    	return function (v) {
+    		return Math.max(0, Math.min(max, v));
+    	};
+    }
+
+    function assertArray(val) {
+    	return Array.isArray(val) ? val : [val];
+    }
+
+    function zeroArray(arr, length) {
+    	for (var i = 0; i < length; i++) {
+    		if (typeof arr[i] !== 'number') {
+    			arr[i] = 0;
+    		}
+    	}
+
+    	return arr;
+    }
+
+    var color = Color;
 
     /**
      * Original Work
@@ -18853,7 +45053,7 @@ var app = (function () {
       'F'
     ];
 
-    const hexColors = lodash.sortedUniq(
+    const hexColors = lodash.sortedUniqBy(
       lodash.flattenDeep(
         COLOR_RANGE.map(
           c => COLOR_RANGE.map(
@@ -18862,12 +45062,239 @@ var app = (function () {
             )
           )
         )
-      )
+      ),
+      h => new color(`#${h}`).luminosity()
     );
+
+    /* src/BuildlerBlock.svelte generated by Svelte v3.6.7 */
+
+    const file$2 = "src/BuildlerBlock.svelte";
+
+    function create_fragment$2(ctx) {
+    	var div, current, dispose;
+
+    	const default_slot_1 = ctx.$$slots.default;
+    	const default_slot = create_slot(default_slot_1, ctx, null);
+
+    	return {
+    		c: function create() {
+    			div = element("div");
+
+    			if (default_slot) default_slot.c();
+
+    			set_style(div, "background", ctx.bg);
+    			set_style(div, "color", ctx.textColor);
+    			set_style(div, "transition", "all " + ctx.transitionTime + "s ease-in-out");
+    			attr(div, "class", "svelte-qgbta2");
+    			add_location(div, file$2, 33, 0, 640);
+
+    			dispose = [
+    				listen(div, "click", ctx.click_handler),
+    				listen(div, "contextmenu", ctx.contextmenu_handler)
+    			];
+    		},
+
+    		l: function claim(nodes) {
+    			if (default_slot) default_slot.l(div_nodes);
+    			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
+    		},
+
+    		m: function mount(target, anchor) {
+    			insert(target, div, anchor);
+
+    			if (default_slot) {
+    				default_slot.m(div, null);
+    			}
+
+    			current = true;
+    		},
+
+    		p: function update(changed, ctx) {
+    			if (default_slot && default_slot.p && changed.$$scope) {
+    				default_slot.p(get_slot_changes(default_slot_1, ctx, changed, null), get_slot_context(default_slot_1, ctx, null));
+    			}
+
+    			if (!current || changed.bg) {
+    				set_style(div, "background", ctx.bg);
+    			}
+
+    			if (!current || changed.textColor) {
+    				set_style(div, "color", ctx.textColor);
+    			}
+
+    			if (!current || changed.transitionTime) {
+    				set_style(div, "transition", "all " + ctx.transitionTime + "s ease-in-out");
+    			}
+    		},
+
+    		i: function intro(local) {
+    			if (current) return;
+    			transition_in(default_slot, local);
+    			current = true;
+    		},
+
+    		o: function outro(local) {
+    			transition_out(default_slot, local);
+    			current = false;
+    		},
+
+    		d: function destroy(detaching) {
+    			if (detaching) {
+    				detach(div);
+    			}
+
+    			if (default_slot) default_slot.d(detaching);
+    			run_all(dispose);
+    		}
+    	};
+    }
+
+    const white$1 = '#eee';
+
+    const black$1 = '#111';
+
+    const red$1 = '#d22';
+
+    function instance$2($$self, $$props, $$invalidate) {
+    	let { row, col, state = 0, color, onClick, onRightClick, transitionTime = 0.2 } = $$props;
+
+    	const writable_props = ['row', 'col', 'state', 'color', 'onClick', 'onRightClick', 'transitionTime'];
+    	Object.keys($$props).forEach(key => {
+    		if (!writable_props.includes(key) && !key.startsWith('$$')) console.warn(`<BuildlerBlock> was created with unknown prop '${key}'`);
+    	});
+
+    	let { $$slots = {}, $$scope } = $$props;
+
+    	function click_handler() {
+    		return onClick && onClick(row, col);
+    	}
+
+    	function contextmenu_handler(e) {
+    	    if (onRightClick) {
+    	      e.preventDefault();
+    	      onRightClick(row, col);
+    	    }
+    	  }
+
+    	$$self.$set = $$props => {
+    		if ('row' in $$props) $$invalidate('row', row = $$props.row);
+    		if ('col' in $$props) $$invalidate('col', col = $$props.col);
+    		if ('state' in $$props) $$invalidate('state', state = $$props.state);
+    		if ('color' in $$props) $$invalidate('color', color = $$props.color);
+    		if ('onClick' in $$props) $$invalidate('onClick', onClick = $$props.onClick);
+    		if ('onRightClick' in $$props) $$invalidate('onRightClick', onRightClick = $$props.onRightClick);
+    		if ('transitionTime' in $$props) $$invalidate('transitionTime', transitionTime = $$props.transitionTime);
+    		if ('$$scope' in $$props) $$invalidate('$$scope', $$scope = $$props.$$scope);
+    	};
+
+    	let bg, textColor;
+
+    	$$self.$$.update = ($$dirty = { state: 1, color: 1, bg: 1 }) => {
+    		if ($$dirty.state || $$dirty.color) { $$invalidate('bg', bg = state === -2 ? red$1 : (state === -1 ? white$1 : color)); }
+    		if ($$dirty.bg) { $$invalidate('textColor', textColor = bg === white$1 ? black$1 : white$1); }
+    	};
+
+    	return {
+    		row,
+    		col,
+    		state,
+    		color,
+    		onClick,
+    		onRightClick,
+    		transitionTime,
+    		bg,
+    		textColor,
+    		click_handler,
+    		contextmenu_handler,
+    		$$slots,
+    		$$scope
+    	};
+    }
+
+    class BuildlerBlock extends SvelteComponentDev {
+    	constructor(options) {
+    		super(options);
+    		init(this, options, instance$2, create_fragment$2, safe_not_equal, ["row", "col", "state", "color", "onClick", "onRightClick", "transitionTime"]);
+
+    		const { ctx } = this.$$;
+    		const props = options.props || {};
+    		if (ctx.row === undefined && !('row' in props)) {
+    			console.warn("<BuildlerBlock> was created without expected prop 'row'");
+    		}
+    		if (ctx.col === undefined && !('col' in props)) {
+    			console.warn("<BuildlerBlock> was created without expected prop 'col'");
+    		}
+    		if (ctx.color === undefined && !('color' in props)) {
+    			console.warn("<BuildlerBlock> was created without expected prop 'color'");
+    		}
+    		if (ctx.onClick === undefined && !('onClick' in props)) {
+    			console.warn("<BuildlerBlock> was created without expected prop 'onClick'");
+    		}
+    		if (ctx.onRightClick === undefined && !('onRightClick' in props)) {
+    			console.warn("<BuildlerBlock> was created without expected prop 'onRightClick'");
+    		}
+    	}
+
+    	get row() {
+    		throw new Error("<BuildlerBlock>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	set row(value) {
+    		throw new Error("<BuildlerBlock>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	get col() {
+    		throw new Error("<BuildlerBlock>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	set col(value) {
+    		throw new Error("<BuildlerBlock>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	get state() {
+    		throw new Error("<BuildlerBlock>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	set state(value) {
+    		throw new Error("<BuildlerBlock>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	get color() {
+    		throw new Error("<BuildlerBlock>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	set color(value) {
+    		throw new Error("<BuildlerBlock>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	get onClick() {
+    		throw new Error("<BuildlerBlock>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	set onClick(value) {
+    		throw new Error("<BuildlerBlock>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	get onRightClick() {
+    		throw new Error("<BuildlerBlock>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	set onRightClick(value) {
+    		throw new Error("<BuildlerBlock>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	get transitionTime() {
+    		throw new Error("<BuildlerBlock>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	set transitionTime(value) {
+    		throw new Error("<BuildlerBlock>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+    }
 
     /* src/Buildler.svelte generated by Svelte v3.6.7 */
 
-    const file$2 = "src/Buildler.svelte";
+    const file$3 = "src/Buildler.svelte";
 
     function get_each_context_1$1(ctx, list, i) {
     	const child_ctx = Object.create(ctx);
@@ -18898,7 +45325,7 @@ var app = (function () {
 
     // (138:0) {#if showColorPicker}
     function create_if_block(ctx) {
-    	var section;
+    	var div, section;
 
     	var each_value_3 = hexColors;
 
@@ -18910,17 +45337,21 @@ var app = (function () {
 
     	return {
     		c: function create() {
+    			div = element("div");
     			section = element("section");
 
     			for (var i = 0; i < each_blocks.length; i += 1) {
     				each_blocks[i].c();
     			}
-    			attr(section, "class", "color-selector svelte-iqccjd");
-    			add_location(section, file$2, 138, 2, 2790);
+    			attr(section, "class", "color-selector svelte-sowna5");
+    			add_location(section, file$3, 139, 4, 2668);
+    			attr(div, "class", "color-selector-container svelte-sowna5");
+    			add_location(div, file$3, 138, 2, 2625);
     		},
 
     		m: function mount(target, anchor) {
-    			insert(target, section, anchor);
+    			insert(target, div, anchor);
+    			append(div, section);
 
     			for (var i = 0; i < each_blocks.length; i += 1) {
     				each_blocks[i].m(section, null);
@@ -18952,7 +45383,7 @@ var app = (function () {
 
     		d: function destroy(detaching) {
     			if (detaching) {
-    				detach(section);
+    				detach(div);
     			}
 
     			destroy_each(each_blocks, detaching);
@@ -18960,7 +45391,7 @@ var app = (function () {
     	};
     }
 
-    // (140:4) {#each hexColors as color}
+    // (141:6) {#each hexColors as color}
     function create_each_block_3$1(ctx) {
     	var div, dispose;
 
@@ -18971,9 +45402,9 @@ var app = (function () {
     	return {
     		c: function create() {
     			div = element("div");
-    			attr(div, "class", "color-option svelte-iqccjd");
+    			attr(div, "class", "color-option svelte-sowna5");
     			set_style(div, "background", "#" + ctx.color);
-    			add_location(div, file$2, 140, 6, 2860);
+    			add_location(div, file$3, 141, 8, 2742);
     			dispose = listen(div, "click", click_handler);
     		},
 
@@ -18998,7 +45429,7 @@ var app = (function () {
     	};
     }
 
-    // (152:4) {#each colors as color, index}
+    // (154:4) {#each colors as color, index}
     function create_each_block_2$1(ctx) {
     	var div, t_value = ctx.color, t, div_class_value, dispose;
 
@@ -19010,9 +45441,9 @@ var app = (function () {
     		c: function create() {
     			div = element("div");
     			t = text(t_value);
-    			attr(div, "class", div_class_value = "color " + (ctx.index === ctx.colorIndex && 'active') + " svelte-iqccjd");
+    			attr(div, "class", div_class_value = "color " + (ctx.index === ctx.colorIndex && 'active') + " svelte-sowna5");
     			set_style(div, "background", ctx.color);
-    			add_location(div, file$2, 152, 6, 3088);
+    			add_location(div, file$3, 154, 6, 2991);
     			dispose = listen(div, "click", click_handler_1);
     		},
 
@@ -19023,7 +45454,11 @@ var app = (function () {
 
     		p: function update(changed, new_ctx) {
     			ctx = new_ctx;
-    			if ((changed.colorIndex) && div_class_value !== (div_class_value = "color " + (ctx.index === ctx.colorIndex && 'active') + " svelte-iqccjd")) {
+    			if ((changed.colors) && t_value !== (t_value = ctx.color)) {
+    				set_data(t, t_value);
+    			}
+
+    			if ((changed.colorIndex) && div_class_value !== (div_class_value = "color " + (ctx.index === ctx.colorIndex && 'active') + " svelte-sowna5")) {
     				attr(div, "class", div_class_value);
     			}
 
@@ -19042,7 +45477,7 @@ var app = (function () {
     	};
     }
 
-    // (173:8) <Block           transitionTime={0.05}           state={col}           row={rowIndex}           col={colIndex}           onClick={() => toggleEnabled(rowIndex, colIndex)}           enabledColor={solutionColor[rowIndex][colIndex]}         >
+    // (175:8) <BuildlerBlock           row={rowIndex}           col={colIndex}           state={col}           color={colors[col]}           onClick={() => toggleEnabled(rowIndex, colIndex)}           onRightClick={() => reset(rowIndex, colIndex)}           transitionTime={0.05}         >
     function create_default_slot$1(ctx) {
     	var t0_value = ctx.col, t0, t1;
 
@@ -19058,7 +45493,7 @@ var app = (function () {
     		},
 
     		p: function update(changed, ctx) {
-    			if ((changed.solutionState) && t0_value !== (t0_value = ctx.col)) {
+    			if ((changed.solution) && t0_value !== (t0_value = ctx.col)) {
     				set_data(t0, t0_value);
     			}
     		},
@@ -19072,7 +45507,7 @@ var app = (function () {
     	};
     }
 
-    // (172:6) {#each row as col, colIndex}
+    // (174:6) {#each row as col, colIndex}
     function create_each_block_1$1(ctx) {
     	var current;
 
@@ -19080,14 +45515,19 @@ var app = (function () {
     		return ctx.func(ctx);
     	}
 
-    	var block = new Block({
+    	function func_1() {
+    		return ctx.func_1(ctx);
+    	}
+
+    	var buildlerblock = new BuildlerBlock({
     		props: {
-    		transitionTime: 0.05,
-    		state: ctx.col,
     		row: ctx.rowIndex,
     		col: ctx.colIndex,
+    		state: ctx.col,
+    		color: ctx.colors[ctx.col],
     		onClick: func,
-    		enabledColor: ctx.solutionColor[ctx.rowIndex][ctx.colIndex],
+    		onRightClick: func_1,
+    		transitionTime: 0.05,
     		$$slots: { default: [create_default_slot$1] },
     		$$scope: { ctx }
     	},
@@ -19096,43 +45536,44 @@ var app = (function () {
 
     	return {
     		c: function create() {
-    			block.$$.fragment.c();
+    			buildlerblock.$$.fragment.c();
     		},
 
     		m: function mount(target, anchor) {
-    			mount_component(block, target, anchor);
+    			mount_component(buildlerblock, target, anchor);
     			current = true;
     		},
 
     		p: function update(changed, new_ctx) {
     			ctx = new_ctx;
-    			var block_changes = {};
-    			if (changed.solutionState) block_changes.state = ctx.col;
-    			if (changed.toggleEnabled) block_changes.onClick = func;
-    			if (changed.solutionColor) block_changes.enabledColor = ctx.solutionColor[ctx.rowIndex][ctx.colIndex];
-    			if (changed.$$scope || changed.solutionState) block_changes.$$scope = { changed, ctx };
-    			block.$set(block_changes);
+    			var buildlerblock_changes = {};
+    			if (changed.solution) buildlerblock_changes.state = ctx.col;
+    			if (changed.colors || changed.solution) buildlerblock_changes.color = ctx.colors[ctx.col];
+    			if (changed.toggleEnabled) buildlerblock_changes.onClick = func;
+    			if (changed.reset) buildlerblock_changes.onRightClick = func_1;
+    			if (changed.$$scope || changed.solution) buildlerblock_changes.$$scope = { changed, ctx };
+    			buildlerblock.$set(buildlerblock_changes);
     		},
 
     		i: function intro(local) {
     			if (current) return;
-    			transition_in(block.$$.fragment, local);
+    			transition_in(buildlerblock.$$.fragment, local);
 
     			current = true;
     		},
 
     		o: function outro(local) {
-    			transition_out(block.$$.fragment, local);
+    			transition_out(buildlerblock.$$.fragment, local);
     			current = false;
     		},
 
     		d: function destroy(detaching) {
-    			destroy_component(block, detaching);
+    			destroy_component(buildlerblock, detaching);
     		}
     	};
     }
 
-    // (171:4) {#each solutionState as row, rowIndex}
+    // (173:4) {#each solution as row, rowIndex}
     function create_each_block$1(ctx) {
     	var each_1_anchor, current;
 
@@ -19167,7 +45608,7 @@ var app = (function () {
     		},
 
     		p: function update(changed, ctx) {
-    			if (changed.solutionState || changed.toggleEnabled || changed.solutionColor) {
+    			if (changed.solution || changed.colors || changed.toggleEnabled || changed.reset) {
     				each_value_1 = ctx.row;
 
     				for (var i = 0; i < each_value_1.length; i += 1) {
@@ -19214,7 +45655,7 @@ var app = (function () {
     	};
     }
 
-    function create_fragment$2(ctx) {
+    function create_fragment$3(ctx) {
     	var section0, input, t0, t1, section1, div1, t2, div0, t4, section2, div2, current, dispose;
 
     	var if_block = (ctx.showColorPicker) && create_if_block(ctx);
@@ -19227,7 +45668,7 @@ var app = (function () {
     		each_blocks_1[i] = create_each_block_2$1(get_each_context_2$1(ctx, each_value_2, i));
     	}
 
-    	var each_value = ctx.solutionState;
+    	var each_value = ctx.solution;
 
     	var each_blocks = [];
 
@@ -19265,26 +45706,25 @@ var app = (function () {
     			}
     			attr(input, "type", "number");
     			attr(input, "min", "0");
-    			attr(input, "class", "svelte-iqccjd");
-    			add_location(input, file$2, 129, 2, 2659);
-    			attr(section0, "class", "svelte-iqccjd");
-    			add_location(section0, file$2, 128, 0, 2647);
-    			attr(div0, "class", "color add svelte-iqccjd");
-    			add_location(div0, file$2, 160, 4, 3283);
-    			attr(div1, "class", "colors svelte-iqccjd");
-    			add_location(div1, file$2, 150, 2, 3026);
-    			attr(section1, "class", "svelte-iqccjd");
-    			add_location(section1, file$2, 149, 0, 3014);
-    			attr(div2, "class", "board svelte-iqccjd");
+    			attr(input, "class", "svelte-sowna5");
+    			add_location(input, file$3, 130, 2, 2525);
+    			attr(section0, "class", "svelte-sowna5");
+    			add_location(section0, file$3, 129, 0, 2513);
+    			attr(div0, "class", "color add svelte-sowna5");
+    			add_location(div0, file$3, 162, 4, 3186);
+    			attr(div1, "class", "colors svelte-sowna5");
+    			add_location(div1, file$3, 152, 2, 2929);
+    			attr(section1, "class", "svelte-sowna5");
+    			add_location(section1, file$3, 151, 0, 2917);
+    			attr(div2, "class", "board svelte-sowna5");
     			set_style(div2, "grid-template-columns", "repeat(" + ctx.size + ", 1fr)");
     			set_style(div2, "grid-template-rows", "repeat(" + ctx.size + ", 1fr)");
-    			add_location(div2, file$2, 166, 2, 3399);
-    			attr(section2, "class", "svelte-iqccjd");
-    			add_location(section2, file$2, 165, 0, 3387);
+    			add_location(div2, file$3, 168, 2, 3302);
+    			attr(section2, "class", "svelte-sowna5");
+    			add_location(section2, file$3, 167, 0, 3290);
 
     			dispose = [
     				listen(input, "input", ctx.input_input_handler),
-    				listen(input, "change", ctx.updateSolution),
     				listen(div0, "click", ctx.click_handler_2)
     			];
     		},
@@ -19359,8 +45799,8 @@ var app = (function () {
     				each_blocks_1.length = each_value_2.length;
     			}
 
-    			if (changed.solutionState || changed.toggleEnabled || changed.solutionColor) {
-    				each_value = ctx.solutionState;
+    			if (changed.solution || changed.colors || changed.toggleEnabled || changed.reset) {
+    				each_value = ctx.solution;
 
     				for (var i = 0; i < each_value.length; i += 1) {
     					const child_ctx = get_each_context$1(ctx, each_value, i);
@@ -19428,45 +45868,27 @@ var app = (function () {
     	};
     }
 
-    const MIN_SIZE = 2;
-
-    const MAX_SIZE = 8;
-
-    function instance$2($$self, $$props, $$invalidate) {
+    function instance$3($$self, $$props, $$invalidate) {
     	
 
       let size = 4;
-      let colors = ['#111'];
-      let colorIndex = 0;
+      let colors = [];
+      let colorIndex = -1;
       let showColorPicker;
-      let solutionState = Array(size).fill().map(() => Array(size).fill(0));
-      let solutionColor = Array(size).fill().map(() => Array(size).fill(null));
 
-      const updateSolution = () => {
-        if (size < MIN_SIZE) {
-          $$invalidate('size', size = MIN_SIZE);
-        }
-
-        if (size > MAX_SIZE) {
-          $$invalidate('size', size = MAX_SIZE);
-        }
-
-        $$invalidate('solutionState', solutionState = Array(size).fill().map(() => Array(size).fill(0)));
-        $$invalidate('solutionColor', solutionColor = Array(size).fill().map(() => Array(size).fill(null)));
-      };
-
+      const reset = (row, col) => { const $$result = solution[row][col] = -1; $$invalidate('solution', solution), $$invalidate('size', size); return $$result; };
       const toggleEnabled = (row, col) => {
-        solutionState[row][col] = !!solutionState[row][col] ? 0 : 1; $$invalidate('solutionState', solutionState);
-        console.log(solutionState);
-        solutionColor[row][col] = !!solutionColor[row][col] ? null : colorIndex; $$invalidate('solutionColor', solutionColor);
-        console.log(solutionColor);
+        console.log(row, col);
+        solution[row][col] = solution[row][col] === -1
+          ? colorIndex
+          : -1; $$invalidate('solution', solution), $$invalidate('size', size);
       };
 
       const selectColor = index => { const $$result = colorIndex = index; $$invalidate('colorIndex', colorIndex); return $$result; };
       const toggleShowColorPicker = () => { const $$result = showColorPicker = true; $$invalidate('showColorPicker', showColorPicker); return $$result; };
 
       const addColor = (hex) => {
-        colors.push(`#${hex}`);
+        $$invalidate('colors', colors = [...colors, `#${hex}`]);
         $$invalidate('colorIndex', colorIndex = colors.length - 1);
         $$invalidate('showColorPicker', showColorPicker = false);
       };
@@ -19492,43 +45914,93 @@ var app = (function () {
     		return toggleEnabled(rowIndex, colIndex);
     	}
 
+    	function func_1({ rowIndex, colIndex }) {
+    		return reset(rowIndex, colIndex);
+    	}
+
+    	let solution;
+
+    	$$self.$$.update = ($$dirty = { size: 1 }) => {
+    		if ($$dirty.size) { $$invalidate('solution', solution = Array(size).fill().map(() => Array(size).fill(-1))); }
+    	};
+
     	return {
     		size,
     		colors,
     		colorIndex,
     		showColorPicker,
-    		solutionState,
-    		solutionColor,
-    		updateSolution,
+    		reset,
     		toggleEnabled,
     		selectColor,
     		toggleShowColorPicker,
     		addColor,
+    		solution,
     		input_input_handler,
     		click_handler,
     		click_handler_1,
     		click_handler_2,
-    		func
+    		func,
+    		func_1
     	};
     }
 
     class Buildler extends SvelteComponentDev {
     	constructor(options) {
     		super(options);
-    		init(this, options, instance$2, create_fragment$2, safe_not_equal, []);
+    		init(this, options, instance$3, create_fragment$3, safe_not_equal, []);
     	}
     }
 
     /* src/App.svelte generated by Svelte v3.6.7 */
 
-    const file$3 = "src/App.svelte";
+    const file$4 = "src/App.svelte";
 
-    function create_fragment$3(ctx) {
-    	var section, div, button0, t0, button0_class_value, t1, button1, button1_class_value, t2, t3, current, dispose;
+    // (75:0) {:catch error}
+    function create_catch_block(ctx) {
+    	var span, t_value = ctx.error, t;
 
-    	var griddler = new Griddler({ $$inline: true });
+    	return {
+    		c: function create() {
+    			span = element("span");
+    			t = text(t_value);
+    			add_location(span, file$4, 75, 2, 1397);
+    		},
 
-    	var buildler = new Buildler({ $$inline: true });
+    		m: function mount(target, anchor) {
+    			insert(target, span, anchor);
+    			append(span, t);
+    		},
+
+    		p: noop,
+    		i: noop,
+    		o: noop,
+
+    		d: function destroy(detaching) {
+    			if (detaching) {
+    				detach(span);
+    			}
+    		}
+    	};
+    }
+
+    // (42:0) {:then resp}
+    function create_then_block(ctx) {
+    	var section, div, button0, t0, button0_class_value, t1, button1, t2, button1_class_value, t3, current_block_type_index, if_block, current, dispose;
+
+    	var if_block_creators = [
+    		create_if_block$1,
+    		create_else_block
+    	];
+
+    	var if_blocks = [];
+
+    	function select_block_type(ctx) {
+    		if (ctx.buildMode) return 0;
+    		return 1;
+    	}
+
+    	current_block_type_index = select_block_type(ctx);
+    	if_block = if_blocks[current_block_type_index] = if_block_creators[current_block_type_index](ctx);
 
     	return {
     		c: function create() {
@@ -19538,26 +46010,21 @@ var app = (function () {
     			t0 = text("Play");
     			t1 = space();
     			button1 = element("button");
-    			t2 = space();
-    			griddler.$$.fragment.c();
+    			t2 = text("Build");
     			t3 = space();
-    			buildler.$$.fragment.c();
-    			attr(button0, "class", button0_class_value = "" + (!ctx.buildMode ? 'active' : '') + " svelte-e1bmmv");
-    			add_location(button0, file$3, 31, 2, 497);
-    			attr(button1, "class", button1_class_value = "" + (ctx.buildMode ? 'active' : '') + " svelte-e1bmmv");
-    			add_location(button1, file$3, 37, 2, 609);
-    			attr(div, "class", "flex svelte-e1bmmv");
-    			add_location(div, file$3, 30, 1, 476);
-    			add_location(section, file$3, 29, 0, 465);
+    			if_block.c();
+    			attr(button0, "class", button0_class_value = "" + (!ctx.buildMode ? 'active' : '') + " svelte-83t67g");
+    			add_location(button0, file$4, 44, 6, 796);
+    			attr(button1, "class", button1_class_value = "" + (ctx.buildMode ? 'active' : '') + " svelte-83t67g");
+    			add_location(button1, file$4, 50, 6, 935);
+    			attr(div, "class", "flex svelte-83t67g");
+    			add_location(div, file$4, 43, 4, 771);
+    			add_location(section, file$4, 42, 2, 757);
 
     			dispose = [
     				listen(button0, "click", ctx.click_handler),
     				listen(button1, "click", ctx.click_handler_1)
     			];
-    		},
-
-    		l: function claim(nodes) {
-    			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
     		},
 
     		m: function mount(target, anchor) {
@@ -19567,35 +46034,50 @@ var app = (function () {
     			append(button0, t0);
     			append(div, t1);
     			append(div, button1);
-    			append(section, t2);
-    			mount_component(griddler, section, null);
+    			append(button1, t2);
     			append(section, t3);
-    			mount_component(buildler, section, null);
+    			if_blocks[current_block_type_index].m(section, null);
     			current = true;
     		},
 
     		p: function update(changed, ctx) {
-    			if ((!current || changed.buildMode) && button0_class_value !== (button0_class_value = "" + (!ctx.buildMode ? 'active' : '') + " svelte-e1bmmv")) {
+    			if ((!current || changed.buildMode) && button0_class_value !== (button0_class_value = "" + (!ctx.buildMode ? 'active' : '') + " svelte-83t67g")) {
     				attr(button0, "class", button0_class_value);
     			}
 
-    			if ((!current || changed.buildMode) && button1_class_value !== (button1_class_value = "" + (ctx.buildMode ? 'active' : '') + " svelte-e1bmmv")) {
+    			if ((!current || changed.buildMode) && button1_class_value !== (button1_class_value = "" + (ctx.buildMode ? 'active' : '') + " svelte-83t67g")) {
     				attr(button1, "class", button1_class_value);
+    			}
+
+    			var previous_block_index = current_block_type_index;
+    			current_block_type_index = select_block_type(ctx);
+    			if (current_block_type_index === previous_block_index) {
+    				if_blocks[current_block_type_index].p(changed, ctx);
+    			} else {
+    				group_outros();
+    				transition_out(if_blocks[previous_block_index], 1, 1, () => {
+    					if_blocks[previous_block_index] = null;
+    				});
+    				check_outros();
+
+    				if_block = if_blocks[current_block_type_index];
+    				if (!if_block) {
+    					if_block = if_blocks[current_block_type_index] = if_block_creators[current_block_type_index](ctx);
+    					if_block.c();
+    				}
+    				transition_in(if_block, 1);
+    				if_block.m(section, null);
     			}
     		},
 
     		i: function intro(local) {
     			if (current) return;
-    			transition_in(griddler.$$.fragment, local);
-
-    			transition_in(buildler.$$.fragment, local);
-
+    			transition_in(if_block);
     			current = true;
     		},
 
     		o: function outro(local) {
-    			transition_out(griddler.$$.fragment, local);
-    			transition_out(buildler.$$.fragment, local);
+    			transition_out(if_block);
     			current = false;
     		},
 
@@ -19604,17 +46086,213 @@ var app = (function () {
     				detach(section);
     			}
 
-    			destroy_component(griddler, );
-
-    			destroy_component(buildler, );
-
+    			if_blocks[current_block_type_index].d();
     			run_all(dispose);
     		}
     	};
     }
 
-    function instance$3($$self, $$props, $$invalidate) {
-    	let buildMode = false;
+    // (61:4) {:else}
+    function create_else_block(ctx) {
+    	var current;
+
+    	var griddler = new Griddler({
+    		props: {
+    		level: ctx.resp.data.levels[currentLevel],
+    		board: ctx.resp.data.levels[currentLevel].solution.map(
+                func
+              )
+    	},
+    		$$inline: true
+    	});
+
+    	return {
+    		c: function create() {
+    			griddler.$$.fragment.c();
+    		},
+
+    		m: function mount(target, anchor) {
+    			mount_component(griddler, target, anchor);
+    			current = true;
+    		},
+
+    		p: function update(changed, ctx) {
+    			var griddler_changes = {};
+    			if (changed.levels || changed.currentLevel) griddler_changes.level = ctx.resp.data.levels[currentLevel];
+    			if (changed.levels || changed.currentLevel) griddler_changes.board = ctx.resp.data.levels[currentLevel].solution.map(
+                func
+              );
+    			griddler.$set(griddler_changes);
+    		},
+
+    		i: function intro(local) {
+    			if (current) return;
+    			transition_in(griddler.$$.fragment, local);
+
+    			current = true;
+    		},
+
+    		o: function outro(local) {
+    			transition_out(griddler.$$.fragment, local);
+    			current = false;
+    		},
+
+    		d: function destroy(detaching) {
+    			destroy_component(griddler, detaching);
+    		}
+    	};
+    }
+
+    // (59:4) {#if buildMode }
+    function create_if_block$1(ctx) {
+    	var current;
+
+    	var buildler = new Buildler({ $$inline: true });
+
+    	return {
+    		c: function create() {
+    			buildler.$$.fragment.c();
+    		},
+
+    		m: function mount(target, anchor) {
+    			mount_component(buildler, target, anchor);
+    			current = true;
+    		},
+
+    		p: noop,
+
+    		i: function intro(local) {
+    			if (current) return;
+    			transition_in(buildler.$$.fragment, local);
+
+    			current = true;
+    		},
+
+    		o: function outro(local) {
+    			transition_out(buildler.$$.fragment, local);
+    			current = false;
+    		},
+
+    		d: function destroy(detaching) {
+    			destroy_component(buildler, detaching);
+    		}
+    	};
+    }
+
+    // (40:17)    <span>Loading</span> {:then resp}
+    function create_pending_block(ctx) {
+    	var span;
+
+    	return {
+    		c: function create() {
+    			span = element("span");
+    			span.textContent = "Loading";
+    			add_location(span, file$4, 40, 2, 721);
+    		},
+
+    		m: function mount(target, anchor) {
+    			insert(target, span, anchor);
+    		},
+
+    		p: noop,
+    		i: noop,
+    		o: noop,
+
+    		d: function destroy(detaching) {
+    			if (detaching) {
+    				detach(span);
+    			}
+    		}
+    	};
+    }
+
+    function create_fragment$4(ctx) {
+    	var await_block_anchor, promise, current;
+
+    	let info = {
+    		ctx,
+    		current: null,
+    		token: null,
+    		pending: create_pending_block,
+    		then: create_then_block,
+    		catch: create_catch_block,
+    		value: 'resp',
+    		error: 'error',
+    		blocks: [,,,]
+    	};
+
+    	handle_promise(promise = ctx.levels(), info);
+
+    	return {
+    		c: function create() {
+    			await_block_anchor = empty();
+
+    			info.block.c();
+    		},
+
+    		l: function claim(nodes) {
+    			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
+    		},
+
+    		m: function mount(target, anchor) {
+    			insert(target, await_block_anchor, anchor);
+
+    			info.block.m(target, info.anchor = anchor);
+    			info.mount = () => await_block_anchor.parentNode;
+    			info.anchor = await_block_anchor;
+
+    			current = true;
+    		},
+
+    		p: function update(changed, new_ctx) {
+    			ctx = new_ctx;
+    			info.ctx = ctx;
+
+    			if (promise !== (promise = ctx.levels()) && handle_promise(promise, info)) ; else {
+    				info.block.p(changed, assign(assign({}, ctx), info.resolved));
+    			}
+    		},
+
+    		i: function intro(local) {
+    			if (current) return;
+    			transition_in(info.block);
+    			current = true;
+    		},
+
+    		o: function outro(local) {
+    			for (let i = 0; i < 3; i += 1) {
+    				const block = info.blocks[i];
+    				transition_out(block);
+    			}
+
+    			current = false;
+    		},
+
+    		d: function destroy(detaching) {
+    			if (detaching) {
+    				detach(await_block_anchor);
+    			}
+
+    			info.block.d(detaching);
+    			info.token = null;
+    			info = null;
+    		}
+    	};
+    }
+
+    let currentLevel = 0;
+
+    function func(r) {
+    	return r.map(
+                  c => -1
+                );
+    }
+
+    function instance$4($$self, $$props, $$invalidate) {
+    	
+
+      const levels = async() => await client.query({ query: LevelsQuery });
+      let buildMode = true;
 
     	function click_handler() {
     		const $$result = buildMode = false;
@@ -19629,6 +46307,7 @@ var app = (function () {
     	}
 
     	return {
+    		levels,
     		buildMode,
     		click_handler,
     		click_handler_1
@@ -19638,14 +46317,14 @@ var app = (function () {
     class App extends SvelteComponentDev {
     	constructor(options) {
     		super(options);
-    		init(this, options, instance$3, create_fragment$3, safe_not_equal, []);
+    		init(this, options, instance$4, create_fragment$4, safe_not_equal, []);
     	}
     }
 
     const app = new App({
     	target: document.body,
     	props: {
-    		name: 'world'
+    		name: 'Griddler'
     	}
     });
 

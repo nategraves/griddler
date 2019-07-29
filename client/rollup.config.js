@@ -4,17 +4,19 @@ import commonjs from 'rollup-plugin-commonjs';
 import json from 'rollup-plugin-json';
 import livereload from 'rollup-plugin-livereload';
 import css from 'rollup-plugin-css-only'
+import typescript from 'rollup-plugin-typescript';
 import { terser } from 'rollup-plugin-terser';
 
 const production = !process.env.ROLLUP_WATCH;
 
 export default {
 	input: 'src/main.js',
+	external: [ 'apolloBoost', 'gql' ],
 	output: {
 		sourcemap: true,
 		format: 'iife',
 		name: 'app',
-		file: 'public/bundle.js'
+		file: 'public/bundle.js',
 	},
 	plugins: [
 		svelte({
@@ -47,7 +49,9 @@ export default {
 
 		// If we're building for production (npm run build
 		// instead of npm run dev), minify
-		production && terser()
+		production && terser(),
+
+		typescript()
 	],
 	watch: {
 		clearScreen: false
