@@ -180,9 +180,7 @@
           onClick={() => toggleEnabled(rowIndex, colIndex)}
           onRightClick={() => reset(rowIndex, colIndex)}
           transitionTime={0.05}
-        >
-          {col}
-        </BuildlerBlock>
+        />
       {/each}
     {/each}
   </div>
