@@ -6,6 +6,7 @@
   const MIN_SIZE = 2;
   const MAX_SIZE = 8;
 
+  let title = '';
   let size = 4;
   let colors = [];
   let colorIndex = -1;
@@ -47,7 +48,7 @@
     height: 100%;
   }
 
-  input {
+  input[type="number"] {
     margin: 2rem auto 1rem;
     width: 50px;
   }
@@ -128,11 +129,18 @@
 </style>
 
 <section>
-  <input
-    bind:value={size}
-    type="number"
-    min="0"
-  />
+  <div>
+    <input
+      bind:value={title}
+      type="text"
+      placeholder="Griddler Title"
+    />
+    <input
+      bind:value={size}
+      type="number"
+      min="0"
+    />
+  </div>
 </section>
 
 {#if showColorPicker}
