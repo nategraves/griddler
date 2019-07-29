@@ -4,7 +4,7 @@ export const client = new ApolloClient({
   uri: 'http://localhost:4040/graphql'
 });
 
-export const LevelsQuery = gql`
+export const Levels = gql`
   query {
     levels {
       title
@@ -13,3 +13,11 @@ export const LevelsQuery = gql`
     }
   }
 `;
+
+/*
+export const AddLevel = gql`
+  mutation addLevel($) {
+    add
+  }
+`;
+*/

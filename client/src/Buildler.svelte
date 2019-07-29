@@ -14,12 +14,9 @@
   $: solution = Array(size).fill().map(() => Array(size).fill(-1));
 
   const reset = (row, col) => solution[row][col] = -1;
-  const toggleEnabled = (row, col) => {
-    console.log(row, col);
-    solution[row][col] = solution[row][col] === -1
-      ? colorIndex
-      : -1;
-  }
+  const toggleEnabled = (row, col) => solution[row][col] = solution[row][col] === -1
+    ? colorIndex
+    : -1;
 
   const selectColor = index => colorIndex = index;
   const toggleShowColorPicker = () => showColorPicker = true;
@@ -76,7 +73,7 @@
     display: grid;
     grid-gap: 0px;
     grid-template-columns: repeat(auto-fill, minmax(32px, 1fr));
-    width: 80vw;
+    width: 512px;
     height: 80vh;
     overflow-y: scroll;
     z-index: 1;
@@ -144,8 +141,14 @@
 </section>
 
 {#if showColorPicker}
-  <div class="color-selector-container">
-    <section class="color-selector">
+  <div
+    class="color-selector-container"
+    on:click={() => showColorPicker = false}
+  >
+    <section
+      class="color-selector"
+      on:click={() => showColorPicker = false}
+    >
       {#each hexColors as color}
         <div
           on:click={() => addColor(color)}
@@ -159,6 +162,9 @@
 
 <section>
   <div class="colors">
+    {#if !colors.length}
+      <span>No colors added</span>
+    {/if}
     {#each colors as color, index}
       <div
         class="color {index === colorIndex && 'active'}"

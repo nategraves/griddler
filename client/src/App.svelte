@@ -1,8 +1,8 @@
 <script>
   import _ from 'lodash';
-  import { client, LevelsQuery } from './gql';
+  import { client, Levels } from './gql';
 
-  const levels = async() => await client.query({ query: LevelsQuery });
+  const levels = async() => await client.query({ query: Levels });
 
   import Griddler from './Griddler.svelte';
   import Buildler from './Buildler.svelte';

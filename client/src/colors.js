@@ -77,7 +77,7 @@ const hexColors = _.sortedUniqBy(
     COLOR_RANGE.map(
       c => COLOR_RANGE.map(
         c2 => COLOR_RANGE.map(
-          c3 => `${c}${c2}${c3}`
+          c3 => `${c3}${c2}${c}`
         )
       )
     )

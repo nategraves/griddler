@@ -27352,7 +27352,7 @@ var app = (function () {
       uri: 'http://localhost:4040/graphql'
     });
 
-    const LevelsQuery = src`
+    const Levels = src`
   query {
     levels {
       title
@@ -27361,6 +27361,14 @@ var app = (function () {
     }
   }
 `;
+
+    /*
+    export const AddLevel = gql`
+      mutation addLevel($) {
+        add
+      }
+    `;
+    */
 
     const DEFAULT_CONFIG = {
       // minimum relative difference between two compared values,
@@ -45058,7 +45066,7 @@ var app = (function () {
         COLOR_RANGE.map(
           c => COLOR_RANGE.map(
             c2 => COLOR_RANGE.map(
-              c3 => `${c}${c2}${c3}`
+              c3 => `${c3}${c2}${c}`
             )
           )
         )
@@ -45323,9 +45331,9 @@ var app = (function () {
     	return child_ctx;
     }
 
-    // (146:0) {#if showColorPicker}
-    function create_if_block(ctx) {
-    	var div, section;
+    // (143:0) {#if showColorPicker}
+    function create_if_block_1(ctx) {
+    	var div, section, dispose;
 
     	var each_value_3 = hexColors;
 
@@ -45343,10 +45351,15 @@ var app = (function () {
     			for (var i = 0; i < each_blocks.length; i += 1) {
     				each_blocks[i].c();
     			}
-    			attr(section, "class", "color-selector svelte-14kysej");
-    			add_location(section, file$3, 147, 4, 2824);
-    			attr(div, "class", "color-selector-container svelte-14kysej");
-    			add_location(div, file$3, 146, 2, 2781);
+    			attr(section, "class", "color-selector svelte-n2wv7a");
+    			add_location(section, file$3, 147, 4, 2836);
+    			attr(div, "class", "color-selector-container svelte-n2wv7a");
+    			add_location(div, file$3, 143, 2, 2741);
+
+    			dispose = [
+    				listen(section, "click", ctx.click_handler_1),
+    				listen(div, "click", ctx.click_handler_2)
+    			];
     		},
 
     		m: function mount(target, anchor) {
@@ -45387,11 +45400,13 @@ var app = (function () {
     			}
 
     			destroy_each(each_blocks, detaching);
+
+    			run_all(dispose);
     		}
     	};
     }
 
-    // (149:6) {#each hexColors as color}
+    // (152:6) {#each hexColors as color}
     function create_each_block_3$1(ctx) {
     	var div, dispose;
 
@@ -45402,9 +45417,9 @@ var app = (function () {
     	return {
     		c: function create() {
     			div = element("div");
-    			attr(div, "class", "color-option svelte-14kysej");
+    			attr(div, "class", "color-option svelte-n2wv7a");
     			set_style(div, "background", "#" + ctx.color);
-    			add_location(div, file$3, 149, 8, 2898);
+    			add_location(div, file$3, 152, 8, 2968);
     			dispose = listen(div, "click", click_handler);
     		},
 
@@ -45429,22 +45444,45 @@ var app = (function () {
     	};
     }
 
-    // (162:4) {#each colors as color, index}
+    // (165:4) {#if !colors.length}
+    function create_if_block(ctx) {
+    	var span;
+
+    	return {
+    		c: function create() {
+    			span = element("span");
+    			span.textContent = "No colors added";
+    			add_location(span, file$3, 165, 6, 3207);
+    		},
+
+    		m: function mount(target, anchor) {
+    			insert(target, span, anchor);
+    		},
+
+    		d: function destroy(detaching) {
+    			if (detaching) {
+    				detach(span);
+    			}
+    		}
+    	};
+    }
+
+    // (168:4) {#each colors as color, index}
     function create_each_block_2$1(ctx) {
     	var div, t_value = ctx.color, t, div_class_value, dispose;
 
-    	function click_handler_1() {
-    		return ctx.click_handler_1(ctx);
+    	function click_handler_3() {
+    		return ctx.click_handler_3(ctx);
     	}
 
     	return {
     		c: function create() {
     			div = element("div");
     			t = text(t_value);
-    			attr(div, "class", div_class_value = "color " + (ctx.index === ctx.colorIndex && 'active') + " svelte-14kysej");
+    			attr(div, "class", div_class_value = "color " + (ctx.index === ctx.colorIndex && 'active') + " svelte-n2wv7a");
     			set_style(div, "background", ctx.color);
-    			add_location(div, file$3, 162, 6, 3147);
-    			dispose = listen(div, "click", click_handler_1);
+    			add_location(div, file$3, 168, 6, 3287);
+    			dispose = listen(div, "click", click_handler_3);
     		},
 
     		m: function mount(target, anchor) {
@@ -45458,7 +45496,7 @@ var app = (function () {
     				set_data(t, t_value);
     			}
 
-    			if ((changed.colorIndex) && div_class_value !== (div_class_value = "color " + (ctx.index === ctx.colorIndex && 'active') + " svelte-14kysej")) {
+    			if ((changed.colorIndex) && div_class_value !== (div_class_value = "color " + (ctx.index === ctx.colorIndex && 'active') + " svelte-n2wv7a")) {
     				attr(div, "class", div_class_value);
     			}
 
@@ -45477,7 +45515,7 @@ var app = (function () {
     	};
     }
 
-    // (182:6) {#each row as col, colIndex}
+    // (188:6) {#each row as col, colIndex}
     function create_each_block_1$1(ctx) {
     	var current;
 
@@ -45540,7 +45578,7 @@ var app = (function () {
     	};
     }
 
-    // (181:4) {#each solution as row, rowIndex}
+    // (187:4) {#each solution as row, rowIndex}
     function create_each_block$1(ctx) {
     	var each_1_anchor, current;
 
@@ -45623,9 +45661,11 @@ var app = (function () {
     }
 
     function create_fragment$3(ctx) {
-    	var section0, div0, input0, t0, input1, t1, t2, section1, div2, t3, div1, t5, section2, div3, current, dispose;
+    	var section0, div0, input0, t0, input1, t1, t2, section1, div2, t3, t4, div1, t6, section2, div3, current, dispose;
 
-    	var if_block = (ctx.showColorPicker) && create_if_block(ctx);
+    	var if_block0 = (ctx.showColorPicker) && create_if_block_1(ctx);
+
+    	var if_block1 = (!ctx.colors.length) && create_if_block();
 
     	var each_value_2 = ctx.colors;
 
@@ -45655,19 +45695,21 @@ var app = (function () {
     			t0 = space();
     			input1 = element("input");
     			t1 = space();
-    			if (if_block) if_block.c();
+    			if (if_block0) if_block0.c();
     			t2 = space();
     			section1 = element("section");
     			div2 = element("div");
+    			if (if_block1) if_block1.c();
+    			t3 = space();
 
     			for (var i = 0; i < each_blocks_1.length; i += 1) {
     				each_blocks_1[i].c();
     			}
 
-    			t3 = space();
+    			t4 = space();
     			div1 = element("div");
     			div1.textContent = "+";
-    			t5 = space();
+    			t6 = space();
     			section2 = element("section");
     			div3 = element("div");
 
@@ -45676,31 +45718,31 @@ var app = (function () {
     			}
     			attr(input0, "type", "text");
     			attr(input0, "placeholder", "Griddler Title");
-    			add_location(input0, file$3, 132, 4, 2568);
+    			add_location(input0, file$3, 129, 4, 2528);
     			attr(input1, "type", "number");
     			attr(input1, "min", "0");
-    			attr(input1, "class", "svelte-14kysej");
-    			add_location(input1, file$3, 137, 4, 2664);
-    			add_location(div0, file$3, 131, 2, 2558);
-    			attr(section0, "class", "svelte-14kysej");
-    			add_location(section0, file$3, 130, 0, 2546);
-    			attr(div1, "class", "color add svelte-14kysej");
-    			add_location(div1, file$3, 170, 4, 3342);
-    			attr(div2, "class", "colors svelte-14kysej");
-    			add_location(div2, file$3, 160, 2, 3085);
-    			attr(section1, "class", "svelte-14kysej");
-    			add_location(section1, file$3, 159, 0, 3073);
-    			attr(div3, "class", "board svelte-14kysej");
+    			attr(input1, "class", "svelte-n2wv7a");
+    			add_location(input1, file$3, 134, 4, 2624);
+    			add_location(div0, file$3, 128, 2, 2518);
+    			attr(section0, "class", "svelte-n2wv7a");
+    			add_location(section0, file$3, 127, 0, 2506);
+    			attr(div1, "class", "color add svelte-n2wv7a");
+    			add_location(div1, file$3, 176, 4, 3482);
+    			attr(div2, "class", "colors svelte-n2wv7a");
+    			add_location(div2, file$3, 163, 2, 3155);
+    			attr(section1, "class", "svelte-n2wv7a");
+    			add_location(section1, file$3, 162, 0, 3143);
+    			attr(div3, "class", "board svelte-n2wv7a");
     			set_style(div3, "grid-template-columns", "repeat(" + ctx.size + ", 1fr)");
     			set_style(div3, "grid-template-rows", "repeat(" + ctx.size + ", 1fr)");
-    			add_location(div3, file$3, 176, 2, 3458);
-    			attr(section2, "class", "svelte-14kysej");
-    			add_location(section2, file$3, 175, 0, 3446);
+    			add_location(div3, file$3, 182, 2, 3598);
+    			attr(section2, "class", "svelte-n2wv7a");
+    			add_location(section2, file$3, 181, 0, 3586);
 
     			dispose = [
     				listen(input0, "input", ctx.input0_input_handler),
     				listen(input1, "input", ctx.input1_input_handler),
-    				listen(div1, "click", ctx.click_handler_2)
+    				listen(div1, "click", ctx.click_handler_4)
     			];
     		},
 
@@ -45721,18 +45763,20 @@ var app = (function () {
     			input1.value = ctx.size;
 
     			insert(target, t1, anchor);
-    			if (if_block) if_block.m(target, anchor);
+    			if (if_block0) if_block0.m(target, anchor);
     			insert(target, t2, anchor);
     			insert(target, section1, anchor);
     			append(section1, div2);
+    			if (if_block1) if_block1.m(div2, null);
+    			append(div2, t3);
 
     			for (var i = 0; i < each_blocks_1.length; i += 1) {
     				each_blocks_1[i].m(div2, null);
     			}
 
-    			append(div2, t3);
+    			append(div2, t4);
     			append(div2, div1);
-    			insert(target, t5, anchor);
+    			insert(target, t6, anchor);
     			insert(target, section2, anchor);
     			append(section2, div3);
 
@@ -45748,16 +45792,27 @@ var app = (function () {
     			if (changed.size) input1.value = ctx.size;
 
     			if (ctx.showColorPicker) {
-    				if (if_block) {
-    					if_block.p(changed, ctx);
+    				if (if_block0) {
+    					if_block0.p(changed, ctx);
     				} else {
-    					if_block = create_if_block(ctx);
-    					if_block.c();
-    					if_block.m(t2.parentNode, t2);
+    					if_block0 = create_if_block_1(ctx);
+    					if_block0.c();
+    					if_block0.m(t2.parentNode, t2);
     				}
-    			} else if (if_block) {
-    				if_block.d(1);
-    				if_block = null;
+    			} else if (if_block0) {
+    				if_block0.d(1);
+    				if_block0 = null;
+    			}
+
+    			if (!ctx.colors.length) {
+    				if (!if_block1) {
+    					if_block1 = create_if_block();
+    					if_block1.c();
+    					if_block1.m(div2, t3);
+    				}
+    			} else if (if_block1) {
+    				if_block1.d(1);
+    				if_block1 = null;
     			}
 
     			if (changed.colorIndex || changed.colors) {
@@ -45771,7 +45826,7 @@ var app = (function () {
     					} else {
     						each_blocks_1[i] = create_each_block_2$1(child_ctx);
     						each_blocks_1[i].c();
-    						each_blocks_1[i].m(div2, t3);
+    						each_blocks_1[i].m(div2, t4);
     					}
     				}
 
@@ -45829,17 +45884,19 @@ var app = (function () {
     				detach(t1);
     			}
 
-    			if (if_block) if_block.d(detaching);
+    			if (if_block0) if_block0.d(detaching);
 
     			if (detaching) {
     				detach(t2);
     				detach(section1);
     			}
 
+    			if (if_block1) if_block1.d();
+
     			destroy_each(each_blocks_1, detaching);
 
     			if (detaching) {
-    				detach(t5);
+    				detach(t6);
     				detach(section2);
     			}
 
@@ -45860,12 +45917,9 @@ var app = (function () {
       let showColorPicker;
 
       const reset = (row, col) => { const $$result = solution[row][col] = -1; $$invalidate('solution', solution), $$invalidate('size', size); return $$result; };
-      const toggleEnabled = (row, col) => {
-        console.log(row, col);
-        solution[row][col] = solution[row][col] === -1
-          ? colorIndex
-          : -1; $$invalidate('solution', solution), $$invalidate('size', size);
-      };
+      const toggleEnabled = (row, col) => { const $$result = solution[row][col] = solution[row][col] === -1
+        ? colorIndex
+        : -1; $$invalidate('solution', solution), $$invalidate('size', size); return $$result; };
 
       const selectColor = index => { const $$result = colorIndex = index; $$invalidate('colorIndex', colorIndex); return $$result; };
       const toggleShowColorPicker = () => { const $$result = showColorPicker = true; $$invalidate('showColorPicker', showColorPicker); return $$result; };
@@ -45890,11 +45944,23 @@ var app = (function () {
     		return addColor(color);
     	}
 
-    	function click_handler_1({ index }) {
-    		return selectColor(index);
+    	function click_handler_1() {
+    		const $$result = showColorPicker = false;
+    		$$invalidate('showColorPicker', showColorPicker);
+    		return $$result;
     	}
 
     	function click_handler_2() {
+    		const $$result = showColorPicker = false;
+    		$$invalidate('showColorPicker', showColorPicker);
+    		return $$result;
+    	}
+
+    	function click_handler_3({ index }) {
+    		return selectColor(index);
+    	}
+
+    	function click_handler_4() {
     		return toggleShowColorPicker();
     	}
 
@@ -45929,6 +45995,8 @@ var app = (function () {
     		click_handler,
     		click_handler_1,
     		click_handler_2,
+    		click_handler_3,
+    		click_handler_4,
     		func,
     		func_1
     	};
@@ -45953,7 +46021,7 @@ var app = (function () {
     		c: function create() {
     			span = element("span");
     			t = text(t_value);
-    			add_location(span, file$4, 75, 2, 1397);
+    			add_location(span, file$4, 75, 2, 1387);
     		},
 
     		m: function mount(target, anchor) {
@@ -46004,12 +46072,12 @@ var app = (function () {
     			t3 = space();
     			if_block.c();
     			attr(button0, "class", button0_class_value = "" + (!ctx.buildMode ? 'active' : '') + " svelte-83t67g");
-    			add_location(button0, file$4, 44, 6, 796);
+    			add_location(button0, file$4, 44, 6, 786);
     			attr(button1, "class", button1_class_value = "" + (ctx.buildMode ? 'active' : '') + " svelte-83t67g");
-    			add_location(button1, file$4, 50, 6, 935);
+    			add_location(button1, file$4, 50, 6, 925);
     			attr(div, "class", "flex svelte-83t67g");
-    			add_location(div, file$4, 43, 4, 771);
-    			add_location(section, file$4, 42, 2, 757);
+    			add_location(div, file$4, 43, 4, 761);
+    			add_location(section, file$4, 42, 2, 747);
 
     			dispose = [
     				listen(button0, "click", ctx.click_handler),
@@ -46177,7 +46245,7 @@ var app = (function () {
     		c: function create() {
     			span = element("span");
     			span.textContent = "Loading";
-    			add_location(span, file$4, 40, 2, 721);
+    			add_location(span, file$4, 40, 2, 711);
     		},
 
     		m: function mount(target, anchor) {
@@ -46281,7 +46349,7 @@ var app = (function () {
     function instance$4($$self, $$props, $$invalidate) {
     	
 
-      const levels = async() => await client.query({ query: LevelsQuery });
+      const levels = async() => await client.query({ query: Levels });
       let buildMode = true;
 
     	function click_handler() {
