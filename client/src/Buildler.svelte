@@ -32,6 +32,10 @@
     colorIndex = colors.length - 1;
     showColorPicker = false;
   }
+
+  const addLevel = () => {
+    console.log('Adding level');
+  }
 </script>
 
 <style>
@@ -53,7 +57,7 @@
   .board {
     display: grid;
     grid-gap: 0px;
-  } 
+  }
 
   .color-selector-container {
     display: flex;
@@ -199,3 +203,11 @@
     {/each}
   </div>
 </section>
+
+<div style="display: flex; justify-content: center; margin-top: 2rem;">
+  <button
+    on:click={() => addLevel()}
+  >
+    Save
+  </button>
+</div>
