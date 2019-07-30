@@ -1,6 +1,10 @@
 <script>
   import { zeros } from 'mathjs';
+	import { slide } from 'svelte/transition';
+  import { quintOut } from 'svelte/easing';
+
   import { hexColors } from './colors';
+  import { client, AddLevel } from './gql';
   import BuildlerBlock from './BuildlerBlock.svelte';
 
   const MIN_SIZE = 2;
@@ -13,12 +17,16 @@
   let showColorPicker;
   $: solution = Array(size).fill().map(() => Array(size).fill(-1));
 
-  const reset = (row, col) => solution[row][col] = -1;
+  const reset = (row, col) => {
+    console.log(`Resetting ${row} ${col}`);
+    solution[row][col] = -1
+  };
   const toggleEnabled = (row, col) => solution[row][col] = solution[row][col] === -1
     ? colorIndex
     : -1;
 
   const selectColor = index => colorIndex = index;
+  const deleteColor = index => colors.slice(index, 1);
   const toggleShowColorPicker = () => showColorPicker = true;
 
   const valueToHex = (v, short = true) => {
@@ -33,8 +41,16 @@
     showColorPicker = false;
   }
 
-  const addLevel = () => {
-    console.log('Adding level');
+  const addLevel = async () => {
+    if (!title || !colors.length) {
+      return null;
+    }
+    const level = { title, colors, solution };
+    const resp = await client.mutate({
+      mutation: AddLevel,
+      variables: { level }
+    });
+    debugger;
   }
 </script>
 
@@ -129,85 +145,93 @@
   }
 </style>
 
-<section>
-  <div>
-    <input
-      bind:value={title}
-      type="text"
-      placeholder="Griddler Title"
-    />
-    <input
-      bind:value={size}
-      type="number"
-      min="0"
-    />
-  </div>
-</section>
+<div 
+  transition:slide="{{delay: 50, duration: 300, easing: quintOut }}"
+>
+  <section>
+    <div>
+      <input
+        bind:value={title}
+        type="text"
+        placeholder="Griddler Title"
+      />
+      <input
+        bind:value={size}
+        type="number"
+        min="0"
+      />
+    </div>
+  </section>
 
-{#if showColorPicker}
-  <div
-    class="color-selector-container"
-    on:click={() => showColorPicker = false}
-  >
-    <section
-      class="color-selector"
+  {#if showColorPicker}
+    <div
+      class="color-selector-container"
       on:click={() => showColorPicker = false}
     >
-      {#each hexColors as color}
-        <div
-          on:click={() => addColor(color)}
-          class="color-option"
-          style="background: #{color};"
-        />
-      {/each}
-    </section>
-  </div>
-{/if}
-
-<section>
-  <div class="colors">
-    {#if !colors.length}
-      <span>No colors added</span>
-    {/if}
-    {#each colors as color, index}
-      <div
-        class="color {index === colorIndex && 'active'}"
-        style="background: {color}"
-        on:click={() => selectColor(index)}
+      <section
+        class="color-selector"
+        on:click={() => showColorPicker = false}
       >
-        {color}
-      </div>
-    {/each}
-    <div class="color add" on:click={() => toggleShowColorPicker()}>
-      +
+        {#each hexColors as color}
+          <div
+            on:click={() => addColor(color)}
+            class="color-option"
+            style="background: #{color};"
+          />
+        {/each}
+      </section>
     </div>
-  </div>
-</section>
-<section>
-  <div
-    class="board"
-    style="grid-template-columns: repeat({size}, 1fr); grid-template-rows: repeat({size}, 1fr);"
-  >
-    {#each solution as row, rowIndex}
-      {#each row as col, colIndex}
-        <BuildlerBlock
-          row={rowIndex}
-          col={colIndex}
-          state={col}
-          color={colors[col]}
-          onClick={() => toggleEnabled(rowIndex, colIndex)}
-          onRightClick={() => reset(rowIndex, colIndex)}
-          transitionTime={0.05}
-        />
-      {/each}
-    {/each}
-  </div>
-</section>
+  {/if}
 
-<div style="display: flex; justify-content: center; margin-top: 2rem;">
-  <button
-    on:click={() => addLevel()}
-  >
-    Save
-  </button>
+  <section>
+    <div class="colors">
+      {#if !colors.length}
+        <span>No colors added</span>
+      {/if}
+      {#each colors as color, index}
+        <div
+          class="color {index === colorIndex && 'active'}"
+          style="background: {color}"
+          on:click={() => selectColor(index)}
+          on:contextmenu={(e) => {
+            e.preventDefault();
+            reset(index)
+          }}
+        >
+          {color}
+        </div>
+      {/each}
+      <div class="color add" on:click={() => toggleShowColorPicker()}>
+        +
+      </div>
+    </div>
+  </section>
+  <section>
+    <div
+      class="board"
+      style="grid-template-columns: repeat({size}, 1fr); grid-template-rows: repeat({size}, 1fr);"
+    >
+      {#each solution as row, rowIndex}
+        {#each row as col, colIndex}
+          <BuildlerBlock
+            row={rowIndex}
+            col={colIndex}
+            state={col}
+            color={colors[col]}
+            onClick={() => toggleEnabled(rowIndex, colIndex)}
+            on:contextmenu={() => reset(rowIndex, colIndex)}
+            transitionTime={0.05}
+          />
+        {/each}
+      {/each}
+    </div>
+  </section>
+
+  <div style="display: flex; justify-content: center; margin-top: 2rem;">
+    <button
+      on:click={() => addLevel()}
+    >
+      Save
+    </button>
+  </div>
 </div>

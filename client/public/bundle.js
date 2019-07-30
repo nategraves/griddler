@@ -4,6 +4,7 @@ var app = (function () {
     'use strict';
 
     function noop() { }
+    const identity = x => x;
     function assign(tar, src) {
         // @ts-ignore
         for (const k in src)
@@ -48,6 +49,41 @@ var app = (function () {
         return definition[1]
             ? assign({}, assign(ctx.$$scope.changed || {}, definition[1](fn ? fn(changed) : {})))
             : ctx.$$scope.changed || {};
+    }
+
+    const is_client = typeof window !== 'undefined';
+    let now = is_client
+        ? () => window.performance.now()
+        : () => Date.now();
+    let raf = cb => requestAnimationFrame(cb);
+
+    const tasks = new Set();
+    let running = false;
+    function run_tasks() {
+        tasks.forEach(task => {
+            if (!task[0](now())) {
+                tasks.delete(task);
+                task[1]();
+            }
+        });
+        running = tasks.size > 0;
+        if (running)
+            raf(run_tasks);
+    }
+    function loop(fn) {
+        let task;
+        if (!running) {
+            running = true;
+            raf(run_tasks);
+        }
+        return {
+            promise: new Promise(fulfil => {
+                tasks.add(task = [fn, fulfil]);
+            }),
+            abort() {
+                tasks.delete(task);
+            }
+        };
     }
 
     function append(target, node) {
@@ -100,6 +136,67 @@ var app = (function () {
     }
     function set_style(node, key, value) {
         node.style.setProperty(key, value);
+    }
+    function custom_event(type, detail) {
+        const e = document.createEvent('CustomEvent');
+        e.initCustomEvent(type, false, false, detail);
+        return e;
+    }
+
+    let stylesheet;
+    let active = 0;
+    let current_rules = {};
+    // https://github.com/darkskyapp/string-hash/blob/master/index.js
+    function hash(str) {
+        let hash = 5381;
+        let i = str.length;
+        while (i--)
+            hash = ((hash << 5) - hash) ^ str.charCodeAt(i);
+        return hash >>> 0;
+    }
+    function create_rule(node, a, b, duration, delay, ease, fn, uid = 0) {
+        const step = 16.666 / duration;
+        let keyframes = '{\n';
+        for (let p = 0; p <= 1; p += step) {
+            const t = a + (b - a) * ease(p);
+            keyframes += p * 100 + `%{${fn(t, 1 - t)}}\n`;
+        }
+        const rule = keyframes + `100% {${fn(b, 1 - b)}}\n}`;
+        const name = `__svelte_${hash(rule)}_${uid}`;
+        if (!current_rules[name]) {
+            if (!stylesheet) {
+                const style = element('style');
+                document.head.appendChild(style);
+                stylesheet = style.sheet;
+            }
+            current_rules[name] = true;
+            stylesheet.insertRule(`@keyframes ${name} ${rule}`, stylesheet.cssRules.length);
+        }
+        const animation = node.style.animation || '';
+        node.style.animation = `${animation ? `${animation}, ` : ``}${name} ${duration}ms linear ${delay}ms 1 both`;
+        active += 1;
+        return name;
+    }
+    function delete_rule(node, name) {
+        node.style.animation = (node.style.animation || '')
+            .split(', ')
+            .filter(name
+            ? anim => anim.indexOf(name) < 0 // remove specific animation
+            : anim => anim.indexOf('__svelte') === -1 // remove all Svelte animations
+        )
+            .join(', ');
+        if (name && !--active)
+            clear_rules();
+    }
+    function clear_rules() {
+        raf(() => {
+            if (active)
+                return;
+            let i = stylesheet.cssRules.length;
+            while (i--)
+                stylesheet.deleteRule(i);
+            current_rules = {};
+        });
     }
 
     let current_component;
@@ -161,6 +258,20 @@ var app = (function () {
             $$.after_update.forEach(add_render_callback);
         }
     }
+
+    let promise;
+    function wait() {
+        if (!promise) {
+            promise = Promise.resolve();
+            promise.then(() => {
+                promise = null;
+            });
+        }
+        return promise;
+    }
+    function dispatch(node, direction, kind) {
+        node.dispatchEvent(custom_event(`${direction ? 'intro' : 'outro'}${kind}`));
+    }
     const outroing = new Set();
     let outros;
     function group_outros() {
@@ -197,6 +308,111 @@ var app = (function () {
             });
             block.o(local);
         }
+    }
+    function create_bidirectional_transition(node, fn, params, intro) {
+        let config = fn(node, params);
+        let t = intro ? 0 : 1;
+        let running_program = null;
+        let pending_program = null;
+        let animation_name = null;
+        function clear_animation() {
+            if (animation_name)
+                delete_rule(node, animation_name);
+        }
+        function init(program, duration) {
+            const d = program.b - t;
+            duration *= Math.abs(d);
+            return {
+                a: t,
+                b: program.b,
+                d,
+                duration,
+                start: program.start,
+                end: program.start + duration,
+                group: program.group
+            };
+        }
+        function go(b) {
+            const { delay = 0, duration = 300, easing = identity, tick = noop, css } = config;
+            const program = {
+                start: now() + delay,
+                b
+            };
+            if (!b) {
+                // @ts-ignore todo: improve typings
+                program.group = outros;
+                outros.r += 1;
+            }
+            if (running_program) {
+                pending_program = program;
+            }
+            else {
+                // if this is an intro, and there's a delay, we need to do
+                // an initial tick and/or apply CSS animation immediately
+                if (css) {
+                    clear_animation();
+                    animation_name = create_rule(node, t, b, duration, delay, easing, css);
+                }
+                if (b)
+                    tick(0, 1);
+                running_program = init(program, duration);
+                add_render_callback(() => dispatch(node, b, 'start'));
+                loop(now => {
+                    if (pending_program && now > pending_program.start) {
+                        running_program = init(pending_program, duration);
+                        pending_program = null;
+                        dispatch(node, running_program.b, 'start');
+                        if (css) {
+                            clear_animation();
+                            animation_name = create_rule(node, t, running_program.b, running_program.duration, 0, easing, config.css);
+                        }
+                    }
+                    if (running_program) {
+                        if (now >= running_program.end) {
+                            tick(t = running_program.b, 1 - t);
+                            dispatch(node, running_program.b, 'end');
+                            if (!pending_program) {
+                                // we're done
+                                if (running_program.b) {
+                                    // intro — we can tidy up immediately
+                                    clear_animation();
+                                }
+                                else {
+                                    // outro — needs to be coordinated
+                                    if (!--running_program.group.r)
+                                        run_all(running_program.group.c);
+                                }
+                            }
+                            running_program = null;
+                        }
+                        else if (now >= running_program.start) {
+                            const p = now - running_program.start;
+                            t = running_program.a + running_program.d * easing(p / running_program.duration);
+                            tick(t, 1 - t);
+                        }
+                    }
+                    return !!(running_program || pending_program);
+                });
+            }
+        }
+        return {
+            run(b) {
+                if (is_function(config)) {
+                    wait().then(() => {
+                        // @ts-ignore
+                        config = config();
+                        go(b);
+                    });
+                }
+                else {
+                    go(b);
+                }
+            },
+            end() {
+                clear_animation();
+                running_program = pending_program = null;
+            }
+        };
     }
 
     function handle_promise(promise, info) {
@@ -251,6 +467,8 @@ var app = (function () {
             info.resolved = { [info.value]: promise };
         }
     }
+
+    const globals = (typeof window !== 'undefined' ? window : global);
     function mount_component(component, target, anchor) {
         const { fragment, on_mount, on_destroy, after_update } = component.$$;
         fragment.m(target, anchor);
@@ -394,7 +612,7 @@ var app = (function () {
       var undefined$1;
 
       /** Used as the semantic version number. */
-      var VERSION = '4.17.15';
+      var VERSION = '4.17.14';
 
       /** Used as the size to enable large array optimizations. */
       var LARGE_ARRAY_SIZE = 200;
@@ -27362,13 +27580,49 @@ var app = (function () {
   }
 `;
 
-    /*
-    export const AddLevel = gql`
-      mutation addLevel($) {
-        add
-      }
-    `;
-    */
+    const AddLevel = src`
+  mutation addLevel($level: LevelInput!) {
+    addLevel(level: $level) {
+      title
+      colors
+      solution
+    }
+  }
+`;
+
+    function cubicOut(t) {
+        const f = t - 1.0;
+        return f * f * f + 1.0;
+    }
+    function quintOut(t) {
+        return --t * t * t * t * t + 1;
+    }
+
+    function slide(node, { delay = 0, duration = 400, easing = cubicOut }) {
+        const style = getComputedStyle(node);
+        const opacity = +style.opacity;
+        const height = parseFloat(style.height);
+        const padding_top = parseFloat(style.paddingTop);
+        const padding_bottom = parseFloat(style.paddingBottom);
+        const margin_top = parseFloat(style.marginTop);
+        const margin_bottom = parseFloat(style.marginBottom);
+        const border_top_width = parseFloat(style.borderTopWidth);
+        const border_bottom_width = parseFloat(style.borderBottomWidth);
+        return {
+            delay,
+            duration,
+            easing,
+            css: t => `overflow: hidden;` +
+                `opacity: ${Math.min(t * 20, 1) * opacity};` +
+                `height: ${t * height}px;` +
+                `padding-top: ${t * padding_top}px;` +
+                `padding-bottom: ${t * padding_bottom}px;` +
+                `margin-top: ${t * margin_top}px;` +
+                `margin-bottom: ${t * margin_bottom}px;` +
+                `border-top-width: ${t * border_top_width}px;` +
+                `border-bottom-width: ${t * border_bottom_width}px;`
+        };
+    }
 
     const DEFAULT_CONFIG = {
       // minimum relative difference between two compared values,
@@ -41883,6 +42137,7 @@ var app = (function () {
     }
 
     /* src/Griddler.svelte generated by Svelte v3.6.7 */
+    const { console: console_1 } = globals;
 
     const file$1 = "src/Griddler.svelte";
 
@@ -41931,7 +42186,7 @@ var app = (function () {
     	return child_ctx;
     }
 
-    // (74:4) <Block       state={1}       color={color}       onClick={() => { setLayerIndex(index); }}     >
+    // (88:6) <Block         state={1}         color={color}         onClick={() => { setLayerIndex(index); }}       >
     function create_default_slot_4(ctx) {
     	var t0_value = ctx.color, t0, t1;
 
@@ -41961,7 +42216,7 @@ var app = (function () {
     	};
     }
 
-    // (73:2) {#each colors as color, index}
+    // (87:4) {#each colors as color, index}
     function create_each_block_6(ctx) {
     	var current;
 
@@ -42017,7 +42272,7 @@ var app = (function () {
     	};
     }
 
-    // (90:4) <Block       color={color}       state={1}     >
+    // (103:6) <Block         color={color}         state={1}       >
     function create_default_slot_3(ctx) {
     	var t_value = ctx.total, t;
 
@@ -42044,7 +42299,7 @@ var app = (function () {
     	};
     }
 
-    // (89:2) {#each colTotals as total}
+    // (102:4) {#each colTotals as total}
     function create_each_block_5(ctx) {
     	var current;
 
@@ -42093,7 +42348,7 @@ var app = (function () {
     	};
     }
 
-    // (106:6) <Block         color={color}         state={1}       >
+    // (118:8) <Block           color={color}           state={1}         >
     function create_default_slot_2(ctx) {
     	var t0_value = ctx.total, t0, t1;
 
@@ -42123,7 +42378,7 @@ var app = (function () {
     	};
     }
 
-    // (105:4) {#each rowTotals as total}
+    // (117:6) {#each rowTotals as total}
     function create_each_block_4(ctx) {
     	var current;
 
@@ -42172,7 +42427,7 @@ var app = (function () {
     	};
     }
 
-    // (117:8) {#each row as item, colIndex}
+    // (129:10) {#each row as item, colIndex}
     function create_each_block_3(ctx) {
     	var current;
 
@@ -42225,7 +42480,7 @@ var app = (function () {
     	};
     }
 
-    // (116:6) {#each board as row, rowIndex}
+    // (128:8) {#each board as row, rowIndex}
     function create_each_block_2(ctx) {
     	var each_1_anchor, current;
 
@@ -42307,7 +42562,7 @@ var app = (function () {
     	};
     }
 
-    // (132:6) <Block         color={color}         state={1}       >
+    // (144:8) <Block           color={color}           state={1}         >
     function create_default_slot_1(ctx) {
     	var t0_value = ctx.total, t0, t1;
 
@@ -42337,7 +42592,7 @@ var app = (function () {
     	};
     }
 
-    // (131:4) {#each rowTotals as total}
+    // (143:6) {#each rowTotals as total}
     function create_each_block_1(ctx) {
     	var current;
 
@@ -42386,7 +42641,7 @@ var app = (function () {
     	};
     }
 
-    // (148:4) <Block       color={color}       state={1}     >
+    // (159:6) <Block         color={color}         state={1}       >
     function create_default_slot(ctx) {
     	var t_value = ctx.total, t;
 
@@ -42413,7 +42668,7 @@ var app = (function () {
     	};
     }
 
-    // (147:2) {#each colTotals as total}
+    // (158:4) {#each colTotals as total}
     function create_each_block(ctx) {
     	var current;
 
@@ -42463,7 +42718,7 @@ var app = (function () {
     }
 
     function create_fragment$1(ctx) {
-    	var h1, t0, t1, div0, t2, div1, t3, t4, t5, div5, div2, t6, div3, section, t7, div4, t8, div6, t9, t10, t11, div7, t12_value = ctx.same.toString(), t12, current;
+    	var div8, h1, t0, t1, div0, t2, div1, t3, t4, t5, div5, div2, t6, div3, section, t7, div4, t8, div6, t9, t10, t11, div7, t12_value = ctx.same.toString(), t12, div8_transition, current;
 
     	var each_value_6 = ctx.colors;
 
@@ -42571,6 +42826,7 @@ var app = (function () {
 
     	return {
     		c: function create() {
+    			div8 = element("div");
     			h1 = element("h1");
     			t0 = text(ctx.title);
     			t1 = space();
@@ -42629,25 +42885,26 @@ var app = (function () {
     			div7 = element("div");
     			t12 = text(t12_value);
     			attr(h1, "class", "svelte-lqfnwg");
-    			add_location(h1, file$1, 69, 0, 1356);
+    			add_location(h1, file$1, 84, 2, 1699);
     			attr(div0, "class", "flex-row justify-center margin-bottom svelte-lqfnwg");
-    			add_location(div0, file$1, 71, 0, 1374);
+    			add_location(div0, file$1, 85, 2, 1718);
     			attr(div1, "class", "flex-row justify-center svelte-lqfnwg");
-    			add_location(div1, file$1, 83, 0, 1605);
+    			add_location(div1, file$1, 96, 2, 1970);
     			attr(div2, "class", "flex-col svelte-lqfnwg");
-    			add_location(div2, file$1, 103, 2, 1902);
+    			add_location(div2, file$1, 115, 4, 2304);
     			attr(section, "class", "board svelte-lqfnwg");
-    			add_location(section, file$1, 114, 4, 2098);
+    			add_location(section, file$1, 126, 6, 2522);
     			attr(div3, "class", "flex-row svelte-lqfnwg");
-    			add_location(div3, file$1, 113, 2, 2071);
+    			add_location(div3, file$1, 125, 4, 2493);
     			attr(div4, "class", "flex-col svelte-lqfnwg");
-    			add_location(div4, file$1, 129, 2, 2473);
+    			add_location(div4, file$1, 141, 4, 2927);
     			attr(div5, "class", "flex-row justify-center svelte-lqfnwg");
-    			add_location(div5, file$1, 102, 0, 1862);
+    			add_location(div5, file$1, 114, 2, 2262);
     			attr(div6, "class", "flex-row justify-center svelte-lqfnwg");
-    			add_location(div6, file$1, 141, 0, 2648);
+    			add_location(div6, file$1, 152, 2, 3123);
     			attr(div7, "class", "flex-row justify-center svelte-lqfnwg");
-    			add_location(div7, file$1, 160, 0, 2905);
+    			add_location(div7, file$1, 170, 2, 3415);
+    			add_location(div8, file$1, 81, 0, 1621);
     		},
 
     		l: function claim(nodes) {
@@ -42655,17 +42912,18 @@ var app = (function () {
     		},
 
     		m: function mount(target, anchor) {
-    			insert(target, h1, anchor);
+    			insert(target, div8, anchor);
+    			append(div8, h1);
     			append(h1, t0);
-    			insert(target, t1, anchor);
-    			insert(target, div0, anchor);
+    			append(div8, t1);
+    			append(div8, div0);
 
     			for (var i = 0; i < each_blocks_5.length; i += 1) {
     				each_blocks_5[i].m(div0, null);
     			}
 
-    			insert(target, t2, anchor);
-    			insert(target, div1, anchor);
+    			append(div8, t2);
+    			append(div8, div1);
     			mount_component(block0, div1, null);
     			append(div1, t3);
 
@@ -42675,8 +42933,8 @@ var app = (function () {
 
     			append(div1, t4);
     			mount_component(block1, div1, null);
-    			insert(target, t5, anchor);
-    			insert(target, div5, anchor);
+    			append(div8, t5);
+    			append(div8, div5);
     			append(div5, div2);
 
     			for (var i = 0; i < each_blocks_3.length; i += 1) {
@@ -42698,8 +42956,8 @@ var app = (function () {
     				each_blocks_1[i].m(div4, null);
     			}
 
-    			insert(target, t8, anchor);
-    			insert(target, div6, anchor);
+    			append(div8, t8);
+    			append(div8, div6);
     			mount_component(block2, div6, null);
     			append(div6, t9);
 
@@ -42709,8 +42967,8 @@ var app = (function () {
 
     			append(div6, t10);
     			mount_component(block3, div6, null);
-    			insert(target, t11, anchor);
-    			insert(target, div7, anchor);
+    			append(div8, t11);
+    			append(div8, div7);
     			append(div7, t12);
     			current = true;
     		},
@@ -42895,6 +43153,11 @@ var app = (function () {
 
     			transition_in(block3.$$.fragment, local);
 
+    			add_render_callback(() => {
+    				if (!div8_transition) div8_transition = create_bidirectional_transition(div8, slide, {delay: 50, duration: 300, easing: quintOut }, true);
+    				div8_transition.run(1);
+    			});
+
     			current = true;
     		},
 
@@ -42924,22 +43187,19 @@ var app = (function () {
     			for (let i = 0; i < each_blocks.length; i += 1) transition_out(each_blocks[i]);
 
     			transition_out(block3.$$.fragment, local);
+
+    			if (!div8_transition) div8_transition = create_bidirectional_transition(div8, slide, {delay: 50, duration: 300, easing: quintOut }, false);
+    			div8_transition.run(0);
+
     			current = false;
     		},
 
     		d: function destroy(detaching) {
     			if (detaching) {
-    				detach(h1);
-    				detach(t1);
-    				detach(div0);
+    				detach(div8);
     			}
 
     			destroy_each(each_blocks_5, detaching);
-
-    			if (detaching) {
-    				detach(t2);
-    				detach(div1);
-    			}
 
     			destroy_component(block0, );
 
@@ -42947,21 +43207,11 @@ var app = (function () {
 
     			destroy_component(block1, );
 
-    			if (detaching) {
-    				detach(t5);
-    				detach(div5);
-    			}
-
     			destroy_each(each_blocks_3, detaching);
 
     			destroy_each(each_blocks_2, detaching);
 
     			destroy_each(each_blocks_1, detaching);
-
-    			if (detaching) {
-    				detach(t8);
-    				detach(div6);
-    			}
 
     			destroy_component(block2, );
 
@@ -42970,8 +43220,7 @@ var app = (function () {
     			destroy_component(block3, );
 
     			if (detaching) {
-    				detach(t11);
-    				detach(div7);
+    				if (div8_transition) div8_transition.end();
     			}
     		}
     	};
@@ -42980,9 +43229,12 @@ var app = (function () {
     function instance$1($$self, $$props, $$invalidate) {
     	
 
-      let { level, board } = $$props;
+      let { levels, board } = $$props;
+
+      console.log(levels);
 
       let layerIndex = 0;
+      let levelIndex = 0;
       let same = false;
 
       const setLayerIndex = index => { $$invalidate('layerIndex', layerIndex = index); };
@@ -42998,32 +43250,38 @@ var app = (function () {
           ? layerIndex
           : -1; $$invalidate('board', board);
         $$invalidate('same', same = deepEqual(matrix(solution), matrix(board)));
+
+        if (same && levelIndex < levels.length) {
+          $$invalidate('same', same = false);
+          $$invalidate('levelIndex', levelIndex += 1);
+        }
       };
 
-    	const writable_props = ['level', 'board'];
+    	const writable_props = ['levels', 'board'];
     	Object.keys($$props).forEach(key => {
-    		if (!writable_props.includes(key) && !key.startsWith('$$')) console.warn(`<Griddler> was created with unknown prop '${key}'`);
+    		if (!writable_props.includes(key) && !key.startsWith('$$')) console_1.warn(`<Griddler> was created with unknown prop '${key}'`);
     	});
 
     	function func({ index }) { setLayerIndex(index); }
 
     	$$self.$set = $$props => {
-    		if ('level' in $$props) $$invalidate('level', level = $$props.level);
+    		if ('levels' in $$props) $$invalidate('levels', levels = $$props.levels);
     		if ('board' in $$props) $$invalidate('board', board = $$props.board);
     	};
 
-    	let title, colors, solution, color, rowTotals, colTotals;
+    	let level, title, colors, solution, color, rowTotals, colTotals;
 
-    	$$self.$$.update = ($$dirty = { level: 1, colors: 1, layerIndex: 1, solution: 1 }) => {
+    	$$self.$$.update = ($$dirty = { levels: 1, levelIndex: 1, level: 1, colors: 1, layerIndex: 1, solution: 1 }) => {
+    		if ($$dirty.levels || $$dirty.levelIndex) { $$invalidate('level', level = levels[levelIndex]); }
     		if ($$dirty.level) { $$invalidate('title', title = level.title); }
     		if ($$dirty.level) { $$invalidate('colors', colors = level.colors); }
     		if ($$dirty.level) { $$invalidate('solution', solution = level.solution); }
     		if ($$dirty.colors || $$dirty.layerIndex) { $$invalidate('color', color = colors[layerIndex]); }
-    		if ($$dirty.colors || $$dirty.solution || $$dirty.layerIndex) { [rowTotals, colTotals] = generateTotals(colors, solution)[layerIndex]; $$invalidate('rowTotals', rowTotals), $$invalidate('colors', colors), $$invalidate('solution', solution), $$invalidate('layerIndex', layerIndex), $$invalidate('level', level); $$invalidate('colTotals', colTotals), $$invalidate('colors', colors), $$invalidate('solution', solution), $$invalidate('layerIndex', layerIndex), $$invalidate('level', level); }
+    		if ($$dirty.colors || $$dirty.solution || $$dirty.layerIndex) { [rowTotals, colTotals] = generateTotals(colors, solution)[layerIndex]; $$invalidate('rowTotals', rowTotals), $$invalidate('colors', colors), $$invalidate('solution', solution), $$invalidate('layerIndex', layerIndex), $$invalidate('level', level), $$invalidate('levels', levels), $$invalidate('levelIndex', levelIndex); $$invalidate('colTotals', colTotals), $$invalidate('colors', colors), $$invalidate('solution', solution), $$invalidate('layerIndex', layerIndex), $$invalidate('level', level), $$invalidate('levels', levels), $$invalidate('levelIndex', levelIndex); }
     	};
 
     	return {
-    		level,
+    		levels,
     		board,
     		same,
     		setLayerIndex,
@@ -43041,23 +43299,23 @@ var app = (function () {
     class Griddler extends SvelteComponentDev {
     	constructor(options) {
     		super(options);
-    		init(this, options, instance$1, create_fragment$1, safe_not_equal, ["level", "board"]);
+    		init(this, options, instance$1, create_fragment$1, safe_not_equal, ["levels", "board"]);
 
     		const { ctx } = this.$$;
     		const props = options.props || {};
-    		if (ctx.level === undefined && !('level' in props)) {
-    			console.warn("<Griddler> was created without expected prop 'level'");
+    		if (ctx.levels === undefined && !('levels' in props)) {
+    			console_1.warn("<Griddler> was created without expected prop 'levels'");
     		}
     		if (ctx.board === undefined && !('board' in props)) {
-    			console.warn("<Griddler> was created without expected prop 'board'");
+    			console_1.warn("<Griddler> was created without expected prop 'board'");
     		}
     	}
 
-    	get level() {
+    	get levels() {
     		throw new Error("<Griddler>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
     	}
 
-    	set level(value) {
+    	set levels(value) {
     		throw new Error("<Griddler>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
     	}
 
@@ -43501,157 +43759,6 @@ var app = (function () {
     var colorString_1 = colorString.to;
     var colorString_2 = colorString.get;
 
-    var colorName$1 = {
-    	"aliceblue": [240, 248, 255],
-    	"antiquewhite": [250, 235, 215],
-    	"aqua": [0, 255, 255],
-    	"aquamarine": [127, 255, 212],
-    	"azure": [240, 255, 255],
-    	"beige": [245, 245, 220],
-    	"bisque": [255, 228, 196],
-    	"black": [0, 0, 0],
-    	"blanchedalmond": [255, 235, 205],
-    	"blue": [0, 0, 255],
-    	"blueviolet": [138, 43, 226],
-    	"brown": [165, 42, 42],
-    	"burlywood": [222, 184, 135],
-    	"cadetblue": [95, 158, 160],
-    	"chartreuse": [127, 255, 0],
-    	"chocolate": [210, 105, 30],
-    	"coral": [255, 127, 80],
-    	"cornflowerblue": [100, 149, 237],
-    	"cornsilk": [255, 248, 220],
-    	"crimson": [220, 20, 60],
-    	"cyan": [0, 255, 255],
-    	"darkblue": [0, 0, 139],
-    	"darkcyan": [0, 139, 139],
-    	"darkgoldenrod": [184, 134, 11],
-    	"darkgray": [169, 169, 169],
-    	"darkgreen": [0, 100, 0],
-    	"darkgrey": [169, 169, 169],
-    	"darkkhaki": [189, 183, 107],
-    	"darkmagenta": [139, 0, 139],
-    	"darkolivegreen": [85, 107, 47],
-    	"darkorange": [255, 140, 0],
-    	"darkorchid": [153, 50, 204],
-    	"darkred": [139, 0, 0],
-    	"darksalmon": [233, 150, 122],
-    	"darkseagreen": [143, 188, 143],
-    	"darkslateblue": [72, 61, 139],
-    	"darkslategray": [47, 79, 79],
-    	"darkslategrey": [47, 79, 79],
-    	"darkturquoise": [0, 206, 209],
-    	"darkviolet": [148, 0, 211],
-    	"deeppink": [255, 20, 147],
-    	"deepskyblue": [0, 191, 255],
-    	"dimgray": [105, 105, 105],
-    	"dimgrey": [105, 105, 105],
-    	"dodgerblue": [30, 144, 255],
-    	"firebrick": [178, 34, 34],
-    	"floralwhite": [255, 250, 240],
-    	"forestgreen": [34, 139, 34],
-    	"fuchsia": [255, 0, 255],
-    	"gainsboro": [220, 220, 220],
-    	"ghostwhite": [248, 248, 255],
-    	"gold": [255, 215, 0],
-    	"goldenrod": [218, 165, 32],
-    	"gray": [128, 128, 128],
-    	"green": [0, 128, 0],
-    	"greenyellow": [173, 255, 47],
-    	"grey": [128, 128, 128],
-    	"honeydew": [240, 255, 240],
-    	"hotpink": [255, 105, 180],
-    	"indianred": [205, 92, 92],
-    	"indigo": [75, 0, 130],
-    	"ivory": [255, 255, 240],
-    	"khaki": [240, 230, 140],
-    	"lavender": [230, 230, 250],
-    	"lavenderblush": [255, 240, 245],
-    	"lawngreen": [124, 252, 0],
-    	"lemonchiffon": [255, 250, 205],
-    	"lightblue": [173, 216, 230],
-    	"lightcoral": [240, 128, 128],
-    	"lightcyan": [224, 255, 255],
-    	"lightgoldenrodyellow": [250, 250, 210],
-    	"lightgray": [211, 211, 211],
-    	"lightgreen": [144, 238, 144],
-    	"lightgrey": [211, 211, 211],
-    	"lightpink": [255, 182, 193],
-    	"lightsalmon": [255, 160, 122],
-    	"lightseagreen": [32, 178, 170],
-    	"lightskyblue": [135, 206, 250],
-    	"lightslategray": [119, 136, 153],
-    	"lightslategrey": [119, 136, 153],
-    	"lightsteelblue": [176, 196, 222],
-    	"lightyellow": [255, 255, 224],
-    	"lime": [0, 255, 0],
-    	"limegreen": [50, 205, 50],
-    	"linen": [250, 240, 230],
-    	"magenta": [255, 0, 255],
-    	"maroon": [128, 0, 0],
-    	"mediumaquamarine": [102, 205, 170],
-    	"mediumblue": [0, 0, 205],
-    	"mediumorchid": [186, 85, 211],
-    	"mediumpurple": [147, 112, 219],
-    	"mediumseagreen": [60, 179, 113],
-    	"mediumslateblue": [123, 104, 238],
-    	"mediumspringgreen": [0, 250, 154],
-    	"mediumturquoise": [72, 209, 204],
-    	"mediumvioletred": [199, 21, 133],
-    	"midnightblue": [25, 25, 112],
-    	"mintcream": [245, 255, 250],
-    	"mistyrose": [255, 228, 225],
-    	"moccasin": [255, 228, 181],
-    	"navajowhite": [255, 222, 173],
-    	"navy": [0, 0, 128],
-    	"oldlace": [253, 245, 230],
-    	"olive": [128, 128, 0],
-    	"olivedrab": [107, 142, 35],
-    	"orange": [255, 165, 0],
-    	"orangered": [255, 69, 0],
-    	"orchid": [218, 112, 214],
-    	"palegoldenrod": [238, 232, 170],
-    	"palegreen": [152, 251, 152],
-    	"paleturquoise": [175, 238, 238],
-    	"palevioletred": [219, 112, 147],
-    	"papayawhip": [255, 239, 213],
-    	"peachpuff": [255, 218, 185],
-    	"peru": [205, 133, 63],
-    	"pink": [255, 192, 203],
-    	"plum": [221, 160, 221],
-    	"powderblue": [176, 224, 230],
-    	"purple": [128, 0, 128],
-    	"rebeccapurple": [102, 51, 153],
-    	"red": [255, 0, 0],
-    	"rosybrown": [188, 143, 143],
-    	"royalblue": [65, 105, 225],
-    	"saddlebrown": [139, 69, 19],
-    	"salmon": [250, 128, 114],
-    	"sandybrown": [244, 164, 96],
-    	"seagreen": [46, 139, 87],
-    	"seashell": [255, 245, 238],
-    	"sienna": [160, 82, 45],
-    	"silver": [192, 192, 192],
-    	"skyblue": [135, 206, 235],
-    	"slateblue": [106, 90, 205],
-    	"slategray": [112, 128, 144],
-    	"slategrey": [112, 128, 144],
-    	"snow": [255, 250, 250],
-    	"springgreen": [0, 255, 127],
-    	"steelblue": [70, 130, 180],
-    	"tan": [210, 180, 140],
-    	"teal": [0, 128, 128],
-    	"thistle": [216, 191, 216],
-    	"tomato": [255, 99, 71],
-    	"turquoise": [64, 224, 208],
-    	"violet": [238, 130, 238],
-    	"wheat": [245, 222, 179],
-    	"white": [255, 255, 255],
-    	"whitesmoke": [245, 245, 245],
-    	"yellow": [255, 255, 0],
-    	"yellowgreen": [154, 205, 50]
-    };
-
     var conversions = createCommonjsModule(function (module) {
     /* MIT license */
 
@@ -43661,9 +43768,9 @@ var app = (function () {
     //       do not use box values types (i.e. Number(), String(), etc.)
 
     var reverseKeywords = {};
-    for (var key in colorName$1) {
-    	if (colorName$1.hasOwnProperty(key)) {
-    		reverseKeywords[colorName$1[key]] = key;
+    for (var key in colorName) {
+    	if (colorName.hasOwnProperty(key)) {
+    		reverseKeywords[colorName[key]] = key;
     	}
     }
 
@@ -43843,9 +43950,9 @@ var app = (function () {
     	var currentClosestDistance = Infinity;
     	var currentClosestKeyword;
 
-    	for (var keyword in colorName$1) {
-    		if (colorName$1.hasOwnProperty(keyword)) {
-    			var value = colorName$1[keyword];
+    	for (var keyword in colorName) {
+    		if (colorName.hasOwnProperty(keyword)) {
+    			var value = colorName[keyword];
 
     			// Compute comparative distance
     			var distance = comparativeDistance(rgb, value);
@@ -43862,7 +43969,7 @@ var app = (function () {
     };
 
     convert.keyword.rgb = function (keyword) {
-    	return colorName$1[keyword];
+    	return colorName[keyword];
     };
 
     convert.rgb.xyz = function (rgb) {
@@ -45482,7 +45589,7 @@ var app = (function () {
     	return child_ctx;
     }
 
-    // (147:0) {#if showColorPicker}
+    // (166:2) {#if showColorPicker}
     function create_if_block_1(ctx) {
     	var div, section, dispose;
 
@@ -45503,9 +45610,9 @@ var app = (function () {
     				each_blocks[i].c();
     			}
     			attr(section, "class", "color-selector svelte-o239yw");
-    			add_location(section, file$3, 151, 4, 2900);
+    			add_location(section, file$3, 170, 6, 3454);
     			attr(div, "class", "color-selector-container svelte-o239yw");
-    			add_location(div, file$3, 147, 2, 2805);
+    			add_location(div, file$3, 166, 4, 3351);
 
     			dispose = [
     				listen(section, "click", ctx.click_handler_1),
@@ -45557,7 +45664,7 @@ var app = (function () {
     	};
     }
 
-    // (156:6) {#each hexColors as color}
+    // (175:8) {#each hexColors as color}
     function create_each_block_3$1(ctx) {
     	var div, dispose;
 
@@ -45570,7 +45677,7 @@ var app = (function () {
     			div = element("div");
     			attr(div, "class", "color-option svelte-o239yw");
     			set_style(div, "background", "#" + ctx.color);
-    			add_location(div, file$3, 156, 8, 3032);
+    			add_location(div, file$3, 175, 10, 3596);
     			dispose = listen(div, "click", click_handler);
     		},
 
@@ -45595,7 +45702,7 @@ var app = (function () {
     	};
     }
 
-    // (169:4) {#if !colors.length}
+    // (188:6) {#if !colors.length}
     function create_if_block(ctx) {
     	var span;
 
@@ -45603,7 +45710,7 @@ var app = (function () {
     		c: function create() {
     			span = element("span");
     			span.textContent = "No colors added";
-    			add_location(span, file$3, 169, 6, 3271);
+    			add_location(span, file$3, 188, 8, 3859);
     		},
 
     		m: function mount(target, anchor) {
@@ -45618,12 +45725,16 @@ var app = (function () {
     	};
     }
 
-    // (172:4) {#each colors as color, index}
+    // (191:6) {#each colors as color, index}
     function create_each_block_2$1(ctx) {
     	var div, t_value = ctx.color, t, div_class_value, dispose;
 
     	function click_handler_3() {
     		return ctx.click_handler_3(ctx);
+    	}
+
+    	function contextmenu_handler(...args) {
+    		return ctx.contextmenu_handler(ctx, ...args);
     	}
 
     	return {
@@ -45632,8 +45743,12 @@ var app = (function () {
     			t = text(t_value);
     			attr(div, "class", div_class_value = "color " + (ctx.index === ctx.colorIndex && 'active') + " svelte-o239yw");
     			set_style(div, "background", ctx.color);
-    			add_location(div, file$3, 172, 6, 3351);
-    			dispose = listen(div, "click", click_handler_3);
+    			add_location(div, file$3, 191, 8, 3945);
+
+    			dispose = [
+    				listen(div, "click", click_handler_3),
+    				listen(div, "contextmenu", contextmenu_handler)
+    			];
     		},
 
     		m: function mount(target, anchor) {
@@ -45661,12 +45776,12 @@ var app = (function () {
     				detach(div);
     			}
 
-    			dispose();
+    			run_all(dispose);
     		}
     	};
     }
 
-    // (192:6) {#each row as col, colIndex}
+    // (215:8) {#each row as col, colIndex}
     function create_each_block_1$1(ctx) {
     	var current;
 
@@ -45674,8 +45789,8 @@ var app = (function () {
     		return ctx.func(ctx);
     	}
 
-    	function func_1() {
-    		return ctx.func_1(ctx);
+    	function contextmenu_handler_1() {
+    		return ctx.contextmenu_handler_1(ctx);
     	}
 
     	var buildlerblock = new BuildlerBlock({
@@ -45685,11 +45800,11 @@ var app = (function () {
     		state: ctx.col,
     		color: ctx.colors[ctx.col],
     		onClick: func,
-    		onRightClick: func_1,
     		transitionTime: 0.05
     	},
     		$$inline: true
     	});
+    	buildlerblock.$on("contextmenu", contextmenu_handler_1);
 
     	return {
     		c: function create() {
@@ -45707,7 +45822,6 @@ var app = (function () {
     			if (changed.solution) buildlerblock_changes.state = ctx.col;
     			if (changed.colors || changed.solution) buildlerblock_changes.color = ctx.colors[ctx.col];
     			if (changed.toggleEnabled) buildlerblock_changes.onClick = func;
-    			if (changed.reset) buildlerblock_changes.onRightClick = func_1;
     			buildlerblock.$set(buildlerblock_changes);
     		},
 
@@ -45729,7 +45843,7 @@ var app = (function () {
     	};
     }
 
-    // (191:4) {#each solution as row, rowIndex}
+    // (214:6) {#each solution as row, rowIndex}
     function create_each_block$1(ctx) {
     	var each_1_anchor, current;
 
@@ -45764,7 +45878,7 @@ var app = (function () {
     		},
 
     		p: function update(changed, ctx) {
-    			if (changed.solution || changed.colors || changed.toggleEnabled || changed.reset) {
+    			if (changed.solution || changed.colors || changed.toggleEnabled) {
     				each_value_1 = ctx.row;
 
     				for (var i = 0; i < each_value_1.length; i += 1) {
@@ -45812,7 +45926,7 @@ var app = (function () {
     }
 
     function create_fragment$3(ctx) {
-    	var section0, div0, input0, t0, input1, t1, t2, section1, div2, t3, t4, div1, t6, section2, div3, current, dispose;
+    	var div5, section0, div0, input0, t0, input1, t1, t2, section1, div2, t3, t4, div1, t6, section2, div3, t7, div4, button, div5_transition, current, dispose;
 
     	var if_block0 = (ctx.showColorPicker) && create_if_block_1(ctx);
 
@@ -45840,6 +45954,7 @@ var app = (function () {
 
     	return {
     		c: function create() {
+    			div5 = element("div");
     			section0 = element("section");
     			div0 = element("div");
     			input0 = element("input");
@@ -45867,33 +45982,45 @@ var app = (function () {
     			for (var i = 0; i < each_blocks.length; i += 1) {
     				each_blocks[i].c();
     			}
+
+    			t7 = space();
+    			div4 = element("div");
+    			button = element("button");
+    			button.textContent = "Save";
     			attr(input0, "type", "text");
     			attr(input0, "placeholder", "Griddler Title");
-    			add_location(input0, file$3, 133, 4, 2592);
+    			add_location(input0, file$3, 152, 6, 3112);
     			attr(input1, "type", "number");
     			attr(input1, "min", "0");
     			attr(input1, "class", "svelte-o239yw");
-    			add_location(input1, file$3, 138, 4, 2688);
-    			add_location(div0, file$3, 132, 2, 2582);
+    			add_location(input1, file$3, 157, 6, 3218);
+    			add_location(div0, file$3, 151, 4, 3100);
     			attr(section0, "class", "svelte-o239yw");
-    			add_location(section0, file$3, 131, 0, 2570);
+    			add_location(section0, file$3, 150, 2, 3086);
     			attr(div1, "class", "color add svelte-o239yw");
-    			add_location(div1, file$3, 180, 4, 3546);
+    			add_location(div1, file$3, 203, 6, 4261);
     			attr(div2, "class", "colors svelte-o239yw");
-    			add_location(div2, file$3, 167, 2, 3219);
+    			add_location(div2, file$3, 186, 4, 3803);
     			attr(section1, "class", "svelte-o239yw");
-    			add_location(section1, file$3, 166, 0, 3207);
+    			add_location(section1, file$3, 185, 2, 3789);
     			attr(div3, "class", "board svelte-o239yw");
     			set_style(div3, "grid-template-columns", "repeat(" + ctx.size + ", 1fr)");
     			set_style(div3, "grid-template-rows", "repeat(" + ctx.size + ", 1fr)");
-    			add_location(div3, file$3, 186, 2, 3662);
+    			add_location(div3, file$3, 209, 4, 4389);
     			attr(section2, "class", "svelte-o239yw");
-    			add_location(section2, file$3, 185, 0, 3650);
+    			add_location(section2, file$3, 208, 2, 4375);
+    			add_location(button, file$3, 230, 4, 5034);
+    			set_style(div4, "display", "flex");
+    			set_style(div4, "justify-content", "center");
+    			set_style(div4, "margin-top", "2rem");
+    			add_location(div4, file$3, 229, 2, 4958);
+    			add_location(div5, file$3, 147, 0, 3007);
 
     			dispose = [
     				listen(input0, "input", ctx.input0_input_handler),
     				listen(input1, "input", ctx.input1_input_handler),
-    				listen(div1, "click", ctx.click_handler_4)
+    				listen(div1, "click", ctx.click_handler_4),
+    				listen(button, "click", ctx.click_handler_5)
     			];
     		},
 
@@ -45902,7 +46029,8 @@ var app = (function () {
     		},
 
     		m: function mount(target, anchor) {
-    			insert(target, section0, anchor);
+    			insert(target, div5, anchor);
+    			append(div5, section0);
     			append(section0, div0);
     			append(div0, input0);
 
@@ -45913,10 +46041,10 @@ var app = (function () {
 
     			input1.value = ctx.size;
 
-    			insert(target, t1, anchor);
-    			if (if_block0) if_block0.m(target, anchor);
-    			insert(target, t2, anchor);
-    			insert(target, section1, anchor);
+    			append(div5, t1);
+    			if (if_block0) if_block0.m(div5, null);
+    			append(div5, t2);
+    			append(div5, section1);
     			append(section1, div2);
     			if (if_block1) if_block1.m(div2, null);
     			append(div2, t3);
@@ -45927,14 +46055,17 @@ var app = (function () {
 
     			append(div2, t4);
     			append(div2, div1);
-    			insert(target, t6, anchor);
-    			insert(target, section2, anchor);
+    			append(div5, t6);
+    			append(div5, section2);
     			append(section2, div3);
 
     			for (var i = 0; i < each_blocks.length; i += 1) {
     				each_blocks[i].m(div3, null);
     			}
 
+    			append(div5, t7);
+    			append(div5, div4);
+    			append(div4, button);
     			current = true;
     		},
 
@@ -45948,7 +46079,7 @@ var app = (function () {
     				} else {
     					if_block0 = create_if_block_1(ctx);
     					if_block0.c();
-    					if_block0.m(t2.parentNode, t2);
+    					if_block0.m(div5, t2);
     				}
     			} else if (if_block0) {
     				if_block0.d(1);
@@ -45987,7 +46118,7 @@ var app = (function () {
     				each_blocks_1.length = each_value_2.length;
     			}
 
-    			if (changed.solution || changed.colors || changed.toggleEnabled || changed.reset) {
+    			if (changed.solution || changed.colors || changed.toggleEnabled) {
     				each_value = ctx.solution;
 
     				for (var i = 0; i < each_value.length; i += 1) {
@@ -46019,6 +46150,11 @@ var app = (function () {
     			if (current) return;
     			for (var i = 0; i < each_value.length; i += 1) transition_in(each_blocks[i]);
 
+    			add_render_callback(() => {
+    				if (!div5_transition) div5_transition = create_bidirectional_transition(div5, slide, {delay: 50, duration: 300, easing: quintOut }, true);
+    				div5_transition.run(1);
+    			});
+
     			current = true;
     		},
 
@@ -46026,32 +46162,27 @@ var app = (function () {
     			each_blocks = each_blocks.filter(Boolean);
     			for (let i = 0; i < each_blocks.length; i += 1) transition_out(each_blocks[i]);
 
+    			if (!div5_transition) div5_transition = create_bidirectional_transition(div5, slide, {delay: 50, duration: 300, easing: quintOut }, false);
+    			div5_transition.run(0);
+
     			current = false;
     		},
 
     		d: function destroy(detaching) {
     			if (detaching) {
-    				detach(section0);
-    				detach(t1);
+    				detach(div5);
     			}
 
-    			if (if_block0) if_block0.d(detaching);
-
-    			if (detaching) {
-    				detach(t2);
-    				detach(section1);
-    			}
-
+    			if (if_block0) if_block0.d();
     			if (if_block1) if_block1.d();
 
     			destroy_each(each_blocks_1, detaching);
 
-    			if (detaching) {
-    				detach(t6);
-    				detach(section2);
-    			}
-
     			destroy_each(each_blocks, detaching);
+
+    			if (detaching) {
+    				if (div5_transition) div5_transition.end();
+    			}
 
     			run_all(dispose);
     		}
@@ -46067,7 +46198,10 @@ var app = (function () {
       let colorIndex = -1;
       let showColorPicker;
 
-      const reset = (row, col) => { const $$result = solution[row][col] = -1; $$invalidate('solution', solution), $$invalidate('size', size); return $$result; };
+      const reset = (row, col) => {
+        console.log(`Resetting ${row} ${col}`);
+        solution[row][col] = -1; $$invalidate('solution', solution), $$invalidate('size', size);
+      };
       const toggleEnabled = (row, col) => { const $$result = solution[row][col] = solution[row][col] === -1
         ? colorIndex
         : -1; $$invalidate('solution', solution), $$invalidate('size', size); return $$result; };
@@ -46079,6 +46213,18 @@ var app = (function () {
         $$invalidate('colors', colors = [...colors, `#${hex}`]);
         $$invalidate('colorIndex', colorIndex = colors.length - 1);
         $$invalidate('showColorPicker', showColorPicker = false);
+      };
+
+      const addLevel = async () => {
+        if (!title || !colors.length) {
+          return null;
+        }
+        const level = { title, colors, solution };
+        const resp = await client.mutate({
+          mutation: AddLevel,
+          variables: { level }
+        });
+        debugger;
       };
 
     	function input0_input_handler() {
@@ -46111,6 +46257,11 @@ var app = (function () {
     		return selectColor(index);
     	}
 
+    	function contextmenu_handler({ index }, e) {
+    	            e.preventDefault();
+    	            reset(index);
+    	          }
+
     	function click_handler_4() {
     		return toggleShowColorPicker();
     	}
@@ -46119,8 +46270,12 @@ var app = (function () {
     		return toggleEnabled(rowIndex, colIndex);
     	}
 
-    	function func_1({ rowIndex, colIndex }) {
+    	function contextmenu_handler_1({ rowIndex, colIndex }) {
     		return reset(rowIndex, colIndex);
+    	}
+
+    	function click_handler_5() {
+    		return addLevel();
     	}
 
     	let solution;
@@ -46140,6 +46295,7 @@ var app = (function () {
     		selectColor,
     		toggleShowColorPicker,
     		addColor,
+    		addLevel,
     		solution,
     		input0_input_handler,
     		input1_input_handler,
@@ -46147,9 +46303,11 @@ var app = (function () {
     		click_handler_1,
     		click_handler_2,
     		click_handler_3,
+    		contextmenu_handler,
     		click_handler_4,
     		func,
-    		func_1
+    		contextmenu_handler_1,
+    		click_handler_5
     	};
     }
 
@@ -46172,7 +46330,7 @@ var app = (function () {
     		c: function create() {
     			span = element("span");
     			t = text(t_value);
-    			add_location(span, file$4, 75, 2, 1387);
+    			add_location(span, file$4, 75, 2, 1374);
     		},
 
     		m: function mount(target, anchor) {
@@ -46307,7 +46465,7 @@ var app = (function () {
 
     	var griddler = new Griddler({
     		props: {
-    		level: ctx.resp.data.levels[currentLevel],
+    		levels: ctx.resp.data.levels,
     		board: ctx.resp.data.levels[currentLevel].solution.map(
                 func
               )
@@ -46327,7 +46485,7 @@ var app = (function () {
 
     		p: function update(changed, ctx) {
     			var griddler_changes = {};
-    			if (changed.levels || changed.currentLevel) griddler_changes.level = ctx.resp.data.levels[currentLevel];
+    			if (changed.levels) griddler_changes.levels = ctx.resp.data.levels;
     			if (changed.levels || changed.currentLevel) griddler_changes.board = ctx.resp.data.levels[currentLevel].solution.map(
                 func
               );

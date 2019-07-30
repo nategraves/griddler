@@ -1,11 +1,11 @@
 <script>
   import _ from 'lodash';
+
   import { client, Levels } from './gql';
-
-  const levels = async() => await client.query({ query: Levels });
-
   import Griddler from './Griddler.svelte';
   import Buildler from './Buildler.svelte';
+
+  const levels = async() => await client.query({ query: Levels });
 
   let currentLevel = 0;
 
@@ -60,7 +60,7 @@
       <Buildler />
     {:else}
       <Griddler
-        level={resp.data.levels[currentLevel]}
+        levels={resp.data.levels}
         board={
           resp.data.levels[currentLevel].solution.map(
             r => r.map(

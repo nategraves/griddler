@@ -14,10 +14,12 @@ export const Levels = gql`
   }
 `;
 
-/*
 export const AddLevel = gql`
-  mutation addLevel($) {
-    add
+  mutation addLevel($level: LevelInput!) {
+    addLevel(level: $level) {
+      title
+      colors
+      solution
+    }
   }
 `;
-*/

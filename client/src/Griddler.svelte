@@ -1,4 +1,7 @@
 <script>
+	import { slide } from 'svelte/transition';
+  import { quintOut } from 'svelte/easing';
+
   import { gql } from 'apollo-boost';
   import { onMount } from 'svelte';
   import { client } from './gql';
@@ -6,12 +9,16 @@
   import { generateTotals } from './utils.ts';
   import Block from './Block.svelte';
 
-  export let level;
+  export let levels;
   export let board;
 
+  console.log(levels);
+
   let layerIndex = 0;
+  let levelIndex = 0;
   let same = false;
 
+  $: level = levels[levelIndex];
   $: title = level.title;
   $: colors = level.colors;
   $: solution = level.solution;
@@ -31,6 +38,11 @@
       ? layerIndex
       : -1
     same = deepEqual(matrix(solution), matrix(board));
+
+    if (same && levelIndex < levels.length) {
+      same = false;
+      levelIndex += 1;
+    }
   };
 </script>
 
@@ -67,42 +79,27 @@
   }
 </style>
 
-<h1>{title}</h1>
-
-<div class="flex-row justify-center margin-bottom">
-  {#each colors as color, index}
-    <Block
-      state={1}
-      color={color}
-      onClick={() => { setLayerIndex(index); }}
-    >
-      {color}
-    </Block>
-  {/each}
-</div>
-
-<div class="flex-row justify-center">
-  <Block
-    color={color}
-    state={1}
-  />
-  {#each colTotals as total}
+<div
+  transition:slide="{{delay: 50, duration: 300, easing: quintOut }}"
+>
+  <h1>{title}</h1>
+  <div class="flex-row justify-center margin-bottom">
+    {#each colors as color, index}
+      <Block
+        state={1}
+        color={color}
+        onClick={() => { setLayerIndex(index); }}
+      >
+        {color}
+      </Block>
+    {/each}
+  </div>
+  <div class="flex-row justify-center">
     <Block
       color={color}
       state={1}
-    >
-      {total}
-    </Block>
-  {/each}
-  <Block
-    color={color}
-    state={1}
-  />
-</div>
-
-<div class="flex-row justify-center">
-  <div class="flex-col">
-    {#each rowTotals as total}
+    />
+    {#each colTotals as total}
       <Block
         color={color}
         state={1}
@@ -110,25 +107,55 @@
         {total}
       </Block>
     {/each}
+    <Block
+      color={color}
+      state={1}
+    />
   </div>
-  <div class="flex-row">
-    <section class="board">
-      {#each board as row, rowIndex}
-        {#each row as item, colIndex}
-          <Block
-            state={item}
-            row={rowIndex}
-            col={colIndex}
-            onClick={toggleEnabled}
-            onRightClick={toggleDisabled}
-            color={colors[item]}
-          />
-        {/each}
+  <div class="flex-row justify-center">
+    <div class="flex-col">
+      {#each rowTotals as total}
+        <Block
+          color={color}
+          state={1}
+        >
+          {total}
+        </Block>
       {/each}
-    </section>
+    </div>
+    <div class="flex-row">
+      <section class="board">
+        {#each board as row, rowIndex}
+          {#each row as item, colIndex}
+            <Block
+              state={item}
+              row={rowIndex}
+              col={colIndex}
+              onClick={toggleEnabled}
+              onRightClick={toggleDisabled}
+              color={colors[item]}
+            />
+          {/each}
+        {/each}
+      </section>
+    </div>
+    <div class="flex-col">
+      {#each rowTotals as total}
+        <Block
+          color={color}
+          state={1}
+        >
+          {total}
+        </Block>
+      {/each}
+    </div>
   </div>
-  <div class="flex-col">
-    {#each rowTotals as total}
+  <div class="flex-row justify-center">
+    <Block
+      color={color}
+      state={1}
+    />
+    {#each colTotals as total}
       <Block
         color={color}
         state={1}
@@ -136,28 +163,12 @@
         {total}
       </Block>
     {/each}
-  </div>
-</div>
-
-<div class="flex-row justify-center">
-  <Block
-    color={color}
-    state={1}
-  />
-  {#each colTotals as total}
     <Block
       color={color}
       state={1}
-    >
-      {total}
-    </Block>
-  {/each}
-  <Block
-    color={color}
-    state={1}
-  />
-</div>
-
-<div class="flex-row justify-center">
-  {same.toString()}
+    />
+  </div>
+  <div class="flex-row justify-center">
+    {same.toString()}
+  </div>
 </div>
