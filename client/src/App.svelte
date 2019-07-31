@@ -8,8 +8,6 @@
   const levels = async() => await client.query({ query: Levels });
 
   let currentLevel = 0;
-
-  let { title, colors } = level;
   let buildMode = true;
 </script>
 
@@ -61,13 +59,7 @@
     {:else}
       <Griddler
         levels={resp.data.levels}
-        board={
-          resp.data.levels[currentLevel].solution.map(
-            r => r.map(
-              c => -1
-            )
-          )
-        }
+        board={resp.data.levels[currentLevel].solution.map(r => r.map(c => -1))}
       />
     {/if}
 

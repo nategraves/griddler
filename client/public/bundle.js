@@ -4,7 +4,6 @@ var app = (function () {
     'use strict';
 
     function noop() { }
-    const identity = x => x;
     function assign(tar, src) {
         // @ts-ignore
         for (const k in src)
@@ -49,41 +48,6 @@ var app = (function () {
         return definition[1]
             ? assign({}, assign(ctx.$$scope.changed || {}, definition[1](fn ? fn(changed) : {})))
             : ctx.$$scope.changed || {};
-    }
-
-    const is_client = typeof window !== 'undefined';
-    let now = is_client
-        ? () => window.performance.now()
-        : () => Date.now();
-    let raf = cb => requestAnimationFrame(cb);
-
-    const tasks = new Set();
-    let running = false;
-    function run_tasks() {
-        tasks.forEach(task => {
-            if (!task[0](now())) {
-                tasks.delete(task);
-                task[1]();
-            }
-        });
-        running = tasks.size > 0;
-        if (running)
-            raf(run_tasks);
-    }
-    function loop(fn) {
-        let task;
-        if (!running) {
-            running = true;
-            raf(run_tasks);
-        }
-        return {
-            promise: new Promise(fulfil => {
-                tasks.add(task = [fn, fulfil]);
-            }),
-            abort() {
-                tasks.delete(task);
-            }
-        };
     }
 
     function append(target, node) {
@@ -136,67 +100,6 @@ var app = (function () {
     }
     function set_style(node, key, value) {
         node.style.setProperty(key, value);
-    }
-    function custom_event(type, detail) {
-        const e = document.createEvent('CustomEvent');
-        e.initCustomEvent(type, false, false, detail);
-        return e;
-    }
-
-    let stylesheet;
-    let active = 0;
-    let current_rules = {};
-    // https://github.com/darkskyapp/string-hash/blob/master/index.js
-    function hash(str) {
-        let hash = 5381;
-        let i = str.length;
-        while (i--)
-            hash = ((hash << 5) - hash) ^ str.charCodeAt(i);
-        return hash >>> 0;
-    }
-    function create_rule(node, a, b, duration, delay, ease, fn, uid = 0) {
-        const step = 16.666 / duration;
-        let keyframes = '{\n';
-        for (let p = 0; p <= 1; p += step) {
-            const t = a + (b - a) * ease(p);
-            keyframes += p * 100 + `%{${fn(t, 1 - t)}}\n`;
-        }
-        const rule = keyframes + `100% {${fn(b, 1 - b)}}\n}`;
-        const name = `__svelte_${hash(rule)}_${uid}`;
-        if (!current_rules[name]) {
-            if (!stylesheet) {
-                const style = element('style');
-                document.head.appendChild(style);
-                stylesheet = style.sheet;
-            }
-            current_rules[name] = true;
-            stylesheet.insertRule(`@keyframes ${name} ${rule}`, stylesheet.cssRules.length);
-        }
-        const animation = node.style.animation || '';
-        node.style.animation = `${animation ? `${animation}, ` : ``}${name} ${duration}ms linear ${delay}ms 1 both`;
-        active += 1;
-        return name;
-    }
-    function delete_rule(node, name) {
-        node.style.animation = (node.style.animation || '')
-            .split(', ')
-            .filter(name
-            ? anim => anim.indexOf(name) < 0 // remove specific animation
-            : anim => anim.indexOf('__svelte') === -1 // remove all Svelte animations
-        )
-            .join(', ');
-        if (name && !--active)
-            clear_rules();
-    }
-    function clear_rules() {
-        raf(() => {
-            if (active)
-                return;
-            let i = stylesheet.cssRules.length;
-            while (i--)
-                stylesheet.deleteRule(i);
-            current_rules = {};
-        });
     }
 
     let current_component;
@@ -258,20 +161,6 @@ var app = (function () {
             $$.after_update.forEach(add_render_callback);
         }
     }
-
-    let promise;
-    function wait() {
-        if (!promise) {
-            promise = Promise.resolve();
-            promise.then(() => {
-                promise = null;
-            });
-        }
-        return promise;
-    }
-    function dispatch(node, direction, kind) {
-        node.dispatchEvent(custom_event(`${direction ? 'intro' : 'outro'}${kind}`));
-    }
     const outroing = new Set();
     let outros;
     function group_outros() {
@@ -308,111 +197,6 @@ var app = (function () {
             });
             block.o(local);
         }
-    }
-    function create_bidirectional_transition(node, fn, params, intro) {
-        let config = fn(node, params);
-        let t = intro ? 0 : 1;
-        let running_program = null;
-        let pending_program = null;
-        let animation_name = null;
-        function clear_animation() {
-            if (animation_name)
-                delete_rule(node, animation_name);
-        }
-        function init(program, duration) {
-            const d = program.b - t;
-            duration *= Math.abs(d);
-            return {
-                a: t,
-                b: program.b,
-                d,
-                duration,
-                start: program.start,
-                end: program.start + duration,
-                group: program.group
-            };
-        }
-        function go(b) {
-            const { delay = 0, duration = 300, easing = identity, tick = noop, css } = config;
-            const program = {
-                start: now() + delay,
-                b
-            };
-            if (!b) {
-                // @ts-ignore todo: improve typings
-                program.group = outros;
-                outros.r += 1;
-            }
-            if (running_program) {
-                pending_program = program;
-            }
-            else {
-                // if this is an intro, and there's a delay, we need to do
-                // an initial tick and/or apply CSS animation immediately
-                if (css) {
-                    clear_animation();
-                    animation_name = create_rule(node, t, b, duration, delay, easing, css);
-                }
-                if (b)
-                    tick(0, 1);
-                running_program = init(program, duration);
-                add_render_callback(() => dispatch(node, b, 'start'));
-                loop(now => {
-                    if (pending_program && now > pending_program.start) {
-                        running_program = init(pending_program, duration);
-                        pending_program = null;
-                        dispatch(node, running_program.b, 'start');
-                        if (css) {
-                            clear_animation();
-                            animation_name = create_rule(node, t, running_program.b, running_program.duration, 0, easing, config.css);
-                        }
-                    }
-                    if (running_program) {
-                        if (now >= running_program.end) {
-                            tick(t = running_program.b, 1 - t);
-                            dispatch(node, running_program.b, 'end');
-                            if (!pending_program) {
-                                // we're done
-                                if (running_program.b) {
-                                    // intro — we can tidy up immediately
-                                    clear_animation();
-                                }
-                                else {
-                                    // outro — needs to be coordinated
-                                    if (!--running_program.group.r)
-                                        run_all(running_program.group.c);
-                                }
-                            }
-                            running_program = null;
-                        }
-                        else if (now >= running_program.start) {
-                            const p = now - running_program.start;
-                            t = running_program.a + running_program.d * easing(p / running_program.duration);
-                            tick(t, 1 - t);
-                        }
-                    }
-                    return !!(running_program || pending_program);
-                });
-            }
-        }
-        return {
-            run(b) {
-                if (is_function(config)) {
-                    wait().then(() => {
-                        // @ts-ignore
-                        config = config();
-                        go(b);
-                    });
-                }
-                else {
-                    go(b);
-                }
-            },
-            end() {
-                clear_animation();
-                running_program = pending_program = null;
-            }
-        };
     }
 
     function handle_promise(promise, info) {
@@ -27590,40 +27374,6 @@ var app = (function () {
   }
 `;
 
-    function cubicOut(t) {
-        const f = t - 1.0;
-        return f * f * f + 1.0;
-    }
-    function quintOut(t) {
-        return --t * t * t * t * t + 1;
-    }
-
-    function slide(node, { delay = 0, duration = 400, easing = cubicOut }) {
-        const style = getComputedStyle(node);
-        const opacity = +style.opacity;
-        const height = parseFloat(style.height);
-        const padding_top = parseFloat(style.paddingTop);
-        const padding_bottom = parseFloat(style.paddingBottom);
-        const margin_top = parseFloat(style.marginTop);
-        const margin_bottom = parseFloat(style.marginBottom);
-        const border_top_width = parseFloat(style.borderTopWidth);
-        const border_bottom_width = parseFloat(style.borderBottomWidth);
-        return {
-            delay,
-            duration,
-            easing,
-            css: t => `overflow: hidden;` +
-                `opacity: ${Math.min(t * 20, 1) * opacity};` +
-                `height: ${t * height}px;` +
-                `padding-top: ${t * padding_top}px;` +
-                `padding-bottom: ${t * padding_bottom}px;` +
-                `margin-top: ${t * margin_top}px;` +
-                `margin-bottom: ${t * margin_bottom}px;` +
-                `border-top-width: ${t * border_top_width}px;` +
-                `border-bottom-width: ${t * border_bottom_width}px;`
-        };
-    }
-
     const DEFAULT_CONFIG = {
       // minimum relative difference between two compared values,
       // used by all comparison functions
@@ -42186,7 +41936,7 @@ var app = (function () {
     	return child_ctx;
     }
 
-    // (88:6) <Block         state={1}         color={color}         onClick={() => { setLayerIndex(index); }}       >
+    // (86:6) <Block         state={1}         color={color}         onClick={() => { setLayerIndex(index); }}       >
     function create_default_slot_4(ctx) {
     	var t0_value = ctx.color, t0, t1;
 
@@ -42216,7 +41966,7 @@ var app = (function () {
     	};
     }
 
-    // (87:4) {#each colors as color, index}
+    // (85:4) {#each colors as color, index}
     function create_each_block_6(ctx) {
     	var current;
 
@@ -42272,7 +42022,7 @@ var app = (function () {
     	};
     }
 
-    // (103:6) <Block         color={color}         state={1}       >
+    // (101:6) <Block         color={color}         state={1}       >
     function create_default_slot_3(ctx) {
     	var t_value = ctx.total, t;
 
@@ -42299,7 +42049,7 @@ var app = (function () {
     	};
     }
 
-    // (102:4) {#each colTotals as total}
+    // (100:4) {#each colTotals as total}
     function create_each_block_5(ctx) {
     	var current;
 
@@ -42348,7 +42098,7 @@ var app = (function () {
     	};
     }
 
-    // (118:8) <Block           color={color}           state={1}         >
+    // (116:8) <Block           color={color}           state={1}         >
     function create_default_slot_2(ctx) {
     	var t0_value = ctx.total, t0, t1;
 
@@ -42378,7 +42128,7 @@ var app = (function () {
     	};
     }
 
-    // (117:6) {#each rowTotals as total}
+    // (115:6) {#each rowTotals as total}
     function create_each_block_4(ctx) {
     	var current;
 
@@ -42427,7 +42177,7 @@ var app = (function () {
     	};
     }
 
-    // (129:10) {#each row as item, colIndex}
+    // (127:10) {#each row as item, colIndex}
     function create_each_block_3(ctx) {
     	var current;
 
@@ -42480,7 +42230,7 @@ var app = (function () {
     	};
     }
 
-    // (128:8) {#each board as row, rowIndex}
+    // (126:8) {#each board as row, rowIndex}
     function create_each_block_2(ctx) {
     	var each_1_anchor, current;
 
@@ -42562,7 +42312,7 @@ var app = (function () {
     	};
     }
 
-    // (144:8) <Block           color={color}           state={1}         >
+    // (142:8) <Block           color={color}           state={1}         >
     function create_default_slot_1(ctx) {
     	var t0_value = ctx.total, t0, t1;
 
@@ -42592,7 +42342,7 @@ var app = (function () {
     	};
     }
 
-    // (143:6) {#each rowTotals as total}
+    // (141:6) {#each rowTotals as total}
     function create_each_block_1(ctx) {
     	var current;
 
@@ -42641,7 +42391,7 @@ var app = (function () {
     	};
     }
 
-    // (159:6) <Block         color={color}         state={1}       >
+    // (157:6) <Block         color={color}         state={1}       >
     function create_default_slot(ctx) {
     	var t_value = ctx.total, t;
 
@@ -42668,7 +42418,7 @@ var app = (function () {
     	};
     }
 
-    // (158:4) {#each colTotals as total}
+    // (156:4) {#each colTotals as total}
     function create_each_block(ctx) {
     	var current;
 
@@ -42718,7 +42468,7 @@ var app = (function () {
     }
 
     function create_fragment$1(ctx) {
-    	var div8, h1, t0, t1, div0, t2, div1, t3, t4, t5, div5, div2, t6, div3, section, t7, div4, t8, div6, t9, t10, t11, div7, t12_value = ctx.same.toString(), t12, div8_transition, current;
+    	var div8, h1, t0, t1, div0, t2, div1, t3, t4, t5, div5, div2, t6, div3, section, t7, div4, t8, div6, t9, t10, t11, div7, t12_value = ctx.same.toString(), t12, current;
 
     	var each_value_6 = ctx.colors;
 
@@ -42885,25 +42635,25 @@ var app = (function () {
     			div7 = element("div");
     			t12 = text(t12_value);
     			attr(h1, "class", "svelte-lqfnwg");
-    			add_location(h1, file$1, 84, 2, 1699);
+    			add_location(h1, file$1, 82, 2, 1629);
     			attr(div0, "class", "flex-row justify-center margin-bottom svelte-lqfnwg");
-    			add_location(div0, file$1, 85, 2, 1718);
+    			add_location(div0, file$1, 83, 2, 1648);
     			attr(div1, "class", "flex-row justify-center svelte-lqfnwg");
-    			add_location(div1, file$1, 96, 2, 1970);
+    			add_location(div1, file$1, 94, 2, 1900);
     			attr(div2, "class", "flex-col svelte-lqfnwg");
-    			add_location(div2, file$1, 115, 4, 2304);
+    			add_location(div2, file$1, 113, 4, 2234);
     			attr(section, "class", "board svelte-lqfnwg");
-    			add_location(section, file$1, 126, 6, 2522);
+    			add_location(section, file$1, 124, 6, 2452);
     			attr(div3, "class", "flex-row svelte-lqfnwg");
-    			add_location(div3, file$1, 125, 4, 2493);
+    			add_location(div3, file$1, 123, 4, 2423);
     			attr(div4, "class", "flex-col svelte-lqfnwg");
-    			add_location(div4, file$1, 141, 4, 2927);
+    			add_location(div4, file$1, 139, 4, 2857);
     			attr(div5, "class", "flex-row justify-center svelte-lqfnwg");
-    			add_location(div5, file$1, 114, 2, 2262);
+    			add_location(div5, file$1, 112, 2, 2192);
     			attr(div6, "class", "flex-row justify-center svelte-lqfnwg");
-    			add_location(div6, file$1, 152, 2, 3123);
+    			add_location(div6, file$1, 150, 2, 3053);
     			attr(div7, "class", "flex-row justify-center svelte-lqfnwg");
-    			add_location(div7, file$1, 170, 2, 3415);
+    			add_location(div7, file$1, 168, 2, 3345);
     			add_location(div8, file$1, 81, 0, 1621);
     		},
 
@@ -43153,11 +42903,6 @@ var app = (function () {
 
     			transition_in(block3.$$.fragment, local);
 
-    			add_render_callback(() => {
-    				if (!div8_transition) div8_transition = create_bidirectional_transition(div8, slide, {delay: 50, duration: 300, easing: quintOut }, true);
-    				div8_transition.run(1);
-    			});
-
     			current = true;
     		},
 
@@ -43187,10 +42932,6 @@ var app = (function () {
     			for (let i = 0; i < each_blocks.length; i += 1) transition_out(each_blocks[i]);
 
     			transition_out(block3.$$.fragment, local);
-
-    			if (!div8_transition) div8_transition = create_bidirectional_transition(div8, slide, {delay: 50, duration: 300, easing: quintOut }, false);
-    			div8_transition.run(0);
-
     			current = false;
     		},
 
@@ -43218,10 +42959,6 @@ var app = (function () {
     			destroy_each(each_blocks, detaching);
 
     			destroy_component(block3, );
-
-    			if (detaching) {
-    				if (div8_transition) div8_transition.end();
-    			}
     		}
     	};
     }
@@ -45589,7 +45326,7 @@ var app = (function () {
     	return child_ctx;
     }
 
-    // (166:2) {#if showColorPicker}
+    // (170:2) {#if showColorPicker}
     function create_if_block_1(ctx) {
     	var div, section, dispose;
 
@@ -45610,9 +45347,9 @@ var app = (function () {
     				each_blocks[i].c();
     			}
     			attr(section, "class", "color-selector svelte-o239yw");
-    			add_location(section, file$3, 170, 6, 3454);
+    			add_location(section, file$3, 174, 6, 3494);
     			attr(div, "class", "color-selector-container svelte-o239yw");
-    			add_location(div, file$3, 166, 4, 3351);
+    			add_location(div, file$3, 170, 4, 3391);
 
     			dispose = [
     				listen(section, "click", ctx.click_handler_1),
@@ -45664,7 +45401,7 @@ var app = (function () {
     	};
     }
 
-    // (175:8) {#each hexColors as color}
+    // (179:8) {#each hexColors as color}
     function create_each_block_3$1(ctx) {
     	var div, dispose;
 
@@ -45677,7 +45414,7 @@ var app = (function () {
     			div = element("div");
     			attr(div, "class", "color-option svelte-o239yw");
     			set_style(div, "background", "#" + ctx.color);
-    			add_location(div, file$3, 175, 10, 3596);
+    			add_location(div, file$3, 179, 10, 3636);
     			dispose = listen(div, "click", click_handler);
     		},
 
@@ -45702,7 +45439,7 @@ var app = (function () {
     	};
     }
 
-    // (188:6) {#if !colors.length}
+    // (192:6) {#if !colors.length}
     function create_if_block(ctx) {
     	var span;
 
@@ -45710,7 +45447,7 @@ var app = (function () {
     		c: function create() {
     			span = element("span");
     			span.textContent = "No colors added";
-    			add_location(span, file$3, 188, 8, 3859);
+    			add_location(span, file$3, 192, 8, 3899);
     		},
 
     		m: function mount(target, anchor) {
@@ -45725,7 +45462,7 @@ var app = (function () {
     	};
     }
 
-    // (191:6) {#each colors as color, index}
+    // (195:6) {#each colors as color, index}
     function create_each_block_2$1(ctx) {
     	var div, t_value = ctx.color, t, div_class_value, dispose;
 
@@ -45743,7 +45480,7 @@ var app = (function () {
     			t = text(t_value);
     			attr(div, "class", div_class_value = "color " + (ctx.index === ctx.colorIndex && 'active') + " svelte-o239yw");
     			set_style(div, "background", ctx.color);
-    			add_location(div, file$3, 191, 8, 3945);
+    			add_location(div, file$3, 195, 8, 3985);
 
     			dispose = [
     				listen(div, "click", click_handler_3),
@@ -45781,7 +45518,7 @@ var app = (function () {
     	};
     }
 
-    // (215:8) {#each row as col, colIndex}
+    // (219:8) {#each row as col, colIndex}
     function create_each_block_1$1(ctx) {
     	var current;
 
@@ -45843,7 +45580,7 @@ var app = (function () {
     	};
     }
 
-    // (214:6) {#each solution as row, rowIndex}
+    // (218:6) {#each solution as row, rowIndex}
     function create_each_block$1(ctx) {
     	var each_1_anchor, current;
 
@@ -45926,7 +45663,7 @@ var app = (function () {
     }
 
     function create_fragment$3(ctx) {
-    	var div5, section0, div0, input0, t0, input1, t1, t2, section1, div2, t3, t4, div1, t6, section2, div3, t7, div4, button, div5_transition, current, dispose;
+    	var div5, section0, div0, input0, t0, input1, t1, input2, t2, t3, section1, div2, t4, t5, div1, t7, section2, div3, t8, div4, button, current, dispose;
 
     	var if_block0 = (ctx.showColorPicker) && create_if_block_1(ctx);
 
@@ -45961,21 +45698,23 @@ var app = (function () {
     			t0 = space();
     			input1 = element("input");
     			t1 = space();
-    			if (if_block0) if_block0.c();
+    			input2 = element("input");
     			t2 = space();
+    			if (if_block0) if_block0.c();
+    			t3 = space();
     			section1 = element("section");
     			div2 = element("div");
     			if (if_block1) if_block1.c();
-    			t3 = space();
+    			t4 = space();
 
     			for (var i = 0; i < each_blocks_1.length; i += 1) {
     				each_blocks_1[i].c();
     			}
 
-    			t4 = space();
+    			t5 = space();
     			div1 = element("div");
     			div1.textContent = "+";
-    			t6 = space();
+    			t7 = space();
     			section2 = element("section");
     			div3 = element("div");
 
@@ -45983,42 +45722,47 @@ var app = (function () {
     				each_blocks[i].c();
     			}
 
-    			t7 = space();
+    			t8 = space();
     			div4 = element("div");
     			button = element("button");
     			button.textContent = "Save";
     			attr(input0, "type", "text");
     			attr(input0, "placeholder", "Griddler Title");
-    			add_location(input0, file$3, 152, 6, 3112);
+    			add_location(input0, file$3, 151, 6, 3063);
     			attr(input1, "type", "number");
     			attr(input1, "min", "0");
     			attr(input1, "class", "svelte-o239yw");
-    			add_location(input1, file$3, 157, 6, 3218);
-    			add_location(div0, file$3, 151, 4, 3100);
+    			add_location(input1, file$3, 156, 6, 3169);
+    			attr(input2, "type", "number");
+    			attr(input2, "min", "0");
+    			attr(input2, "class", "svelte-o239yw");
+    			add_location(input2, file$3, 161, 6, 3256);
+    			add_location(div0, file$3, 150, 4, 3051);
     			attr(section0, "class", "svelte-o239yw");
-    			add_location(section0, file$3, 150, 2, 3086);
+    			add_location(section0, file$3, 149, 2, 3037);
     			attr(div1, "class", "color add svelte-o239yw");
-    			add_location(div1, file$3, 203, 6, 4261);
+    			add_location(div1, file$3, 207, 6, 4301);
     			attr(div2, "class", "colors svelte-o239yw");
-    			add_location(div2, file$3, 186, 4, 3803);
+    			add_location(div2, file$3, 190, 4, 3843);
     			attr(section1, "class", "svelte-o239yw");
-    			add_location(section1, file$3, 185, 2, 3789);
+    			add_location(section1, file$3, 189, 2, 3829);
     			attr(div3, "class", "board svelte-o239yw");
-    			set_style(div3, "grid-template-columns", "repeat(" + ctx.size + ", 1fr)");
-    			set_style(div3, "grid-template-rows", "repeat(" + ctx.size + ", 1fr)");
-    			add_location(div3, file$3, 209, 4, 4389);
+    			set_style(div3, "grid-template-columns", "repeat(" + ctx.width + ", 1fr)");
+    			set_style(div3, "grid-template-rows", "repeat(" + ctx.height + ", 1fr)");
+    			add_location(div3, file$3, 213, 4, 4429);
     			attr(section2, "class", "svelte-o239yw");
-    			add_location(section2, file$3, 208, 2, 4375);
-    			add_location(button, file$3, 230, 4, 5034);
+    			add_location(section2, file$3, 212, 2, 4415);
+    			add_location(button, file$3, 234, 4, 5077);
     			set_style(div4, "display", "flex");
     			set_style(div4, "justify-content", "center");
     			set_style(div4, "margin-top", "2rem");
-    			add_location(div4, file$3, 229, 2, 4958);
-    			add_location(div5, file$3, 147, 0, 3007);
+    			add_location(div4, file$3, 233, 2, 5001);
+    			add_location(div5, file$3, 148, 0, 3029);
 
     			dispose = [
     				listen(input0, "input", ctx.input0_input_handler),
     				listen(input1, "input", ctx.input1_input_handler),
+    				listen(input2, "input", ctx.input2_input_handler),
     				listen(div1, "click", ctx.click_handler_4),
     				listen(button, "click", ctx.click_handler_5)
     			];
@@ -46039,23 +45783,28 @@ var app = (function () {
     			append(div0, t0);
     			append(div0, input1);
 
-    			input1.value = ctx.size;
+    			input1.value = ctx.width;
 
-    			append(div5, t1);
-    			if (if_block0) if_block0.m(div5, null);
+    			append(div0, t1);
+    			append(div0, input2);
+
+    			input2.value = ctx.height;
+
     			append(div5, t2);
+    			if (if_block0) if_block0.m(div5, null);
+    			append(div5, t3);
     			append(div5, section1);
     			append(section1, div2);
     			if (if_block1) if_block1.m(div2, null);
-    			append(div2, t3);
+    			append(div2, t4);
 
     			for (var i = 0; i < each_blocks_1.length; i += 1) {
     				each_blocks_1[i].m(div2, null);
     			}
 
-    			append(div2, t4);
+    			append(div2, t5);
     			append(div2, div1);
-    			append(div5, t6);
+    			append(div5, t7);
     			append(div5, section2);
     			append(section2, div3);
 
@@ -46063,7 +45812,7 @@ var app = (function () {
     				each_blocks[i].m(div3, null);
     			}
 
-    			append(div5, t7);
+    			append(div5, t8);
     			append(div5, div4);
     			append(div4, button);
     			current = true;
@@ -46071,7 +45820,8 @@ var app = (function () {
 
     		p: function update(changed, ctx) {
     			if (changed.title && (input0.value !== ctx.title)) input0.value = ctx.title;
-    			if (changed.size) input1.value = ctx.size;
+    			if (changed.width) input1.value = ctx.width;
+    			if (changed.height) input2.value = ctx.height;
 
     			if (ctx.showColorPicker) {
     				if (if_block0) {
@@ -46079,7 +45829,7 @@ var app = (function () {
     				} else {
     					if_block0 = create_if_block_1(ctx);
     					if_block0.c();
-    					if_block0.m(div5, t2);
+    					if_block0.m(div5, t3);
     				}
     			} else if (if_block0) {
     				if_block0.d(1);
@@ -46090,7 +45840,7 @@ var app = (function () {
     				if (!if_block1) {
     					if_block1 = create_if_block();
     					if_block1.c();
-    					if_block1.m(div2, t3);
+    					if_block1.m(div2, t4);
     				}
     			} else if (if_block1) {
     				if_block1.d(1);
@@ -46108,7 +45858,7 @@ var app = (function () {
     					} else {
     						each_blocks_1[i] = create_each_block_2$1(child_ctx);
     						each_blocks_1[i].c();
-    						each_blocks_1[i].m(div2, t4);
+    						each_blocks_1[i].m(div2, t5);
     					}
     				}
 
@@ -46140,9 +45890,12 @@ var app = (function () {
     				check_outros();
     			}
 
-    			if (!current || changed.size) {
-    				set_style(div3, "grid-template-columns", "repeat(" + ctx.size + ", 1fr)");
-    				set_style(div3, "grid-template-rows", "repeat(" + ctx.size + ", 1fr)");
+    			if (!current || changed.width) {
+    				set_style(div3, "grid-template-columns", "repeat(" + ctx.width + ", 1fr)");
+    			}
+
+    			if (!current || changed.height) {
+    				set_style(div3, "grid-template-rows", "repeat(" + ctx.height + ", 1fr)");
     			}
     		},
 
@@ -46150,20 +45903,12 @@ var app = (function () {
     			if (current) return;
     			for (var i = 0; i < each_value.length; i += 1) transition_in(each_blocks[i]);
 
-    			add_render_callback(() => {
-    				if (!div5_transition) div5_transition = create_bidirectional_transition(div5, slide, {delay: 50, duration: 300, easing: quintOut }, true);
-    				div5_transition.run(1);
-    			});
-
     			current = true;
     		},
 
     		o: function outro(local) {
     			each_blocks = each_blocks.filter(Boolean);
     			for (let i = 0; i < each_blocks.length; i += 1) transition_out(each_blocks[i]);
-
-    			if (!div5_transition) div5_transition = create_bidirectional_transition(div5, slide, {delay: 50, duration: 300, easing: quintOut }, false);
-    			div5_transition.run(0);
 
     			current = false;
     		},
@@ -46180,10 +45925,6 @@ var app = (function () {
 
     			destroy_each(each_blocks, detaching);
 
-    			if (detaching) {
-    				if (div5_transition) div5_transition.end();
-    			}
-
     			run_all(dispose);
     		}
     	};
@@ -46193,18 +45934,19 @@ var app = (function () {
     	
 
       let title = '';
-      let size = 4;
+      let width = 4;
+      let height = 4;
       let colors = [];
       let colorIndex = -1;
       let showColorPicker;
 
       const reset = (row, col) => {
         console.log(`Resetting ${row} ${col}`);
-        solution[row][col] = -1; $$invalidate('solution', solution), $$invalidate('size', size);
+        solution[row][col] = -1; $$invalidate('solution', solution), $$invalidate('width', width), $$invalidate('height', height);
       };
       const toggleEnabled = (row, col) => { const $$result = solution[row][col] = solution[row][col] === -1
         ? colorIndex
-        : -1; $$invalidate('solution', solution), $$invalidate('size', size); return $$result; };
+        : -1; $$invalidate('solution', solution), $$invalidate('width', width), $$invalidate('height', height); return $$result; };
 
       const selectColor = index => { const $$result = colorIndex = index; $$invalidate('colorIndex', colorIndex); return $$result; };
       const toggleShowColorPicker = () => { const $$result = showColorPicker = true; $$invalidate('showColorPicker', showColorPicker); return $$result; };
@@ -46233,8 +45975,13 @@ var app = (function () {
     	}
 
     	function input1_input_handler() {
-    		size = to_number(this.value);
-    		$$invalidate('size', size);
+    		width = to_number(this.value);
+    		$$invalidate('width', width);
+    	}
+
+    	function input2_input_handler() {
+    		height = to_number(this.value);
+    		$$invalidate('height', height);
     	}
 
     	function click_handler({ color }) {
@@ -46280,13 +46027,14 @@ var app = (function () {
 
     	let solution;
 
-    	$$self.$$.update = ($$dirty = { size: 1 }) => {
-    		if ($$dirty.size) { $$invalidate('solution', solution = Array(size).fill().map(() => Array(size).fill(-1))); }
+    	$$self.$$.update = ($$dirty = { width: 1, height: 1 }) => {
+    		if ($$dirty.width || $$dirty.height) { $$invalidate('solution', solution = Array(width).fill().map(() => Array(height).fill(-1))); }
     	};
 
     	return {
     		title,
-    		size,
+    		width,
+    		height,
     		colors,
     		colorIndex,
     		showColorPicker,
@@ -46299,6 +46047,7 @@ var app = (function () {
     		solution,
     		input0_input_handler,
     		input1_input_handler,
+    		input2_input_handler,
     		click_handler,
     		click_handler_1,
     		click_handler_2,
@@ -46322,7 +46071,7 @@ var app = (function () {
 
     const file$4 = "src/App.svelte";
 
-    // (75:0) {:catch error}
+    // (67:0) {:catch error}
     function create_catch_block(ctx) {
     	var span, t_value = ctx.error, t;
 
@@ -46330,7 +46079,7 @@ var app = (function () {
     		c: function create() {
     			span = element("span");
     			t = text(t_value);
-    			add_location(span, file$4, 75, 2, 1374);
+    			add_location(span, file$4, 67, 2, 1268);
     		},
 
     		m: function mount(target, anchor) {
@@ -46350,7 +46099,7 @@ var app = (function () {
     	};
     }
 
-    // (42:0) {:then resp}
+    // (40:0) {:then resp}
     function create_then_block(ctx) {
     	var section, div, button0, t0, button0_class_value, t1, button1, t2, button1_class_value, t3, current_block_type_index, if_block, current, dispose;
 
@@ -46381,12 +46130,12 @@ var app = (function () {
     			t3 = space();
     			if_block.c();
     			attr(button0, "class", button0_class_value = "" + (!ctx.buildMode ? 'active' : '') + " svelte-83t67g");
-    			add_location(button0, file$4, 44, 6, 786);
+    			add_location(button0, file$4, 42, 6, 752);
     			attr(button1, "class", button1_class_value = "" + (ctx.buildMode ? 'active' : '') + " svelte-83t67g");
-    			add_location(button1, file$4, 50, 6, 925);
+    			add_location(button1, file$4, 48, 6, 891);
     			attr(div, "class", "flex svelte-83t67g");
-    			add_location(div, file$4, 43, 4, 761);
-    			add_location(section, file$4, 42, 2, 747);
+    			add_location(div, file$4, 41, 4, 727);
+    			add_location(section, file$4, 40, 2, 713);
 
     			dispose = [
     				listen(button0, "click", ctx.click_handler),
@@ -46459,16 +46208,14 @@ var app = (function () {
     	};
     }
 
-    // (61:4) {:else}
+    // (59:4) {:else}
     function create_else_block(ctx) {
     	var current;
 
     	var griddler = new Griddler({
     		props: {
     		levels: ctx.resp.data.levels,
-    		board: ctx.resp.data.levels[currentLevel].solution.map(
-                func
-              )
+    		board: ctx.resp.data.levels[currentLevel].solution.map(func)
     	},
     		$$inline: true
     	});
@@ -46486,9 +46233,7 @@ var app = (function () {
     		p: function update(changed, ctx) {
     			var griddler_changes = {};
     			if (changed.levels) griddler_changes.levels = ctx.resp.data.levels;
-    			if (changed.levels || changed.currentLevel) griddler_changes.board = ctx.resp.data.levels[currentLevel].solution.map(
-                func
-              );
+    			if (changed.levels || changed.currentLevel) griddler_changes.board = ctx.resp.data.levels[currentLevel].solution.map(func);
     			griddler.$set(griddler_changes);
     		},
 
@@ -46510,7 +46255,7 @@ var app = (function () {
     	};
     }
 
-    // (59:4) {#if buildMode }
+    // (57:4) {#if buildMode }
     function create_if_block$1(ctx) {
     	var current;
 
@@ -46546,7 +46291,7 @@ var app = (function () {
     	};
     }
 
-    // (40:17)    <span>Loading</span> {:then resp}
+    // (38:17)    <span>Loading</span> {:then resp}
     function create_pending_block(ctx) {
     	var span;
 
@@ -46554,7 +46299,7 @@ var app = (function () {
     		c: function create() {
     			span = element("span");
     			span.textContent = "Loading";
-    			add_location(span, file$4, 40, 2, 711);
+    			add_location(span, file$4, 38, 2, 677);
     		},
 
     		m: function mount(target, anchor) {
@@ -46650,9 +46395,7 @@ var app = (function () {
     let currentLevel = 0;
 
     function func(r) {
-    	return r.map(
-                  c => -1
-                );
+    	return r.map(c => -1);
     }
 
     function instance$4($$self, $$props, $$invalidate) {

@@ -79,9 +79,7 @@
   }
 </style>
 
-<div
-  transition:slide="{{delay: 50, duration: 300, easing: quintOut }}"
->
+<div>
   <h1>{title}</h1>
   <div class="flex-row justify-center margin-bottom">
     {#each colors as color, index}

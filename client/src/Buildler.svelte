@@ -11,11 +11,12 @@
   const MAX_SIZE = 8;
 
   let title = '';
-  let size = 4;
+  let width = 4;
+  let height = 4;
   let colors = [];
   let colorIndex = -1;
   let showColorPicker;
-  $: solution = Array(size).fill().map(() => Array(size).fill(-1));
+  $: solution = Array(width).fill().map(() => Array(height).fill(-1));
 
   const reset = (row, col) => {
     console.log(`Resetting ${row} ${col}`);
@@ -145,9 +146,7 @@
   }
 </style>
 
-<div 
-  transition:slide="{{delay: 50, duration: 300, easing: quintOut }}"
->
+<div>
   <section>
     <div>
       <input
@@ -156,7 +155,12 @@
         placeholder="Griddler Title"
       />
       <input
-        bind:value={size}
+        bind:value={width}
+        type="number"
+        min="0"
+      />
+      <input
+        bind:value={height}
         type="number"
         min="0"
       />
@@ -209,7 +213,7 @@
   <section>
     <div
       class="board"
-      style="grid-template-columns: repeat({size}, 1fr); grid-template-rows: repeat({size}, 1fr);"
+      style="grid-template-columns: repeat({width}, 1fr); grid-template-rows: repeat({height}, 1fr);"
     >
       {#each solution as row, rowIndex}
         {#each row as col, colIndex}
