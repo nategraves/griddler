@@ -41,11 +41,8 @@ const rootValue = {
   ),
   addLevel: (data) => {
     const { level } = data;
-    console.log(`Level: ${level}`);
     const levels = Object.values(JSON.parse(fs.readFileSync(LEVELS_PATH, ENC)));
-    console.log(`Levels Before: ${levels}`);
     levels.push(level);
-    console.log(`Levels After: ${levels}`);
     fs.writeFileSync(LEVELS_PATH, JSON.stringify(levels), ENC);
 
     return levels;

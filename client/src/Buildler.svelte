@@ -8,20 +8,26 @@
   import BuildlerBlock from './BuildlerBlock.svelte';
 
   const MIN_SIZE = 2;
-  const MAX_SIZE = 8;
+  const MAX_SIZE = 24;
 
   let title = '';
-  let width = 4;
-  let height = 4;
+  let width = 8;
+  let height = 8;
   let colors = [];
   let colorIndex = -1;
   let showColorPicker;
-  $: solution = Array(width).fill().map(() => Array(height).fill(-1));
+  $: solution = resetSolution(width, height);
+
+  const resetSolution = (width, height) => {
+    const _solution = Array(width).fill().map(() => Array(height).fill(-1))
+    console.log(_solution);
+    return _solution;;
+  }
 
   const reset = (row, col) => {
-    console.log(`Resetting ${row} ${col}`);
     solution[row][col] = -1
   };
+
   const toggleEnabled = (row, col) => solution[row][col] = solution[row][col] === -1
     ? colorIndex
     : -1;
@@ -156,13 +162,15 @@
       />
       <input
         bind:value={width}
-        type="number"
-        min="0"
+        type=number
+        min=0
+        max={MAX_SIZE}
       />
       <input
         bind:value={height}
-        type="number"
-        min="0"
+        type=number
+        min=0
+        max={MAX_SIZE}
       />
     </div>
   </section>

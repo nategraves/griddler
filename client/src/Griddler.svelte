@@ -1,4 +1,5 @@
 <script>
+  import _ from 'lodash';
 	import { slide } from 'svelte/transition';
   import { quintOut } from 'svelte/easing';
 
@@ -9,21 +10,36 @@
   import { generateTotals } from './utils.ts';
   import Block from './Block.svelte';
 
+  export let props = {};
   export let levels;
-  export let board;
+  export let boards;
 
-  console.log(levels);
+  console.log(`${_.isEmpty(props)}`);
 
-  let layerIndex = 0;
   let levelIndex = 0;
+  let layerIndex = 0;
   let same = false;
 
   $: level = levels[levelIndex];
   $: title = level.title;
   $: colors = level.colors;
   $: solution = level.solution;
+  $: board = boards[levelIndex];
   $: color = colors[layerIndex];
   $: [rowTotals, colTotals] = generateTotals(colors, solution)[layerIndex];
+
+  const resetBoard = (solution) => {
+    const width = solution[0].length;
+    const height = solution.length;
+    const _board = Array(width).fill().map(() => Array(height).fill(-1));
+    return _board;
+  }
+
+  const changeLevel = (d) => {
+    same = false;
+    levelIndex += d;
+    board = resetBoard(solution);
+  }
 
   const setLayerIndex = index => { layerIndex = index; };
 
@@ -40,8 +56,7 @@
     same = deepEqual(matrix(solution), matrix(board));
 
     if (same && levelIndex < levels.length) {
-      same = false;
-      levelIndex += 1;
+
     }
   };
 </script>
@@ -79,8 +94,13 @@
   }
 </style>
 
+
+
 <div>
   <h1>{title}</h1>
+  <div>
+    {_.isEmpty(props).toString()}
+  </div>
   <div class="flex-row justify-center margin-bottom">
     {#each colors as color, index}
       <Block

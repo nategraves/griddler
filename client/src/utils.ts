@@ -77,8 +77,6 @@ let generateTotals = (
     layerTotals.push([ row, col ]);
   }
 
-  console.log(layerTotals);
-
   return layerTotals;
 }
 

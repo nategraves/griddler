@@ -1,5 +1,6 @@
 <script>
   import _ from 'lodash';
+  import { Router, Route } from 'svero';
 
   import { client, Levels } from './gql';
   import Griddler from './Griddler.svelte';
@@ -39,30 +40,17 @@
   <span>Loading</span>
 {:then resp}
   <section>
-    <div class="flex">
-      <button
-        on:click={() => buildMode = false}
-        class="{!buildMode ? 'active' : ''}"
-      >
-        Play
-      </button>
-      <button
-        on:click={() => buildMode = true}
-        class="{buildMode ? 'active' : ''}"
-      >
-        Build
-      </button>
-    </div>
-
-    {#if buildMode }
-      <Buildler />
-    {:else}
-      <Griddler
-        levels={resp.data.levels}
-        board={resp.data.levels[currentLevel].solution.map(r => r.map(c => -1))}
-      />
-    {/if}
-
+    <Router>
+      <Route path="/build">
+        <Buildler />
+      </Route>
+      <Route path="/play/:levelIndex" fallback>
+        <Griddler
+          levels={resp.data.levels}
+          boards={resp.data.levels.map(l => l.solution.map(r => r.map(c => -1)))}
+        />
+      </Route>
+    </Router>
   </section>
 {:catch error}
   <span>{error}</span>
