@@ -6,6 +6,7 @@
   export let onClick;
   export let onRightClick;
   export let transitionTime = 0.2;
+  export let styles;
 
   const white = '#eee';
   const black = '#111';
@@ -13,14 +14,14 @@
 
   $: bg = state === -2 ? red : (state === -1 ? white : color);
   $: textColor = bg === white ? black : white;
-
+  $: _styles = `background: ${bg}; color: ${textColor}; transition: all ${transitionTime}s ease-in-out;`
 </script>
 
 <style>
   div {
     align-items: center;
     background: white;
-    border: 2px solid rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(0, 0, 0, 0.4);
     box-sizing: border-box;
     cursor: pointer;
     display: flex;
@@ -32,7 +33,7 @@
 </style>
 
 <div
-  style="background: {bg}; color: {textColor}; transition: all {transitionTime}s ease-in-out;"
+  style="{_styles}{styles}"
   on:click={() => {
     if (onClick) {
       onClick(row, col);

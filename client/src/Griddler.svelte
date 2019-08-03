@@ -69,6 +69,11 @@
     text-transform: uppercase;
   }
 
+  .main {
+    background: '#fff';
+    padding: 2rem;
+  }
+
   .flex-row {
     display: flex;
   }
@@ -96,7 +101,7 @@
 
 
 
-<div>
+<div class="main">
   <h1>{title}</h1>
   <div>
     {_.isEmpty(props).toString()}
@@ -107,6 +112,7 @@
         state={1}
         color={color}
         onClick={() => { setLayerIndex(index); }}
+        styles="border-radius: 4px; margin: 0 4px;"
       >
         {color}
       </Block>
@@ -116,6 +122,7 @@
     <Block
       color={color}
       state={1}
+      styles="border-top-left-radius: 24px;"
     />
     {#each colTotals as total}
       <Block
@@ -128,6 +135,7 @@
     <Block
       color={color}
       state={1}
+      styles="border-top-right-radius: 24px;"
     />
   </div>
   <div class="flex-row justify-center">
@@ -172,6 +180,7 @@
     <Block
       color={color}
       state={1}
+      styles="border-bottom-left-radius: 24px;"
     />
     {#each colTotals as total}
       <Block
@@ -184,6 +193,7 @@
     <Block
       color={color}
       state={1}
+      styles="border-bottom-right-radius: 24px;"
     />
   </div>
   <div class="flex-row justify-center">
