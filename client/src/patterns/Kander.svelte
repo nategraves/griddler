@@ -8,7 +8,7 @@
 
 <style></style>
 
-<svg width="1600px" height="1200px" viewBox="0 0 1600 1200" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" style="{styles}">
+<svg viewBox="0 0 1600 1200" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" style="{styles}">
   <g id="Patterns" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
     <g id="Kander">
       <g transform="translate(0.000000, -1.000000)" id="Module">

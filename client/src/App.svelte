@@ -9,6 +9,7 @@
   import Inn from './patterns/Inn.svelte';
   import Kander from './patterns/Kander.svelte';
   import Linth from './patterns/Linth.svelte';
+  import Mataura from './patterns/Mataura.svelte';
 
   import { client, Levels } from './gql';
   import Griddler from './Griddler.svelte';
