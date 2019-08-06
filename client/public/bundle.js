@@ -10,9 +10,6 @@ var app = (function () {
             tar[k] = src[k];
         return tar;
     }
-    function is_promise(value) {
-        return value && typeof value === 'object' && typeof value.then === 'function';
-    }
     function add_location(element, file, line, column, char) {
         element.__svelte_meta = {
             loc: { file, line, column, char }
@@ -33,17 +30,6 @@ var app = (function () {
     function safe_not_equal(a, b) {
         return a != a ? b == b : a !== b || ((a && typeof a === 'object') || typeof a === 'function');
     }
-    function validate_store(store, name) {
-        if (!store || typeof store.subscribe !== 'function') {
-            throw new Error(`'${name}' is not a store with a 'subscribe' method`);
-        }
-    }
-    function subscribe(component, store, callback) {
-        const unsub = store.subscribe(callback);
-        component.$$.on_destroy.push(unsub.unsubscribe
-            ? () => unsub.unsubscribe()
-            : unsub);
-    }
     function create_slot(definition, ctx, fn) {
         if (definition) {
             const slot_ctx = get_slot_context(definition, ctx, fn);
@@ -59,13 +45,6 @@ var app = (function () {
         return definition[1]
             ? assign({}, assign(ctx.$$scope.changed || {}, definition[1](fn ? fn(changed) : {})))
             : ctx.$$scope.changed || {};
-    }
-    function exclude_internal_props(props) {
-        const result = {};
-        for (const k in props)
-            if (k[0] !== '$')
-                result[k] = props[k];
-        return result;
     }
 
     function append(target, node) {
@@ -108,9 +87,6 @@ var app = (function () {
         else
             node.setAttribute(attribute, value);
     }
-    function to_number(value) {
-        return value === '' ? undefined : +value;
-    }
     function children(element) {
         return Array.from(element.childNodes);
     }
@@ -132,14 +108,8 @@ var app = (function () {
             throw new Error(`Function called outside component initialization`);
         return current_component;
     }
-    function onDestroy(fn) {
-        get_current_component().$$.on_destroy.push(fn);
-    }
-    function setContext(key, context) {
-        get_current_component().$$.context.set(key, context);
-    }
-    function getContext(key) {
-        return get_current_component().$$.context.get(key);
+    function onMount(fn) {
+        get_current_component().$$.on_mount.push(fn);
     }
 
     const dirty_components = [];
@@ -232,95 +202,6 @@ var app = (function () {
             });
             block.o(local);
         }
-    }
-
-    function handle_promise(promise, info) {
-        const token = info.token = {};
-        function update(type, index, key, value) {
-            if (info.token !== token)
-                return;
-            info.resolved = key && { [key]: value };
-            const child_ctx = assign(assign({}, info.ctx), info.resolved);
-            const block = type && (info.current = type)(child_ctx);
-            if (info.block) {
-                if (info.blocks) {
-                    info.blocks.forEach((block, i) => {
-                        if (i !== index && block) {
-                            group_outros();
-                            transition_out(block, 1, 1, () => {
-                                info.blocks[i] = null;
-                            });
-                            check_outros();
-                        }
-                    });
-                }
-                else {
-                    info.block.d(1);
-                }
-                block.c();
-                transition_in(block, 1);
-                block.m(info.mount(), info.anchor);
-                flush();
-            }
-            info.block = block;
-            if (info.blocks)
-                info.blocks[index] = block;
-        }
-        if (is_promise(promise)) {
-            promise.then(value => {
-                update(info.then, 1, info.value, value);
-            }, error => {
-                update(info.catch, 2, info.error, error);
-            });
-            // if we previously had a then/catch block, destroy it
-            if (info.current !== info.pending) {
-                update(info.pending, 0);
-                return true;
-            }
-        }
-        else {
-            if (info.current !== info.then) {
-                update(info.then, 1, info.value, promise);
-                return true;
-            }
-            info.resolved = { [info.value]: promise };
-        }
-    }
-
-    const globals = (typeof window !== 'undefined' ? window : global);
-
-    function get_spread_update(levels, updates) {
-        const update = {};
-        const to_null_out = {};
-        const accounted_for = { $$scope: 1 };
-        let i = levels.length;
-        while (i--) {
-            const o = levels[i];
-            const n = updates[i];
-            if (n) {
-                for (const key in o) {
-                    if (!(key in n))
-                        to_null_out[key] = 1;
-                }
-                for (const key in n) {
-                    if (!accounted_for[key]) {
-                        update[key] = n[key];
-                        accounted_for[key] = 1;
-                    }
-                }
-                levels[i] = n;
-            }
-            else {
-                for (const key in o) {
-                    accounted_for[key] = 1;
-                }
-            }
-        }
-        for (const key in to_null_out) {
-            if (!(key in update))
-                update[key] = undefined;
-        }
-        return update;
     }
     function mount_component(component, target, anchor) {
         const { fragment, on_mount, on_destroy, after_update } = component.$$;
@@ -17819,839 +17700,17 @@ var app = (function () {
     }));
     });
 
-    const CTX_ROUTER = {};
-
-    function navigateTo(path) {
-      // If path empty or no string, throws error
-      if (!path || typeof path !== 'string') {
-        throw Error(`svero expects navigateTo() to have a string parameter. The parameter provided was: ${path} of type ${typeof path} instead.`);
-      }
-
-      if (path[0] !== '/' && path[0] !== '#') {
-        throw Error(`svero expects navigateTo() param to start with slash or hash, e.g. "/${path}" or "#${path}" instead of "${path}".`);
-      }
-
-      // If no History API support, fallbacks to URL redirect
-      if (!history.pushState || !window.dispatchEvent) {
-        window.location.href = path;
-        return;
-      }
-
-      // If has History API support, uses it
-      history.pushState({}, '', path);
-      window.dispatchEvent(new Event('popstate'));
-    }
-
-    /**
-     * Create a `Writable` store that allows both updating and reading by subscription.
-     * @param {*=}value initial value
-     * @param {StartStopNotifier=}start start and stop notifications for subscriptions
-     */
-    function writable(value, start = noop) {
-        let stop;
-        const subscribers = [];
-        function set(new_value) {
-            if (safe_not_equal(value, new_value)) {
-                value = new_value;
-                if (!stop) {
-                    return; // not ready
-                }
-                subscribers.forEach((s) => s[1]());
-                subscribers.forEach((s) => s[0](value));
-            }
-        }
-        function update(fn) {
-            set(fn(value));
-        }
-        function subscribe(run, invalidate = noop) {
-            const subscriber = [run, invalidate];
-            subscribers.push(subscriber);
-            if (subscribers.length === 1) {
-                stop = start(set) || noop;
-            }
-            run(value);
-            return () => {
-                const index = subscribers.indexOf(subscriber);
-                if (index !== -1) {
-                    subscribers.splice(index, 1);
-                }
-                if (subscribers.length === 0) {
-                    stop();
-                    stop = null;
-                }
-            };
-        }
-        return { set, update, subscribe };
-    }
-
     /* node_modules/svero/src/Router.svelte generated by Svelte v3.6.7 */
-    const { Object: Object_1 } = globals;
-
-    const file = "node_modules/svero/src/Router.svelte";
-
-    // (165:0) {#if failure && !nofallback}
-    function create_if_block(ctx) {
-    	var fieldset, legend, t0, t1, t2, pre, t3;
-
-    	return {
-    		c: function create() {
-    			fieldset = element("fieldset");
-    			legend = element("legend");
-    			t0 = text("Router failure: ");
-    			t1 = text(ctx.path);
-    			t2 = space();
-    			pre = element("pre");
-    			t3 = text(ctx.failure);
-    			add_location(legend, file, 166, 4, 3810);
-    			add_location(pre, file, 167, 4, 3854);
-    			add_location(fieldset, file, 165, 2, 3795);
-    		},
-
-    		m: function mount(target, anchor) {
-    			insert(target, fieldset, anchor);
-    			append(fieldset, legend);
-    			append(legend, t0);
-    			append(legend, t1);
-    			append(fieldset, t2);
-    			append(fieldset, pre);
-    			append(pre, t3);
-    		},
-
-    		p: function update(changed, ctx) {
-    			if (changed.path) {
-    				set_data(t1, ctx.path);
-    			}
-
-    			if (changed.failure) {
-    				set_data(t3, ctx.failure);
-    			}
-    		},
-
-    		d: function destroy(detaching) {
-    			if (detaching) {
-    				detach(fieldset);
-    			}
-    		}
-    	};
-    }
-
-    function create_fragment(ctx) {
-    	var t_1, current, dispose;
-
-    	var if_block = (ctx.failure && !ctx.nofallback) && create_if_block(ctx);
-
-    	const default_slot_1 = ctx.$$slots.default;
-    	const default_slot = create_slot(default_slot_1, ctx, null);
-
-    	return {
-    		c: function create() {
-    			if (if_block) if_block.c();
-    			t_1 = space();
-
-    			if (default_slot) default_slot.c();
-
-    			dispose = listen(window, "popstate", ctx.handlePopState);
-    		},
-
-    		l: function claim(nodes) {
-    			if (default_slot) default_slot.l(nodes);
-    			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
-    		},
-
-    		m: function mount(target, anchor) {
-    			if (if_block) if_block.m(target, anchor);
-    			insert(target, t_1, anchor);
-
-    			if (default_slot) {
-    				default_slot.m(target, anchor);
-    			}
-
-    			current = true;
-    		},
-
-    		p: function update(changed, ctx) {
-    			if (ctx.failure && !ctx.nofallback) {
-    				if (if_block) {
-    					if_block.p(changed, ctx);
-    				} else {
-    					if_block = create_if_block(ctx);
-    					if_block.c();
-    					if_block.m(t_1.parentNode, t_1);
-    				}
-    			} else if (if_block) {
-    				if_block.d(1);
-    				if_block = null;
-    			}
-
-    			if (default_slot && default_slot.p && changed.$$scope) {
-    				default_slot.p(get_slot_changes(default_slot_1, ctx, changed, null), get_slot_context(default_slot_1, ctx, null));
-    			}
-    		},
-
-    		i: function intro(local) {
-    			if (current) return;
-    			transition_in(default_slot, local);
-    			current = true;
-    		},
-
-    		o: function outro(local) {
-    			transition_out(default_slot, local);
-    			current = false;
-    		},
-
-    		d: function destroy(detaching) {
-    			if (if_block) if_block.d(detaching);
-
-    			if (detaching) {
-    				detach(t_1);
-    			}
-
-    			if (default_slot) default_slot.d(detaching);
-    			dispose();
-    		}
-    	};
-    }
 
 
 
     const router = new index_umd();
 
-    function cleanPath(route) {
-      return route.replace(/\?[^#]*/, '').replace(/(?!^)\/#/, '#').replace('/#', '#').replace(/\/$/, '');
-    }
-
-    function fixPath(route) {
-      if (route === '/#*' || route === '#*') return '#*_';
-      if (route === '/*' || route === '*') return '/*_';
-      return route;
-    }
-
-    function instance($$self, $$props, $$invalidate) {
-    	let $routeInfo, $basePath;
-
-    	
-
-      let t;
-      let failure;
-      let fallback;
-
-      let { path = '/', nofallback = null } = $$props;
-
-      const routeInfo = writable({}); validate_store(routeInfo, 'routeInfo'); subscribe($$self, routeInfo, $$value => { $routeInfo = $$value; $$invalidate('$routeInfo', $routeInfo); });
-      const routerContext = getContext(CTX_ROUTER);
-      const basePath = routerContext ? routerContext.basePath : writable(path); validate_store(basePath, 'basePath'); subscribe($$self, basePath, $$value => { $basePath = $$value; $$invalidate('$basePath', $basePath); });
-
-      function handleRoutes(map) {
-        const params = map.reduce((prev, cur) => {
-          prev[cur.key] = Object.assign(prev[cur.key] || {}, cur.params);
-          return prev;
-        }, {});
-
-        let skip;
-        let routes = {};
-
-        map.some(x => {
-          if (typeof x.condition === 'boolean' || typeof x.condition === 'function') {
-            const ok = typeof x.condition === 'function' ? x.condition() : x.condition;
-
-            if (ok === false && x.redirect) {
-              navigateTo(x.redirect);
-              skip = true;
-              return true;
-            }
-          }
-
-          if (x.key && !routes[x.key]) {
-            if (x.exact && !x.matches) return false;
-            routes[x.key] = { ...x, params: params[x.key] };
-          }
-
-          return false;
-        });
-
-        if (!skip) {
-          $routeInfo = routes; routeInfo.set($routeInfo);
-        }
-      }
-
-      function doFallback(e, path) {
-        $routeInfo[fallback] = { failure: e, params: { _: path.substr(1) || undefined } }; routeInfo.set($routeInfo);
-      }
-
-      function resolveRoutes(path) {
-        const segments = path.split('#')[0].split('/');
-        const prefix = [];
-        const map = [];
-
-        segments.forEach(key => {
-          const sub = prefix.concat(`/${key}`).join('');
-
-          if (key) prefix.push(`/${key}`);
-
-          try {
-            const next = router.find(sub);
-
-            handleRoutes(next);
-            map.push(...next);
-          } catch (e_) {
-            doFallback(e_, path);
-          }
-        });
-
-        return map;
-      }
-
-      function handlePopState() {
-        const fullpath = cleanPath(`/${location.href.split('/').slice(3).join('/')}`);
-
-        try {
-          const found = resolveRoutes(fullpath);
-
-          if (fullpath.includes('#')) {
-            const next = router.find(fullpath);
-            const keys = {};
-
-            // override previous routes to avoid non-exact matches
-            handleRoutes(found.concat(next).reduce((prev, cur) => {
-              if (typeof keys[cur.key] === 'undefined') {
-                keys[cur.key] = prev.length;
-              }
-
-              prev[keys[cur.key]] = cur;
-
-              return prev;
-            }, []));
-          }
-        } catch (e) {
-          if (!fallback) {
-            $$invalidate('failure', failure = e);
-            return;
-          }
-
-          doFallback(e, fullpath);
-        }
-      }
-
-      function _handlePopState() {
-        clearTimeout(t);
-        t = setTimeout(handlePopState, 100);
-      }
-
-      function assignRoute(key, route, detail) {
-        key = key || Math.random().toString(36).substr(2);
-
-        const fixedRoot = $basePath !== path && $basePath !== '/'
-          ? `${$basePath}${path}`
-          : path;
-
-        const handler = { key, ...detail };
-
-        let fullpath;
-
-        router.mount(fixedRoot, () => {
-          fullpath = router.add(fixPath(route), handler);
-          fallback = (handler.fallback && key) || fallback;
-        });
-
-        _handlePopState();
-
-        return [key, fullpath];
-      }
-
-      function unassignRoute(route) {
-        router.rm(fixPath(route));
-        _handlePopState();
-      }
-
-      setContext(CTX_ROUTER, {
-        basePath,
-        routeInfo,
-        assignRoute,
-        unassignRoute,
-      });
-
-    	const writable_props = ['path', 'nofallback'];
-    	Object_1.keys($$props).forEach(key => {
-    		if (!writable_props.includes(key) && !key.startsWith('$$')) console.warn(`<Router> was created with unknown prop '${key}'`);
-    	});
-
-    	let { $$slots = {}, $$scope } = $$props;
-
-    	$$self.$set = $$props => {
-    		if ('path' in $$props) $$invalidate('path', path = $$props.path);
-    		if ('nofallback' in $$props) $$invalidate('nofallback', nofallback = $$props.nofallback);
-    		if ('$$scope' in $$props) $$invalidate('$$scope', $$scope = $$props.$$scope);
-    	};
-
-    	return {
-    		failure,
-    		path,
-    		nofallback,
-    		routeInfo,
-    		basePath,
-    		handlePopState,
-    		$$slots,
-    		$$scope
-    	};
-    }
-
-    class Router_1 extends SvelteComponentDev {
-    	constructor(options) {
-    		super(options);
-    		init(this, options, instance, create_fragment, safe_not_equal, ["path", "nofallback"]);
-    	}
-
-    	get path() {
-    		throw new Error("<Router>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set path(value) {
-    		throw new Error("<Router>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get nofallback() {
-    		throw new Error("<Router>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set nofallback(value) {
-    		throw new Error("<Router>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-    }
-
-    /* node_modules/svero/src/Route.svelte generated by Svelte v3.6.7 */
-
-    const get_default_slot_changes = ({ activeRouter, activeProps }) => ({ router: activeRouter, props: activeProps });
-    const get_default_slot_context = ({ activeRouter, activeProps }) => ({
-    	router: activeRouter,
-    	props: activeProps
-    });
-
-    // (46:0) {#if activeRouter}
-    function create_if_block$1(ctx) {
-    	var current_block_type_index, if_block, if_block_anchor, current;
-
-    	var if_block_creators = [
-    		create_if_block_1,
-    		create_else_block
-    	];
-
-    	var if_blocks = [];
-
-    	function select_block_type(ctx) {
-    		if (ctx.component) return 0;
-    		return 1;
-    	}
-
-    	current_block_type_index = select_block_type(ctx);
-    	if_block = if_blocks[current_block_type_index] = if_block_creators[current_block_type_index](ctx);
-
-    	return {
-    		c: function create() {
-    			if_block.c();
-    			if_block_anchor = empty();
-    		},
-
-    		m: function mount(target, anchor) {
-    			if_blocks[current_block_type_index].m(target, anchor);
-    			insert(target, if_block_anchor, anchor);
-    			current = true;
-    		},
-
-    		p: function update(changed, ctx) {
-    			var previous_block_index = current_block_type_index;
-    			current_block_type_index = select_block_type(ctx);
-    			if (current_block_type_index === previous_block_index) {
-    				if_blocks[current_block_type_index].p(changed, ctx);
-    			} else {
-    				group_outros();
-    				transition_out(if_blocks[previous_block_index], 1, 1, () => {
-    					if_blocks[previous_block_index] = null;
-    				});
-    				check_outros();
-
-    				if_block = if_blocks[current_block_type_index];
-    				if (!if_block) {
-    					if_block = if_blocks[current_block_type_index] = if_block_creators[current_block_type_index](ctx);
-    					if_block.c();
-    				}
-    				transition_in(if_block, 1);
-    				if_block.m(if_block_anchor.parentNode, if_block_anchor);
-    			}
-    		},
-
-    		i: function intro(local) {
-    			if (current) return;
-    			transition_in(if_block);
-    			current = true;
-    		},
-
-    		o: function outro(local) {
-    			transition_out(if_block);
-    			current = false;
-    		},
-
-    		d: function destroy(detaching) {
-    			if_blocks[current_block_type_index].d(detaching);
-
-    			if (detaching) {
-    				detach(if_block_anchor);
-    			}
-    		}
-    	};
-    }
-
-    // (49:2) {:else}
-    function create_else_block(ctx) {
-    	var current;
-
-    	const default_slot_1 = ctx.$$slots.default;
-    	const default_slot = create_slot(default_slot_1, ctx, get_default_slot_context);
-
-    	return {
-    		c: function create() {
-    			if (default_slot) default_slot.c();
-    		},
-
-    		l: function claim(nodes) {
-    			if (default_slot) default_slot.l(nodes);
-    		},
-
-    		m: function mount(target, anchor) {
-    			if (default_slot) {
-    				default_slot.m(target, anchor);
-    			}
-
-    			current = true;
-    		},
-
-    		p: function update(changed, ctx) {
-    			if (default_slot && default_slot.p && (changed.$$scope || changed.activeRouter || changed.activeProps)) {
-    				default_slot.p(get_slot_changes(default_slot_1, ctx, changed, get_default_slot_changes), get_slot_context(default_slot_1, ctx, get_default_slot_context));
-    			}
-    		},
-
-    		i: function intro(local) {
-    			if (current) return;
-    			transition_in(default_slot, local);
-    			current = true;
-    		},
-
-    		o: function outro(local) {
-    			transition_out(default_slot, local);
-    			current = false;
-    		},
-
-    		d: function destroy(detaching) {
-    			if (default_slot) default_slot.d(detaching);
-    		}
-    	};
-    }
-
-    // (47:2) {#if component}
-    function create_if_block_1(ctx) {
-    	var switch_instance_anchor, current;
-
-    	var switch_instance_spread_levels = [
-    		{ router: ctx.activeRouter },
-    		ctx.activeProps
-    	];
-
-    	var switch_value = ctx.component;
-
-    	function switch_props(ctx) {
-    		let switch_instance_props = {};
-    		for (var i = 0; i < switch_instance_spread_levels.length; i += 1) {
-    			switch_instance_props = assign(switch_instance_props, switch_instance_spread_levels[i]);
-    		}
-    		return {
-    			props: switch_instance_props,
-    			$$inline: true
-    		};
-    	}
-
-    	if (switch_value) {
-    		var switch_instance = new switch_value(switch_props());
-    	}
-
-    	return {
-    		c: function create() {
-    			if (switch_instance) switch_instance.$$.fragment.c();
-    			switch_instance_anchor = empty();
-    		},
-
-    		m: function mount(target, anchor) {
-    			if (switch_instance) {
-    				mount_component(switch_instance, target, anchor);
-    			}
-
-    			insert(target, switch_instance_anchor, anchor);
-    			current = true;
-    		},
-
-    		p: function update(changed, ctx) {
-    			var switch_instance_changes = (changed.activeRouter || changed.activeProps) ? get_spread_update(switch_instance_spread_levels, [
-    				(changed.activeRouter) && { router: ctx.activeRouter },
-    				(changed.activeProps) && ctx.activeProps
-    			]) : {};
-
-    			if (switch_value !== (switch_value = ctx.component)) {
-    				if (switch_instance) {
-    					group_outros();
-    					const old_component = switch_instance;
-    					transition_out(old_component.$$.fragment, 1, 0, () => {
-    						destroy_component(old_component, 1);
-    					});
-    					check_outros();
-    				}
-
-    				if (switch_value) {
-    					switch_instance = new switch_value(switch_props());
-
-    					switch_instance.$$.fragment.c();
-    					transition_in(switch_instance.$$.fragment, 1);
-    					mount_component(switch_instance, switch_instance_anchor.parentNode, switch_instance_anchor);
-    				} else {
-    					switch_instance = null;
-    				}
-    			}
-
-    			else if (switch_value) {
-    				switch_instance.$set(switch_instance_changes);
-    			}
-    		},
-
-    		i: function intro(local) {
-    			if (current) return;
-    			if (switch_instance) transition_in(switch_instance.$$.fragment, local);
-
-    			current = true;
-    		},
-
-    		o: function outro(local) {
-    			if (switch_instance) transition_out(switch_instance.$$.fragment, local);
-    			current = false;
-    		},
-
-    		d: function destroy(detaching) {
-    			if (detaching) {
-    				detach(switch_instance_anchor);
-    			}
-
-    			if (switch_instance) destroy_component(switch_instance, detaching);
-    		}
-    	};
-    }
-
-    function create_fragment$1(ctx) {
-    	var if_block_anchor, current;
-
-    	var if_block = (ctx.activeRouter) && create_if_block$1(ctx);
-
-    	return {
-    		c: function create() {
-    			if (if_block) if_block.c();
-    			if_block_anchor = empty();
-    		},
-
-    		l: function claim(nodes) {
-    			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
-    		},
-
-    		m: function mount(target, anchor) {
-    			if (if_block) if_block.m(target, anchor);
-    			insert(target, if_block_anchor, anchor);
-    			current = true;
-    		},
-
-    		p: function update(changed, ctx) {
-    			if (ctx.activeRouter) {
-    				if (if_block) {
-    					if_block.p(changed, ctx);
-    					transition_in(if_block, 1);
-    				} else {
-    					if_block = create_if_block$1(ctx);
-    					if_block.c();
-    					transition_in(if_block, 1);
-    					if_block.m(if_block_anchor.parentNode, if_block_anchor);
-    				}
-    			} else if (if_block) {
-    				group_outros();
-    				transition_out(if_block, 1, 1, () => {
-    					if_block = null;
-    				});
-    				check_outros();
-    			}
-    		},
-
-    		i: function intro(local) {
-    			if (current) return;
-    			transition_in(if_block);
-    			current = true;
-    		},
-
-    		o: function outro(local) {
-    			transition_out(if_block);
-    			current = false;
-    		},
-
-    		d: function destroy(detaching) {
-    			if (if_block) if_block.d(detaching);
-
-    			if (detaching) {
-    				detach(if_block_anchor);
-    			}
-    		}
-    	};
-    }
-
-    function getProps(given, required) {
-      const { props, ...others } = given;
-
-      // prune all declared props from this component
-      required.forEach(k => {
-        delete others[k];
-      });
-
-      return {
-        ...props,
-        ...others,
-      };
-    }
-
-    function instance$1($$self, $$props, $$invalidate) {
-    	let $routeInfo;
-
-    	
-
-      let { key = null, path = '', props = null, exact = undefined, fallback = undefined, component = undefined, condition = undefined, redirect = undefined } = $$props;
-
-      const { assignRoute, unassignRoute, routeInfo } = getContext(CTX_ROUTER); validate_store(routeInfo, 'routeInfo'); subscribe($$self, routeInfo, $$value => { $routeInfo = $$value; $$invalidate('$routeInfo', $routeInfo); });
-
-      let activeRouter = null;
-      let activeProps = {};
-      let fullpath;
-
-      [key, fullpath] = assignRoute(key, path, { condition, redirect, fallback, exact }); $$invalidate('key', key);
-      onDestroy(() => {
-        unassignRoute(fullpath);
-      });
-
-    	let { $$slots = {}, $$scope } = $$props;
-
-    	$$self.$set = $$new_props => {
-    		$$invalidate('$$props', $$props = assign(assign({}, $$props), $$new_props));
-    		if ('key' in $$new_props) $$invalidate('key', key = $$new_props.key);
-    		if ('path' in $$new_props) $$invalidate('path', path = $$new_props.path);
-    		if ('props' in $$new_props) $$invalidate('props', props = $$new_props.props);
-    		if ('exact' in $$new_props) $$invalidate('exact', exact = $$new_props.exact);
-    		if ('fallback' in $$new_props) $$invalidate('fallback', fallback = $$new_props.fallback);
-    		if ('component' in $$new_props) $$invalidate('component', component = $$new_props.component);
-    		if ('condition' in $$new_props) $$invalidate('condition', condition = $$new_props.condition);
-    		if ('redirect' in $$new_props) $$invalidate('redirect', redirect = $$new_props.redirect);
-    		if ('$$scope' in $$new_props) $$invalidate('$$scope', $$scope = $$new_props.$$scope);
-    	};
-
-    	$$self.$$.update = ($$dirty = { $routeInfo: 1, key: 1, $$props: 1 }) => {
-    		if ($$dirty.$routeInfo || $$dirty.key) { {
-            $$invalidate('activeRouter', activeRouter = $routeInfo[key]);
-            $$invalidate('activeProps', activeProps = getProps($$props, arguments[0]['$$'].props));
-          } }
-    	};
-
-    	return {
-    		key,
-    		path,
-    		props,
-    		exact,
-    		fallback,
-    		component,
-    		condition,
-    		redirect,
-    		routeInfo,
-    		activeRouter,
-    		activeProps,
-    		$$props: $$props = exclude_internal_props($$props),
-    		$$slots,
-    		$$scope
-    	};
-    }
-
-    class Route extends SvelteComponentDev {
-    	constructor(options) {
-    		super(options);
-    		init(this, options, instance$1, create_fragment$1, safe_not_equal, ["key", "path", "props", "exact", "fallback", "component", "condition", "redirect"]);
-    	}
-
-    	get key() {
-    		throw new Error("<Route>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set key(value) {
-    		throw new Error("<Route>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get path() {
-    		throw new Error("<Route>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set path(value) {
-    		throw new Error("<Route>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get props() {
-    		throw new Error("<Route>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set props(value) {
-    		throw new Error("<Route>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get exact() {
-    		throw new Error("<Route>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set exact(value) {
-    		throw new Error("<Route>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get fallback() {
-    		throw new Error("<Route>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set fallback(value) {
-    		throw new Error("<Route>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get component() {
-    		throw new Error("<Route>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set component(value) {
-    		throw new Error("<Route>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get condition() {
-    		throw new Error("<Route>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set condition(value) {
-    		throw new Error("<Route>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get redirect() {
-    		throw new Error("<Route>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set redirect(value) {
-    		throw new Error("<Route>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-    }
-
     /* src/patterns/Aare.svelte generated by Svelte v3.6.7 */
 
-    const file$1 = "src/patterns/Aare.svelte";
+    const file = "src/patterns/Aare.svelte";
 
-    function create_fragment$2(ctx) {
+    function create_fragment(ctx) {
     	var svg, g2, g1, g0, path0, path0_fill_value, path1, path1_fill_value, path2, path2_fill_value, path3, path3_fill_value, path4, path4_fill_value, path5, path5_fill_value, path6, path6_fill_value, path7, path7_fill_value, path8, path8_fill_value, path9, path9_fill_value, path10, path10_fill_value, path11, path11_fill_value, path12, path12_fill_value, path13, path13_fill_value, path14, path14_fill_value, path15, path15_fill_value, path16, path16_fill_value, path17, path17_fill_value, path18, path18_fill_value, path19, path19_fill_value, path20, path20_fill_value, path21, path21_fill_value, path22, path22_fill_value, path23, path23_fill_value, path24, path24_fill_value, path25, path25_fill_value, path26, path26_fill_value, path27, path27_fill_value, path28, path28_fill_value, path29, path29_fill_value, path30, path30_fill_value, path31, path31_fill_value, path32, path32_fill_value, path33, path33_fill_value, path34, path34_fill_value, path35, path35_fill_value, path36, path36_fill_value, path37, path37_fill_value, path38, path38_fill_value, path39, path39_fill_value, path40, path40_fill_value, path41, path41_fill_value, path42, path42_fill_value, path43, path43_fill_value, path44, path44_fill_value, path45, path45_fill_value, path46, path46_fill_value, path47, path47_fill_value, path48, path48_fill_value, path49, path49_fill_value, path50, path50_fill_value, path51, path51_fill_value, path52, path52_fill_value, path53, path53_fill_value, path54, path54_fill_value, path55, path55_fill_value, path56, path56_fill_value, path57, path57_fill_value, path58, path58_fill_value, path59, path59_fill_value, path60, path60_fill_value, path61, path61_fill_value, path62, path62_fill_value, path63, path63_fill_value, path64, path64_fill_value, path65, path65_fill_value, path66, path66_fill_value, path67, path67_fill_value, path68, path68_fill_value, path69, path69_fill_value, path70, path70_fill_value, path71, path71_fill_value, path72, path72_fill_value, path73, path73_fill_value, path74, path74_fill_value, path75, path75_fill_value, path76, path76_fill_value, path77, path77_fill_value, path78, path78_fill_value, path79, path79_fill_value, path80, path80_fill_value, path81, path81_fill_value, path82, path82_fill_value, path83, path83_fill_value, path84, path84_fill_value, path85, path85_fill_value, path86, path86_fill_value, path87, path87_fill_value, path88, path88_fill_value, path89, path89_fill_value, path90, path90_fill_value, path91, path91_fill_value, path92, path92_fill_value, path93, path93_fill_value, path94, path94_fill_value, path95, path95_fill_value, path96, path96_fill_value, path97, path97_fill_value, path98, path98_fill_value, path99, path99_fill_value, path100, path100_fill_value, path101, path101_fill_value, path102, path102_fill_value, path103, path103_fill_value, path104, path104_fill_value, path105, path105_fill_value, path106, path106_fill_value, path107, path107_fill_value, path108, path108_fill_value, path109, path109_fill_value, path110, path110_fill_value, path111, path111_fill_value, path112, path112_fill_value, path113, path113_fill_value, path114, path114_fill_value, path115, path115_fill_value, path116, path116_fill_value, path117, path117_fill_value, path118, path118_fill_value, path119, path119_fill_value, path120, path120_fill_value, path121, path121_fill_value, path122, path122_fill_value, path123, path123_fill_value, path124, path124_fill_value, path125, path125_fill_value, path126, path126_fill_value, path127, path127_fill_value, path128, path128_fill_value, path129, path129_fill_value, path130, path130_fill_value, path131, path131_fill_value, path132, path132_fill_value, path133, path133_fill_value, path134, path134_fill_value, path135, path135_fill_value, path136, path136_fill_value, path137, path137_fill_value, path138, path138_fill_value;
 
     	return {
@@ -18801,455 +17860,455 @@ var app = (function () {
     			path138 = svg_element("path");
     			attr(path0, "d", "M1543.70108,477.111984 C1543.70108,458.099309 1528.29658,442.686194 1509.28532,442.686194 C1490.27405,442.686194 1474.86955,458.099309 1474.86955,477.111984 C1474.86955,496.12466 1490.27405,511.537775 1509.28532,511.537775 C1528.29658,511.537775 1543.70108,496.12466 1543.70108,477.111984 Z M1509.28532,401.375246 C1551.10735,401.375246 1585,435.283272 1585,477.111984 C1585,518.940697 1551.10735,552.848723 1509.28532,552.848723 C1467.46328,552.848723 1433.57063,518.940697 1433.57063,477.111984 C1433.57063,435.283272 1467.46328,401.375246 1509.28532,401.375246 Z");
     			attr(path0, "fill", path0_fill_value = ctx.colors[0]);
-    			add_location(path0, file$1, 14, 8, 560);
+    			add_location(path0, file, 14, 8, 560);
     			attr(path1, "d", "M1507.81227,497.445972 C1496.42855,497.445972 1487.18959,488.209823 1487.18959,476.817289 C1487.18959,465.424754 1496.42855,456.188605 1507.81227,456.188605 C1519.19599,456.188605 1528.43494,465.424754 1528.43494,476.817289 C1528.43494,488.209823 1519.19599,497.445972 1507.81227,497.445972 Z");
     			attr(path1, "fill", path1_fill_value = ctx.colors[1]);
-    			add_location(path1, file$1, 15, 8, 1171);
+    			add_location(path1, file, 15, 8, 1171);
     			attr(path2, "d", "M243.347584,1178.78193 C243.347584,1167.38939 252.581043,1158.15324 263.97026,1158.15324 L387.70632,1158.15324 C399.095537,1158.15324 408.328996,1167.38939 408.328996,1178.78193 C408.328996,1190.17446 399.095537,1199.41061 387.70632,1199.41061 L263.97026,1199.41061 C252.581043,1199.41061 243.347584,1190.17446 243.347584,1178.78193 Z");
     			attr(path2, "fill", path2_fill_value = ctx.colors[2]);
-    			add_location(path2, file$1, 16, 8, 1509);
+    			add_location(path2, file, 16, 8, 1509);
     			attr(path3, "d", "M449.574349,663.948919 C449.574349,705.777632 415.720164,739.685658 373.957869,739.685658 L236.473358,739.685658 C194.711063,739.685658 160.856877,705.777632 160.856877,663.948919 C160.856877,622.120207 194.711063,588.212181 236.473358,588.212181 L373.957869,588.212181 C415.720164,588.212181 449.574349,622.120207 449.574349,663.948919 Z M373.957869,698.37471 C392.940355,698.37471 408.328996,682.961595 408.328996,663.948919 C408.328996,644.936244 392.940355,629.523129 373.957869,629.523129 L236.473358,629.523129 C217.490872,629.523129 202.10223,644.936244 202.10223,663.948919 C202.10223,682.961595 217.490872,698.37471 236.473358,698.37471 L373.957869,698.37471 Z");
     			attr(path3, "fill", path3_fill_value = ctx.colors[3]);
-    			add_location(path3, file$1, 17, 8, 1889);
+    			add_location(path3, file, 17, 8, 1889);
     			attr(path4, "d", "M83.0799257,1090.37328 C83.0799257,1101.76582 92.3156925,1111.00196 103.708677,1111.00196 L167.657805,1111.00196 C189.331746,1111.00196 208.8768,1101.88546 222.667807,1087.2776 C236.458815,1101.88546 256.003869,1111.00196 277.67781,1111.00196 L340.939313,1111.00196 C382.713909,1111.00196 416.578067,1077.13792 416.578067,1035.36346 C416.578067,1023.97092 407.341887,1014.73477 395.949316,1014.73477 C384.556744,1014.73477 375.320565,1023.97092 375.320565,1035.36346 C375.320565,1054.35147 359.927391,1069.7446 340.939313,1069.7446 L277.67781,1069.7446 C258.689732,1069.7446 243.296558,1054.35147 243.296558,1035.36346 L243.296558,896.463654 C243.296558,855.449705 210.047138,822.200393 169.033055,822.200393 L169.033055,863.45776 C187.261994,863.45776 202.039056,878.234774 202.039056,896.463654 L202.039056,1035.36346 C202.039056,1054.35147 186.645882,1069.7446 167.657805,1069.7446 L103.708677,1069.7446 C92.3156925,1069.7446 83.0799257,1078.98075 83.0799257,1090.37328 Z");
     			attr(path4, "fill", path4_fill_value = ctx.colors[3]);
-    			add_location(path4, file$1, 18, 8, 2604);
+    			add_location(path4, file, 18, 8, 2604);
     			attr(path5, "d", "M350.880112,924.111448 C369.88725,924.111448 385.295877,908.698334 385.295877,889.685658 C385.295877,870.672983 369.88725,855.259868 350.880112,855.259868 C331.872973,855.259868 316.464346,870.672983 316.464346,889.685658 C316.464346,901.092988 307.218895,910.341132 295.814887,910.341132 C284.410879,910.341132 275.165428,901.092988 275.165428,889.685658 C275.165428,847.856946 309.06358,813.948919 350.880112,813.948919 C392.696643,813.948919 426.594796,847.856946 426.594796,889.685658 C426.594796,931.51437 392.696643,965.422397 350.880112,965.422397 C339.476103,965.422397 330.230652,956.174253 330.230652,944.766923 C330.230652,933.359593 339.476103,924.111448 350.880112,924.111448 Z");
     			attr(path5, "fill", path5_fill_value = ctx.colors[4]);
     			attr(path5, "fill-rule", "nonzero");
-    			add_location(path5, file$1, 19, 8, 3624);
+    			add_location(path5, file, 19, 8, 3624);
     			attr(path6, "d", "M302.33106,643.614931 C327.715757,643.614931 348.126333,623.204912 348.126333,598.231827 C348.126333,573.258743 327.715757,552.848723 302.33106,552.848723 C288.307317,552.848723 275.794142,559.067583 267.374383,568.911591 C259.962129,577.578389 246.912812,578.608448 238.228428,571.212377 C229.542667,563.816306 228.510354,550.795481 235.922608,542.130059 C251.888312,523.462475 275.736255,511.591356 302.33106,511.591356 C350.367375,511.591356 389.473978,550.289391 389.473978,598.231827 C389.473978,646.174263 350.367375,684.872299 302.33106,684.872299 C290.913597,684.872299 281.657238,675.636149 281.657238,664.243615 C281.657238,652.851081 290.913597,643.614931 302.33106,643.614931 Z");
     			attr(path6, "fill", path6_fill_value = ctx.colors[4]);
     			attr(path6, "fill-rule", "nonzero");
-    			add_location(path6, file$1, 20, 8, 4380);
+    			add_location(path6, file, 20, 8, 4380);
     			attr(path7, "d", "M630.34758,112.772855 C643.787686,99.3654632 643.787686,77.6276665 630.34758,64.2202749 C616.907474,50.8128833 595.116689,50.8128833 581.676583,64.2202749 C568.236478,77.6276665 568.236478,99.3654632 581.676583,112.772855 C589.740922,120.817207 589.740922,133.860407 581.676583,141.903661 C573.612245,149.948288 560.536948,149.948288 552.473985,141.903661 C522.905202,112.407976 522.905202,64.5851533 552.473985,35.0887819 C582.041392,5.59254781 629.981395,5.59253408 659.550178,35.0887819 C689.118962,64.5851533 689.118962,112.407976 659.550178,141.903661 C651.485839,149.948288 638.411919,149.948288 630.34758,141.903661 C622.283241,133.860407 622.283241,120.817207 630.34758,112.772855 Z");
     			attr(path7, "fill", path7_fill_value = ctx.colors[1]);
-    			add_location(path7, file$1, 21, 8, 5135);
+    			add_location(path7, file, 21, 8, 5135);
     			attr(path8, "d", "M553.42514,113.311148 C561.478983,105.255158 574.535887,105.255158 582.58973,113.311148 C590.643572,121.367139 590.643572,134.428298 582.58973,142.484426 C574.535887,150.540555 561.478983,150.540555 553.42514,142.484426 C545.371298,134.428298 545.371298,121.367139 553.42514,113.311148 Z");
     			attr(path8, "fill", path8_fill_value = ctx.colors[0]);
-    			add_location(path8, file$1, 22, 8, 5871);
+    			add_location(path8, file, 22, 8, 5871);
     			attr(path9, "d", "M169.105948,863.45776 C157.716731,863.45776 148.483271,854.221611 148.483271,842.829077 C148.483271,831.436542 157.716731,822.200393 169.105948,822.200393 C180.495165,822.200393 189.728625,831.436542 189.728625,842.829077 C189.728625,854.221611 180.495165,863.45776 169.105948,863.45776 Z");
     			attr(path9, "fill", path9_fill_value = ctx.colors[0]);
-    			add_location(path9, file$1, 23, 8, 6204);
+    			add_location(path9, file, 23, 8, 6204);
     			attr(path10, "d", "M110.130453,929.764244 C110.130453,910.751568 94.7219639,895.338453 75.7146873,895.338453 C56.7074107,895.338453 41.2989219,910.751568 41.2989219,929.764244 C41.2989219,948.776919 56.7074107,964.190034 75.7146873,964.190034 C94.7219639,964.190034 110.130453,948.776919 110.130453,929.764244 Z M75.7146873,854.027505 C117.530806,854.027505 151.429371,887.935531 151.429371,929.764244 C151.429371,971.592956 117.530806,1005.50098 75.7146873,1005.50098 C33.8985686,1005.50098 0,971.592956 0,929.764244 C0,887.935531 33.8985686,854.027505 75.7146873,854.027505 Z");
     			attr(path10, "fill", path10_fill_value = ctx.colors[2]);
-    			add_location(path10, file$1, 24, 8, 6538);
+    			add_location(path10, file, 24, 8, 6538);
     			attr(path11, "d", "M139.055762,752.106853 C115.572439,752.106853 96.5353769,771.214235 96.5353769,794.784916 L96.5353769,874.634196 C96.5353769,886.038876 87.3239527,895.284872 75.960997,895.284872 C64.5980413,895.284872 55.3866171,886.038876 55.3866171,874.634196 L55.3866171,794.784916 C55.3866171,748.404875 92.8465278,710.805501 139.055762,710.805501 L139.055762,752.106853 Z");
     			attr(path11, "fill", path11_fill_value = ctx.colors[4]);
     			attr(path11, "fill-rule", "nonzero");
-    			add_location(path11, file$1, 25, 8, 7142);
+    			add_location(path11, file, 25, 8, 7142);
     			attr(path12, "d", "M76.0092937,895.284872 C64.6196644,895.284872 55.3866171,886.048723 55.3866171,874.656189 C55.3866171,863.263654 64.6196644,854.027505 76.0092937,854.027505 C87.398923,854.027505 96.6319703,863.263654 96.6319703,874.656189 C96.6319703,886.048723 87.398923,895.284872 76.0092937,895.284872 Z");
     			attr(path12, "fill", path12_fill_value = ctx.colors[0]);
-    			add_location(path12, file$1, 26, 8, 7568);
+    			add_location(path12, file, 26, 8, 7568);
     			attr(path13, "d", "M75.4200743,950.098232 C64.030445,950.098232 54.7973978,940.862083 54.7973978,929.469548 C54.7973978,918.077014 64.030445,908.840864 75.4200743,908.840864 C86.8097037,908.840864 96.0427509,918.077014 96.0427509,929.469548 C96.0427509,940.862083 86.8097037,950.098232 75.4200743,950.098232 Z");
     			attr(path13, "fill", path13_fill_value = ctx.colors[0]);
-    			add_location(path13, file$1, 27, 8, 7904);
+    			add_location(path13, file, 27, 8, 7904);
     			attr(path14, "d", "M79.5883583,538.061599 C98.6217786,537.813727 113.850583,522.2019 113.603118,503.190092 C113.355515,484.178283 97.7252529,468.965807 78.6919705,469.213679 C67.2719183,469.362403 57.8937608,460.235192 57.7452819,448.827556 C57.5966652,437.421298 66.7339753,428.0531 78.1540275,427.904377 C120.027414,427.360435 154.413578,460.825955 154.958139,502.653035 C155.502699,544.478738 121.99955,578.825582 80.1263012,579.369524 C68.706249,579.518248 59.3280916,570.391037 59.1794748,558.983401 C59.030996,547.577143 68.1683061,538.208945 79.5883583,538.061599 Z");
     			attr(path14, "fill", path14_fill_value = ctx.colors[2]);
-    			add_location(path14, file$1, 28, 8, 8240);
+    			add_location(path14, file, 28, 8, 8240);
     			attr(path15, "d", "M180.048593,686.081462 C161.030888,686.081462 145.613697,701.48592 145.613697,720.487918 C145.613697,739.489917 161.030888,754.894375 180.048593,754.894375 C255.359088,754.894375 316.410781,815.895647 316.410781,891.143945 C316.410781,902.544869 307.16019,911.787819 295.749843,911.787819 C284.339496,911.787819 275.088906,902.544869 275.088906,891.143945 C275.088906,838.697495 232.538393,796.182124 180.048593,796.182124 C138.208817,796.182124 104.291822,762.29314 104.291822,720.487918 C104.291822,678.682697 138.208817,644.793713 180.048593,644.793713 C191.45894,644.793713 200.70953,654.036664 200.70953,665.437587 C200.70953,676.838511 191.45894,686.081462 180.048593,686.081462 Z");
     			attr(path15, "fill", path15_fill_value = ctx.colors[2]);
-    			add_location(path15, file$1, 29, 8, 8839);
+    			add_location(path15, file, 29, 8, 8839);
     			attr(path16, "d", "M485.463163,1035.60202 C485.463163,1016.65276 470.054537,1001.29105 451.047398,1001.29105 C432.040259,1001.29105 416.631632,1016.65276 416.631632,1035.60202 C416.631632,1046.97131 407.386181,1056.18861 395.982173,1056.18861 C384.578165,1056.18861 375.332714,1046.97131 375.332714,1035.60202 C375.332714,993.912815 409.230866,960.117878 451.047398,960.117878 C492.863929,960.117878 526.762082,993.912815 526.762082,1035.60202 C526.762082,1046.97131 517.516631,1056.18861 506.112623,1056.18861 C494.708614,1056.18861 485.463163,1046.97131 485.463163,1035.60202 Z");
     			attr(path16, "fill", path16_fill_value = ctx.colors[1]);
-    			add_location(path16, file$1, 30, 8, 9571);
+    			add_location(path16, file, 30, 8, 9571);
     			attr(path17, "d", "M449.574349,668.369352 C449.574349,720.77721 492.046064,763.261297 544.438662,763.261297 C555.827879,763.261297 565.061338,772.497446 565.061338,783.88998 C565.061338,795.282515 555.827879,804.518664 544.438662,804.518664 C469.267631,804.518664 408.328996,743.562279 408.328996,668.369352 C408.328996,656.976817 417.562456,647.740668 428.951673,647.740668 C440.34089,647.740668 449.574349,656.976817 449.574349,668.369352 Z");
     			attr(path17, "fill", path17_fill_value = ctx.colors[4]);
     			attr(path17, "fill-rule", "nonzero");
-    			add_location(path17, file$1, 31, 8, 10177);
+    			add_location(path17, file, 31, 8, 10177);
     			attr(path18, "d", "M869.647097,51.3583091 C793.567535,51.3583091 731.891681,113.05144 731.891681,189.153851 C731.891681,200.568834 722.640027,209.823183 711.228368,209.823183 C699.816709,209.823183 690.565056,200.568834 690.565056,189.153851 C690.565056,90.2207859 770.742841,10.0196464 869.647097,10.0196464 C881.058755,10.0196464 890.310409,19.2735816 890.310409,30.6889777 C890.310409,42.1043738 881.058755,51.3583091 869.647097,51.3583091 Z");
     			attr(path18, "fill", path18_fill_value = ctx.colors[2]);
-    			add_location(path18, file$1, 32, 8, 10666);
+    			add_location(path18, file, 32, 8, 10666);
     			attr(path19, "d", "M1066.44398,178.563951 C1066.44398,108.614584 1009.75506,51.909426 939.826337,51.909426 C928.425244,51.909426 919.182156,42.6640586 919.182156,31.2592316 C919.182156,19.8544047 928.425244,10.6090373 939.826337,10.6090373 C1032.55862,10.6090373 1107.73234,85.8050679 1107.73234,178.563951 C1107.73234,189.968365 1098.48925,199.214145 1087.08816,199.214145 C1075.68707,199.214145 1066.44398,189.968365 1066.44398,178.563951 Z");
     			attr(path19, "fill", path19_fill_value = ctx.colors[3]);
-    			add_location(path19, file$1, 33, 8, 11137);
+    			add_location(path19, file, 33, 8, 11137);
     			attr(path20, "d", "M422.47026,570.530452 C422.47026,515.843811 378.152128,471.51277 323.481413,471.51277 C312.092196,471.51277 302.858736,462.276621 302.858736,450.884086 C302.858736,439.491552 312.092196,430.255403 323.481413,430.255403 C400.930562,430.255403 463.715613,493.058743 463.715613,570.530452 C463.715613,581.922986 454.482154,591.159136 443.092937,591.159136 C431.70372,591.159136 422.47026,581.922986 422.47026,570.530452 Z");
     			attr(path20, "fill", path20_fill_value = ctx.colors[2]);
-    			add_location(path20, file$1, 34, 8, 11606);
+    			add_location(path20, file, 34, 8, 11606);
     			attr(path21, "d", "M58.9237124,559.011497 C58.775642,547.618811 67.8878136,538.262892 79.2764469,538.115739 C90.6650803,537.96721 100.017437,547.082459 100.165507,558.473769 C100.313577,569.866454 91.2014058,579.220998 79.8127724,579.369527 C68.4242765,579.518055 59.0719203,570.402807 58.9237124,559.011497 Z");
     			attr(path21, "fill", path21_fill_value = ctx.colors[0]);
-    			add_location(path21, file$1, 35, 8, 12070);
+    			add_location(path21, file, 35, 8, 12070);
     			attr(path22, "d", "M295.788104,911.787819 C284.398887,911.787819 275.165428,902.55167 275.165428,891.159136 C275.165428,879.766601 284.398887,870.530452 295.788104,870.530452 C307.177321,870.530452 316.410781,879.766601 316.410781,891.159136 C316.410781,902.55167 307.177321,911.787819 295.788104,911.787819 Z");
     			attr(path22, "fill", path22_fill_value = ctx.colors[0]);
-    			add_location(path22, file$1, 36, 8, 12406);
+    			add_location(path22, file, 36, 8, 12406);
     			attr(path23, "d", "M395.95539,1056.18861 C384.566173,1056.18861 375.332714,1046.95246 375.332714,1035.55992 C375.332714,1024.16739 384.566173,1014.93124 395.95539,1014.93124 C407.344607,1014.93124 416.578067,1024.16739 416.578067,1035.55992 C416.578067,1046.95246 407.344607,1056.18861 395.95539,1056.18861 Z");
     			attr(path23, "fill", path23_fill_value = ctx.colors[0]);
-    			add_location(path23, file$1, 37, 8, 12742);
+    			add_location(path23, file, 37, 8, 12742);
     			attr(path24, "d", "M103.113383,1111.00196 C91.7237536,1111.00196 82.4907063,1101.76582 82.4907063,1090.37328 C82.4907063,1078.98075 91.7237536,1069.7446 103.113383,1069.7446 C114.503012,1069.7446 123.736059,1078.98075 123.736059,1090.37328 C123.736059,1101.76582 114.503012,1111.00196 103.113383,1111.00196 Z");
     			attr(path24, "fill", path24_fill_value = ctx.colors[0]);
-    			add_location(path24, file$1, 38, 8, 13077);
+    			add_location(path24, file, 38, 8, 13077);
     			attr(path25, "d", "M295.788104,966.601179 C284.398887,966.601179 275.165428,957.365029 275.165428,945.972495 C275.165428,934.579961 284.398887,925.343811 295.788104,925.343811 C307.177321,925.343811 316.410781,934.579961 316.410781,945.972495 C316.410781,957.365029 307.177321,966.601179 295.788104,966.601179 Z");
     			attr(path25, "fill", path25_fill_value = ctx.colors[1]);
-    			add_location(path25, file$1, 39, 8, 13412);
+    			add_location(path25, file, 39, 8, 13412);
     			attr(path26, "d", "M295.788104,1022.00393 C284.398887,1022.00393 275.165428,1012.76778 275.165428,1001.37525 C275.165428,989.982711 284.398887,980.746562 295.788104,980.746562 C307.177321,980.746562 316.410781,989.982711 316.410781,1001.37525 C316.410781,1012.76778 307.177321,1022.00393 295.788104,1022.00393 Z");
     			attr(path26, "fill", path26_fill_value = ctx.colors[1]);
-    			add_location(path26, file$1, 40, 8, 13750);
+    			add_location(path26, file, 40, 8, 13750);
     			attr(path27, "d", "M451.342007,1063.2613 C439.952791,1063.2613 430.719331,1054.02515 430.719331,1042.63261 C430.719331,1031.24008 439.952791,1022.00393 451.342007,1022.00393 C462.731224,1022.00393 471.964684,1031.24008 471.964684,1042.63261 C471.964684,1054.02515 462.731224,1063.2613 451.342007,1063.2613 Z");
     			attr(path27, "fill", path27_fill_value = ctx.colors[0]);
-    			add_location(path27, file$1, 41, 8, 14088);
+    			add_location(path27, file, 41, 8, 14088);
     			attr(path28, "d", "M451.342007,1118.07466 C439.952791,1118.07466 430.719331,1108.83851 430.719331,1097.44597 C430.719331,1086.05344 439.952791,1076.81729 451.342007,1076.81729 C462.731224,1076.81729 471.964684,1086.05344 471.964684,1097.44597 C471.964684,1108.83851 462.731224,1118.07466 451.342007,1118.07466 Z");
     			attr(path28, "fill", path28_fill_value = ctx.colors[0]);
-    			add_location(path28, file$1, 42, 8, 14422);
+    			add_location(path28, file, 42, 8, 14422);
     			attr(path29, "d", "M428.951673,688.998035 C417.562456,688.998035 408.328996,679.761886 408.328996,668.369352 C408.328996,656.976817 417.562456,647.740668 428.951673,647.740668 C440.34089,647.740668 449.574349,656.976817 449.574349,668.369352 C449.574349,679.761886 440.34089,688.998035 428.951673,688.998035 Z");
     			attr(path29, "fill", path29_fill_value = ctx.colors[0]);
-    			add_location(path29, file$1, 43, 8, 14760);
+    			add_location(path29, file, 43, 8, 14760);
     			attr(path30, "d", "M181.479554,686.051081 C170.090337,686.051081 160.856877,676.814931 160.856877,665.422397 C160.856877,654.029862 170.090337,644.793713 181.479554,644.793713 C192.868771,644.793713 202.10223,654.029862 202.10223,665.422397 C202.10223,676.814931 192.868771,686.051081 181.479554,686.051081 Z");
     			attr(path30, "fill", path30_fill_value = ctx.colors[0]);
-    			add_location(path30, file$1, 44, 8, 15096);
+    			add_location(path30, file, 44, 8, 15096);
     			attr(path31, "d", "M577.970598,661.591356 C577.970598,642.57868 562.561972,627.165565 543.554833,627.165565 C524.546317,627.165565 509.139067,642.57868 509.139067,661.591356 C509.139067,680.604031 524.546317,696.017146 543.554833,696.017146 C562.561972,696.017146 577.970598,680.604031 577.970598,661.591356 Z M543.554833,585.854617 C585.369988,585.854617 619.269517,619.762643 619.269517,661.591356 C619.269517,703.420068 585.369988,737.328094 543.554833,737.328094 C501.738301,737.328094 467.840149,703.420068 467.840149,661.591356 C467.840149,619.762643 501.738301,585.854617 543.554833,585.854617 Z");
     			attr(path31, "fill", path31_fill_value = ctx.colors[2]);
-    			add_location(path31, file$1, 45, 8, 15431);
+    			add_location(path31, file, 45, 8, 15431);
     			attr(path32, "d", "M635.767658,248.722986 C635.767658,260.115521 645.013201,269.35167 656.420397,269.35167 C675.430554,269.35167 690.841628,284.744794 690.841628,303.732809 L690.841628,441.257367 C690.841628,460.245383 675.430554,475.638507 656.420397,475.638507 C645.013201,475.638507 635.767658,484.874656 635.767658,496.267191 C635.767658,507.659725 645.013201,516.895874 656.420397,516.895874 C678.119541,516.895874 697.687323,507.779371 711.494367,493.171513 C725.300034,507.779371 744.869193,516.895874 766.568337,516.895874 L829.903403,516.895874 C871.726576,516.895874 905.630112,483.031827 905.630112,441.257367 C905.630112,429.864833 896.383192,420.628684 884.977373,420.628684 C873.571554,420.628684 864.324634,429.864833 864.324634,441.257367 C864.324634,460.245383 848.91356,475.638507 829.903403,475.638507 L766.568337,475.638507 C747.558179,475.638507 732.147106,460.245383 732.147106,441.257367 L732.147106,303.732809 C732.147106,261.95835 698.242193,228.094303 656.420397,228.094303 C645.013201,228.094303 635.767658,237.330452 635.767658,248.722986 Z");
     			attr(path32, "fill", path32_fill_value = ctx.colors[3]);
-    			add_location(path32, file$1, 46, 8, 16060);
+    			add_location(path32, file, 46, 8, 16060);
     			attr(path33, "d", "M677.013011,496.399295 C677.013011,485.001149 667.767878,475.76045 656.364263,475.76045 C637.357778,475.76045 621.949683,460.359743 621.949683,441.362374 L621.949683,303.77007 C621.949683,284.7727 637.357778,269.371994 656.364263,269.371994 C667.767878,269.371994 677.013011,260.131295 677.013011,248.733148 C677.013011,237.335002 667.767878,228.094303 656.364263,228.094303 C614.549171,228.094303 580.652186,261.975032 580.652186,303.77007 L580.652186,441.362374 C580.652186,443.056135 580.707249,444.736137 580.817376,446.401004 C546.450976,456.917184 521.459108,488.875748 521.459108,526.669602 L521.459108,606.473139 C521.459108,617.871285 530.704241,627.111984 542.107856,627.111984 C553.511471,627.111984 562.756604,617.871285 562.756604,606.473139 L562.756604,526.669602 C562.756604,506.797146 576.354493,490.097568 594.756658,485.361641 C608.492205,504.539256 630.967679,517.038141 656.364263,517.038141 C667.767878,517.038141 677.013011,507.797442 677.013011,496.399295 Z");
     			attr(path33, "fill", path33_fill_value = ctx.colors[4]);
     			attr(path33, "fill-rule", "nonzero");
-    			add_location(path33, file$1, 47, 8, 17155);
+    			add_location(path33, file, 47, 8, 17155);
     			attr(path34, "d", "M656.095725,516.949455 C637.087209,516.949455 621.679959,532.36257 621.679959,551.375246 C621.679959,570.387921 637.087209,585.801036 656.095725,585.801036 C675.102864,585.801036 690.51149,570.387921 690.51149,551.375246 C690.51149,539.967916 699.755565,530.719771 711.16095,530.719771 C722.564958,530.719771 731.810409,539.967916 731.810409,551.375246 C731.810409,593.203958 697.91088,627.111984 656.095725,627.111984 C614.279193,627.111984 580.381041,593.203958 580.381041,551.375246 C580.381041,509.546533 614.279193,475.638507 656.095725,475.638507 C667.499733,475.638507 676.745184,484.886651 676.745184,496.293981 C676.745184,507.701311 667.499733,516.949455 656.095725,516.949455 Z");
     			attr(path34, "fill", path34_fill_value = ctx.colors[1]);
-    			add_location(path34, file$1, 48, 8, 18201);
+    			add_location(path34, file, 48, 8, 18201);
     			attr(path35, "d", "M1153.1558,655.697446 C1153.1558,636.68477 1168.56442,621.271656 1187.57156,621.271656 C1206.5787,621.271656 1221.98733,636.68477 1221.98733,655.697446 C1221.98733,674.710121 1206.5787,690.123236 1187.57156,690.123236 C1176.16755,690.123236 1166.9221,699.371381 1166.9221,710.77871 C1166.9221,722.18604 1176.16755,731.434185 1187.57156,731.434185 C1229.38809,731.434185 1263.28625,697.526158 1263.28625,655.697446 C1263.28625,613.868734 1229.38809,579.960707 1187.57156,579.960707 C1145.75503,579.960707 1111.85688,613.868734 1111.85688,655.697446 C1111.85688,667.104776 1121.10233,676.35292 1132.50634,676.35292 C1143.91034,676.35292 1153.1558,667.104776 1153.1558,655.697446 Z");
     			attr(path35, "fill", path35_fill_value = ctx.colors[4]);
     			attr(path35, "fill-rule", "nonzero");
-    			add_location(path35, file$1, 49, 8, 18935);
+    			add_location(path35, file, 49, 8, 18935);
     			attr(path36, "d", "M656.390335,516.895874 C644.999743,516.895874 635.767658,507.659725 635.767658,496.267191 C635.767658,484.874656 644.999743,475.638507 656.390335,475.638507 C667.779551,475.638507 677.013011,484.874656 677.013011,496.267191 C677.013011,507.659725 667.779551,516.895874 656.390335,516.895874 Z");
     			attr(path36, "fill", path36_fill_value = ctx.colors[0]);
-    			add_location(path36, file$1, 50, 8, 19679);
+    			add_location(path36, file, 50, 8, 19679);
     			attr(path37, "d", "M656.390335,269.35167 C644.999743,269.35167 635.767658,260.115521 635.767658,248.722986 C635.767658,237.330452 644.999743,228.094303 656.390335,228.094303 C667.779551,228.094303 677.013011,237.330452 677.013011,248.722986 C677.013011,260.115521 667.779551,269.35167 656.390335,269.35167 Z");
     			attr(path37, "fill", path37_fill_value = ctx.colors[0]);
-    			add_location(path37, file$1, 51, 8, 20017);
+    			add_location(path37, file, 51, 8, 20017);
     			attr(path38, "d", "M542.081784,627.111984 C530.692568,627.111984 521.459108,617.875835 521.459108,606.483301 C521.459108,595.090766 530.692568,585.854617 542.081784,585.854617 C553.471001,585.854617 562.704461,595.090766 562.704461,606.483301 C562.704461,617.875835 553.471001,627.111984 542.081784,627.111984 Z");
     			attr(path38, "fill", path38_fill_value = ctx.colors[0]);
-    			add_location(path38, file$1, 52, 8, 20351);
+    			add_location(path38, file, 52, 8, 20351);
     			attr(path39, "d", "M543.260223,681.925344 C531.871006,681.925344 522.637546,672.689194 522.637546,661.29666 C522.637546,649.904126 531.871006,640.667976 543.260223,640.667976 C554.64944,640.667976 563.8829,649.904126 563.8829,661.29666 C563.8829,672.689194 554.64944,681.925344 543.260223,681.925344 Z");
     			attr(path39, "fill", path39_fill_value = ctx.colors[1]);
-    			add_location(path39, file$1, 53, 8, 20689);
+    			add_location(path39, file, 53, 8, 20689);
     			attr(path40, "d", "M1409.24004,478.33874 C1409.24004,520.140957 1375.337,554.027505 1333.51444,554.027505 L1195.83154,554.027505 C1154.00899,554.027505 1120.10595,520.140957 1120.10595,478.33874 C1120.10595,436.536523 1154.00899,402.649975 1195.83154,402.649975 L1239.89007,402.649975 L1239.89007,359.300955 C1239.89007,317.500114 1273.79311,283.61219 1315.61567,283.61219 L1453.29857,283.61219 C1472.31258,283.61219 1487.71929,268.208838 1487.71929,249.208206 L1487.71929,185.904875 C1487.71929,166.904243 1472.31258,151.500891 1453.29857,151.500891 C1441.89842,151.500891 1432.64613,142.258605 1432.64613,130.8585 C1432.64613,119.457983 1441.89842,110.21611 1453.29857,110.21611 C1495.12663,110.21611 1529.02416,144.102658 1529.02416,185.904875 L1529.02416,249.208206 C1529.02416,270.896477 1519.89579,290.45583 1505.27386,304.25458 C1519.89579,318.054706 1529.02416,337.612683 1529.02416,359.300955 L1529.02416,421.228126 C1529.02416,432.62823 1519.77187,441.870517 1508.37173,441.870517 C1496.97158,441.870517 1487.71929,432.62823 1487.71929,421.228126 L1487.71929,359.300955 C1487.71929,340.300323 1472.31258,324.896971 1453.29857,324.896971 L1315.61567,324.896971 C1296.60579,324.896971 1281.19494,340.300323 1281.19494,359.300955 L1281.19494,402.649975 L1333.51444,402.649975 C1375.337,402.649975 1409.24004,436.536523 1409.24004,478.33874 Z M1195.83154,443.934756 C1176.82167,443.934756 1161.41082,459.338108 1161.41082,478.33874 C1161.41082,497.339372 1176.82167,512.742724 1195.83154,512.742724 L1333.51444,512.742724 C1352.52432,512.742724 1367.93517,497.339372 1367.93517,478.33874 C1367.93517,459.338108 1352.52432,443.934756 1333.51444,443.934756 L1195.83154,443.934756 Z");
     			attr(path40, "fill", path40_fill_value = ctx.colors[3]);
-    			add_location(path40, file$1, 54, 8, 21017);
+    			add_location(path40, file, 54, 8, 21017);
     			attr(path41, "d", "M1100.16244,280.108858 C1123.64884,289.661191 1150.24748,278.455649 1159.68611,255.346453 C1169.12335,232.237256 1157.95096,205.6691 1134.46456,196.116768 C1121.48817,190.839691 1107.55883,191.885487 1096.04905,197.826321 C1085.91499,203.056673 1073.45225,199.098866 1068.21102,188.987218 C1062.96979,178.87557 1066.93583,166.43871 1077.06851,161.208358 C1098.89551,149.94235 1125.4487,147.930464 1150.05606,157.939044 C1194.50189,176.014405 1216.06173,226.542411 1197.94325,270.905582 C1179.82478,315.270128 1129.01539,336.363317 1084.56956,318.287956 C1074.00585,313.990712 1068.93124,301.960627 1073.23743,291.418842 C1077.54223,280.875684 1089.59735,275.812989 1100.16244,280.108858 Z");
     			attr(path41, "fill", path41_fill_value = ctx.colors[2]);
-    			add_location(path41, file$1, 55, 8, 22729);
+    			add_location(path41, file, 55, 8, 22729);
     			attr(path42, "d", "M1408.82342,482.711198 C1408.82342,535.119057 1451.29239,577.603143 1503.68773,577.603143 C1515.07145,577.603143 1524.31041,586.839293 1524.31041,598.231827 C1524.31041,609.624361 1515.07145,618.860511 1503.68773,618.860511 C1428.5112,618.860511 1367.57807,557.904126 1367.57807,482.711198 C1367.57807,471.318664 1376.81703,462.082515 1388.20074,462.082515 C1399.58446,462.082515 1408.82342,471.318664 1408.82342,482.711198 Z");
     			attr(path42, "fill", path42_fill_value = ctx.colors[2]);
-    			add_location(path42, file$1, 56, 8, 23463);
+    			add_location(path42, file, 56, 8, 23463);
     			attr(path43, "d", "M1388.20074,502.1611 C1376.81703,502.1611 1367.57807,492.924951 1367.57807,481.532417 C1367.57807,470.139882 1376.81703,460.903733 1388.20074,460.903733 C1399.58446,460.903733 1408.82342,470.139882 1408.82342,481.532417 C1408.82342,492.924951 1399.58446,502.1611 1388.20074,502.1611 Z");
     			attr(path43, "fill", path43_fill_value = ctx.colors[0]);
-    			add_location(path43, file$1, 57, 8, 23934);
+    			add_location(path43, file, 57, 8, 23934);
     			attr(path44, "d", "M635.714093,399.649172 C635.714093,380.699907 620.305466,365.338198 601.298327,365.338198 C582.289812,365.338198 566.882562,380.699907 566.882562,399.649172 C566.882562,411.018456 557.63711,420.235756 546.233102,420.235756 C534.827718,420.235756 525.583643,411.018456 525.583643,399.649172 C525.583643,357.959966 559.481795,324.165029 601.298327,324.165029 C643.113482,324.165029 677.013011,357.959966 677.013011,399.649172 C677.013011,411.018456 667.76756,420.235756 656.363552,420.235756 C644.958167,420.235756 635.714093,411.018456 635.714093,399.649172 Z");
     			attr(path44, "fill", path44_fill_value = ctx.colors[2]);
-    			add_location(path44, file$1, 58, 8, 24264);
+    			add_location(path44, file, 58, 8, 24264);
     			attr(path45, "d", "M974.515208,442.674712 C974.515208,423.725448 959.106581,408.363738 940.099442,408.363738 C921.092303,408.363738 905.683677,423.725448 905.683677,442.674712 C905.683677,454.043997 896.438226,463.261297 885.034218,463.261297 C873.63021,463.261297 864.384758,454.043997 864.384758,442.674712 C864.384758,400.985507 898.282911,367.19057 940.099442,367.19057 C981.915974,367.19057 1015.81413,400.985507 1015.81413,442.674712 C1015.81413,454.043997 1006.56868,463.261297 995.164667,463.261297 C983.760659,463.261297 974.515208,454.043997 974.515208,442.674712 Z");
     			attr(path45, "fill", path45_fill_value = ctx.colors[1]);
-    			add_location(path45, file$1, 59, 8, 24868);
+    			add_location(path45, file, 59, 8, 24868);
     			attr(path46, "d", "M455.466543,1156.97446 C507.85914,1156.97446 550.330855,1114.49037 550.330855,1062.08251 C550.330855,1050.68998 559.564315,1041.45383 570.953532,1041.45383 C582.342748,1041.45383 591.576208,1050.68998 591.576208,1062.08251 C591.576208,1137.27544 530.637574,1198.23183 455.466543,1198.23183 C444.077326,1198.23183 434.843866,1188.99568 434.843866,1177.60314 C434.843866,1166.21061 444.077326,1156.97446 455.466543,1156.97446 Z");
     			attr(path46, "fill", path46_fill_value = ctx.colors[4]);
     			attr(path46, "fill-rule", "nonzero");
-    			add_location(path46, file$1, 60, 8, 25470);
+    			add_location(path46, file, 60, 8, 25470);
     			attr(path47, "d", "M664.662974,669.500982 C725.477178,669.500982 774.776283,620.187517 774.776283,559.355599 C774.776283,547.950045 784.020295,538.70334 795.422528,538.70334 C806.824761,538.70334 816.068773,547.950045 816.068773,559.355599 C816.068773,642.998626 748.281644,710.805501 664.662974,710.805501 C653.260741,710.805501 644.016729,701.558796 644.016729,690.153242 C644.016729,678.747687 653.260741,669.500982 664.662974,669.500982 Z");
     			attr(path47, "fill", path47_fill_value = ctx.colors[3]);
-    			add_location(path47, file$1, 61, 8, 25961);
+    			add_location(path47, file, 61, 8, 25961);
     			attr(path48, "d", "M656.390335,420.235756 C644.999743,420.235756 635.767658,410.999607 635.767658,399.607073 C635.767658,388.214538 644.999743,378.978389 656.390335,378.978389 C667.779551,378.978389 677.013011,388.214538 677.013011,399.607073 C677.013011,410.999607 667.779551,420.235756 656.390335,420.235756 Z");
     			attr(path48, "fill", path48_fill_value = ctx.colors[0]);
-    			add_location(path48, file$1, 62, 8, 26430);
+    			add_location(path48, file, 62, 8, 26430);
     			attr(path49, "d", "M800.749071,289.980354 C789.359854,289.980354 780.126394,280.744204 780.126394,269.35167 C780.126394,257.959136 789.359854,248.722986 800.749071,248.722986 C812.138287,248.722986 821.371747,257.959136 821.371747,269.35167 C821.371747,280.744204 812.138287,289.980354 800.749071,289.980354 Z");
     			attr(path49, "fill", path49_fill_value = ctx.colors[0]);
-    			add_location(path49, file$1, 63, 8, 26768);
+    			add_location(path49, file, 63, 8, 26768);
     			attr(path50, "d", "M1114.21375,711.984283 C1114.21375,723.376817 1123.44721,732.612967 1134.83643,732.612967 C1146.22565,732.612967 1155.45911,723.376817 1155.45911,711.984283 C1155.45911,700.591749 1146.22565,691.355599 1134.83643,691.355599 C1123.44721,691.355599 1114.21375,700.591749 1114.21375,711.984283 Z");
     			attr(path50, "fill", path50_fill_value = ctx.colors[0]);
-    			add_location(path50, file$1, 64, 8, 27104);
+    			add_location(path50, file, 64, 8, 27104);
     			attr(path51, "d", "M1059.41636,711.984283 C1059.41636,723.376817 1068.64982,732.612967 1080.03903,732.612967 C1091.42825,732.612967 1100.66171,723.376817 1100.66171,711.984283 C1100.66171,700.591749 1091.42825,691.355599 1080.03903,691.355599 C1068.64982,691.355599 1059.41636,700.591749 1059.41636,711.984283 Z");
     			attr(path51, "fill", path51_fill_value = ctx.colors[0]);
-    			add_location(path51, file$1, 65, 8, 27442);
+    			add_location(path51, file, 65, 8, 27442);
     			attr(path52, "d", "M1463.91543,1198.23183 C1422.09339,1198.23183 1388.20074,1164.36778 1388.20074,1122.59332 L1388.20074,985.068762 C1388.20074,943.294303 1422.09339,909.430255 1463.91543,909.430255 C1505.73747,909.430255 1539.63011,943.294303 1539.63011,985.068762 L1539.63011,1122.59332 C1539.63011,1164.36778 1505.73747,1198.23183 1463.91543,1198.23183 Z M1498.33119,1122.59332 L1498.33119,985.068762 C1498.33119,966.080747 1482.9267,950.687623 1463.91543,950.687623 C1444.90416,950.687623 1429.49966,966.080747 1429.49966,985.068762 L1429.49966,1122.59332 C1429.49966,1141.58134 1444.90416,1156.97446 1463.91543,1156.97446 C1482.9267,1156.97446 1498.33119,1141.58134 1498.33119,1122.59332 Z");
     			attr(path52, "fill", path52_fill_value = ctx.colors[3]);
     			set_style(path52, "mix-blend-mode", "multiply");
-    			add_location(path52, file$1, 66, 8, 27780);
+    			add_location(path52, file, 66, 8, 27780);
     			attr(path53, "d", "M1484.95056,930.088409 C1484.95056,888.373627 1518.89595,854.557957 1560.78309,854.557957 C1572.19933,854.557957 1581.46468,845.335002 1581.46468,833.958743 C1581.46468,822.582483 1572.19933,813.359528 1560.78309,813.359528 C1496.06347,813.359528 1443.58736,865.621108 1443.58736,930.088409 C1443.58736,941.464668 1452.85272,950.687623 1464.26896,950.687623 C1475.6852,950.687623 1484.95056,941.464668 1484.95056,930.088409 Z");
     			attr(path53, "fill", path53_fill_value = ctx.colors[4]);
     			attr(path53, "fill-rule", "nonzero");
-    			add_location(path53, file$1, 67, 8, 28535);
+    			add_location(path53, file, 67, 8, 28535);
     			attr(path54, "d", "M1484.83271,930.058939 C1484.83271,918.665029 1475.59375,909.430255 1464.21004,909.430255 C1452.82632,909.430255 1443.58736,918.665029 1443.58736,930.058939 C1443.58736,941.451473 1452.82632,950.687623 1464.21004,950.687623 C1475.59375,950.687623 1484.83271,941.451473 1484.83271,930.058939 Z");
     			attr(path54, "fill", path54_fill_value = ctx.colors[0]);
-    			add_location(path54, file$1, 68, 8, 29026);
+    			add_location(path54, file, 68, 8, 29026);
     			attr(path55, "d", "M1279.48978,1088.0693 C1260.48264,1088.0693 1245.07401,1103.48241 1245.07401,1122.49509 C1245.07401,1141.50776 1260.48264,1156.92088 1279.48978,1156.92088 C1298.49692,1156.92088 1313.90554,1141.50776 1313.90554,1122.49509 C1313.90554,1103.48241 1298.49692,1088.0693 1279.48978,1088.0693 Z M1203.77509,1122.49509 C1203.77509,1080.66638 1237.67325,1046.75835 1279.48978,1046.75835 C1321.30631,1046.75835 1355.20446,1080.66638 1355.20446,1122.49509 C1355.20446,1164.3238 1321.30631,1198.23183 1279.48978,1198.23183 C1237.67325,1198.23183 1203.77509,1164.3238 1203.77509,1122.49509 Z");
     			attr(path55, "fill", path55_fill_value = ctx.colors[2]);
-    			add_location(path55, file$1, 69, 8, 29364);
+    			add_location(path55, file, 69, 8, 29364);
     			attr(path56, "d", "M866.751795,988.998035 C878.146622,988.998035 887.38463,998.257746 887.38463,1009.67934 C887.38463,1028.7158 902.780852,1044.14819 921.772689,1044.14819 L1059.32493,1044.14819 C1078.31676,1044.14819 1093.71299,1028.7158 1093.71299,1009.67934 C1093.71299,998.257746 1102.95099,988.998035 1114.34582,988.998035 C1125.74065,988.998035 1134.97866,998.257746 1134.97866,1009.67934 C1134.97866,1035.0622 1122.53706,1057.53175 1103.4338,1071.29585 C1108.28114,1089.08591 1124.61272,1102.05585 1144.60731,1102.05585 L1224.38761,1102.05585 C1235.78244,1102.05585 1245.02045,1111.31556 1245.02045,1122.73716 C1245.02045,1134.15876 1235.78244,1143.41847 1224.38761,1143.41847 L1144.60731,1143.41847 C1107.28802,1143.41847 1075.23284,1119.44332 1064.51477,1085.3357 C1062.7995,1085.45152 1061.06909,1085.51081 1059.32493,1085.51081 L921.772689,1085.51081 C879.989822,1085.51081 846.118959,1051.56037 846.118959,1009.67934 C846.118959,998.257746 855.356967,988.998035 866.751795,988.998035 Z");
     			attr(path56, "fill", path56_fill_value = ctx.colors[4]);
     			attr(path56, "fill-rule", "nonzero");
-    			add_location(path56, file$1, 70, 8, 29989);
+    			add_location(path56, file, 70, 8, 29989);
     			attr(path57, "d", "M697.341078,742.632613 C739.15761,742.632613 773.055762,776.49666 773.055762,818.27112 L773.055762,955.795678 C773.055762,997.570138 739.15761,1031.43418 697.341078,1031.43418 C655.524546,1031.43418 621.626394,997.570138 621.626394,955.795678 L621.626394,818.27112 C621.626394,776.49666 655.524546,742.632613 697.341078,742.632613 Z M731.756844,818.27112 C731.756844,799.283104 716.348217,783.88998 697.341078,783.88998 C678.333939,783.88998 662.925313,799.283104 662.925313,818.27112 L662.925313,955.795678 C662.925313,974.783694 678.333939,990.176817 697.341078,990.176817 C716.348217,990.176817 731.756844,974.783694 731.756844,955.795678 L731.756844,818.27112 Z");
     			attr(path57, "fill", path57_fill_value = ctx.colors[3]);
-    			add_location(path57, file$1, 71, 8, 31033);
+    			add_location(path57, file, 71, 8, 31033);
     			attr(path58, "d", "M866.741636,1030.2554 C878.130853,1030.2554 887.364312,1021.00579 887.364312,1009.59665 C887.364312,990.580953 902.752954,975.16539 921.73544,975.16539 C921.73544,975.16539 921.73544,975.16539 921.73544,975.16539 L1059.21995,975.16539 C1078.20244,975.16539 1093.59108,990.580953 1093.59108,1009.59665 C1093.59108,1021.00579 1102.82454,1030.2554 1114.21375,1030.2554 C1125.60297,1030.2554 1134.83643,1021.00579 1134.83643,1009.59665 C1134.83643,987.891183 1125.72258,968.317702 1111.11898,954.506636 C1125.72258,940.69557 1134.83643,921.122088 1134.83643,899.416623 L1134.83643,836.063109 C1134.83643,794.227753 1100.98225,760.314342 1059.21995,760.314342 C1047.83073,760.314342 1038.59727,769.563955 1038.59727,780.973097 C1038.59727,792.382238 1047.83073,801.631851 1059.21995,801.631851 C1078.20244,801.631851 1093.59108,817.047414 1093.59108,836.063109 L1093.59108,899.416623 C1093.59108,918.432318 1078.20244,933.847881 1059.21995,933.847881 L921.736815,933.847881 C921.73544,933.847881 921.736815,933.847881 921.736815,933.847881 C879.97452,933.847881 846.118959,967.761293 846.118959,1009.59665 C846.118959,1021.00579 855.352419,1030.2554 866.741636,1030.2554 Z");
     			attr(path58, "fill", path58_fill_value = ctx.colors[3]);
-    			add_location(path58, file$1, 72, 8, 31744);
+    			add_location(path58, file, 72, 8, 31744);
     			attr(path59, "d", "M1134.89,1009.33202 C1134.89,1028.3447 1150.29862,1043.75781 1169.30576,1043.75781 C1188.3129,1043.75781 1203.72153,1028.3447 1203.72153,1009.33202 C1203.72153,990.319348 1188.3129,974.906233 1169.30576,974.906233 C1157.90175,974.906233 1148.6563,965.658089 1148.6563,954.250759 C1148.6563,942.843429 1157.90175,933.595285 1169.30576,933.595285 C1211.12229,933.595285 1245.02045,967.503311 1245.02045,1009.33202 C1245.02045,1051.16074 1211.12229,1085.06876 1169.30576,1085.06876 C1127.48923,1085.06876 1093.59108,1051.16074 1093.59108,1009.33202 C1093.59108,997.924694 1102.83653,988.676549 1114.24054,988.676549 C1125.64455,988.676549 1134.89,997.924694 1134.89,1009.33202 Z");
     			attr(path59, "fill", path59_fill_value = ctx.colors[1]);
-    			add_location(path59, file$1, 73, 8, 32957);
+    			add_location(path59, file, 73, 8, 32957);
     			attr(path60, "d", "M959.195505,840.176817 C959.195505,821.164142 943.786879,805.751027 924.77974,805.751027 C905.772601,805.751027 890.363974,821.164142 890.363974,840.176817 C890.363974,859.189493 905.772601,874.602608 924.77974,874.602608 C936.183748,874.602608 945.429199,883.850752 945.429199,895.258082 C945.429199,906.665412 936.183748,915.913556 924.77974,915.913556 C882.963208,915.913556 849.065056,882.00553 849.065056,840.176817 C849.065056,798.348105 882.963208,764.440079 924.77974,764.440079 C966.596271,764.440079 1000.49442,798.348105 1000.49442,840.176817 C1000.49442,851.584147 991.248973,860.832291 979.844965,860.832291 C968.440956,860.832291 959.195505,851.584147 959.195505,840.176817 Z");
     			attr(path60, "fill", path60_fill_value = ctx.colors[1]);
-    			add_location(path60, file$1, 74, 8, 33678);
+    			add_location(path60, file, 74, 8, 33678);
     			attr(path61, "d", "M677.013011,951.804843 C677.013011,926.412752 656.608935,905.996231 631.643123,905.996231 C606.67731,905.996231 586.273234,926.412752 586.273234,951.804843 C586.273234,965.832671 592.490284,978.349492 602.331425,986.771703 C610.995699,994.186116 612.025458,1007.23923 604.631541,1015.92615 C597.237624,1024.61444 584.22059,1025.64705 575.557691,1018.23264 C556.895544,1002.26228 545.027881,978.407395 545.027881,951.804843 C545.027881,903.754536 583.714647,864.636542 631.643123,864.636542 C679.571598,864.636542 718.258364,903.754536 718.258364,951.804843 C718.258364,963.225632 709.024905,972.484688 697.635688,972.484688 C686.246471,972.484688 677.013011,963.225632 677.013011,951.804843 Z");
     			attr(path61, "fill", path61_fill_value = ctx.colors[0]);
-    			add_location(path61, file$1, 75, 8, 34413);
+    			add_location(path61, file, 75, 8, 34413);
     			attr(path62, "d", "M1134.83643,1009.03733 C1134.83643,1020.42986 1125.60297,1029.66601 1114.21375,1029.66601 C1102.82454,1029.66601 1093.59108,1020.42986 1093.59108,1009.03733 C1093.59108,997.644794 1102.82454,988.408644 1114.21375,988.408644 C1125.60297,988.408644 1134.83643,997.644794 1134.83643,1009.03733 Z");
     			attr(path62, "fill", path62_fill_value = ctx.colors[0]);
-    			add_location(path62, file$1, 76, 8, 35151);
+    			add_location(path62, file, 76, 8, 35151);
     			attr(path63, "d", "M887.364312,1009.62672 C887.364312,1021.01925 878.130853,1030.2554 866.741636,1030.2554 C855.352419,1030.2554 846.118959,1021.01925 846.118959,1009.62672 C846.118959,998.234185 855.352419,988.998035 866.741636,988.998035 C878.130853,988.998035 887.364312,998.234185 887.364312,1009.62672 Z");
     			attr(path63, "fill", path63_fill_value = ctx.colors[0]);
-    			add_location(path63, file$1, 77, 8, 35489);
+    			add_location(path63, file, 77, 8, 35489);
     			attr(path64, "d", "M1245.02045,1122.78978 C1245.02045,1134.18232 1235.78699,1143.41847 1224.39777,1143.41847 C1213.00855,1143.41847 1203.77509,1134.18232 1203.77509,1122.78978 C1203.77509,1111.39725 1213.00855,1102.1611 1224.39777,1102.1611 C1235.78699,1102.1611 1245.02045,1111.39725 1245.02045,1122.78978 Z");
     			attr(path64, "fill", path64_fill_value = ctx.colors[0]);
-    			add_location(path64, file$1, 78, 8, 35824);
+    			add_location(path64, file, 78, 8, 35824);
     			attr(path65, "d", "M1300.40706,1122.20039 C1300.40706,1133.59293 1291.1736,1142.82908 1279.78439,1142.82908 C1268.39517,1142.82908 1259.16171,1133.59293 1259.16171,1122.20039 C1259.16171,1110.80786 1268.39517,1101.57171 1279.78439,1101.57171 C1291.1736,1101.57171 1300.40706,1110.80786 1300.40706,1122.20039 Z");
     			attr(path65, "fill", path65_fill_value = ctx.colors[0]);
-    			add_location(path65, file$1, 79, 8, 36159);
+    			add_location(path65, file, 79, 8, 36159);
     			attr(path66, "d", "M1018.21309,1030.30898 C999.269344,1030.30898 983.912108,1045.7221 983.912108,1064.73477 C983.912108,1083.74745 999.269344,1099.16056 1018.21309,1099.16056 C1029.57906,1099.16056 1038.79368,1108.40871 1038.79368,1119.81604 C1038.79368,1131.22337 1029.57906,1140.47151 1018.21309,1140.47151 C976.536025,1140.47151 942.750929,1106.56349 942.750929,1064.73477 C942.750929,1022.90606 976.536025,988.998035 1018.21309,988.998035 C1029.57906,988.998035 1038.79368,998.24618 1038.79368,1009.65351 C1038.79368,1021.06084 1029.57906,1030.30898 1018.21309,1030.30898 Z");
     			attr(path66, "fill", path66_fill_value = ctx.colors[2]);
-    			add_location(path66, file$1, 80, 8, 36495);
+    			add_location(path66, file, 80, 8, 36495);
     			attr(path67, "d", "M1060.55797,661.29666 C1034.31902,661.29666 1012.35246,683.075049 1012.35246,710.805501 C1012.35246,738.535953 1034.31902,760.314342 1060.55797,760.314342 C1071.96752,760.314342 1081.21747,769.550491 1081.21747,780.943026 C1081.21747,792.33556 1071.96752,801.571709 1060.55797,801.571709 C1010.73138,801.571709 971.033457,760.546758 971.033457,710.805501 C971.033457,661.064244 1010.73138,620.039293 1060.55797,620.039293 C1071.96752,620.039293 1081.21747,629.275442 1081.21747,640.667976 C1081.21747,652.060511 1071.96752,661.29666 1060.55797,661.29666 Z");
     			attr(path67, "fill", path67_fill_value = ctx.colors[2]);
-    			add_location(path67, file$1, 81, 8, 37099);
+    			add_location(path67, file, 81, 8, 37099);
     			attr(path68, "d", "M924.469944,915.9901 C872.038766,915.9901 829.535776,958.553007 829.535776,1011.0581 C829.535776,1052.91006 795.656661,1086.83694 753.863613,1086.83694 C712.070565,1086.83694 678.19145,1052.91006 678.19145,1011.0581 C678.19145,999.644426 687.431709,990.391141 698.829312,990.391141 C710.226916,990.391141 719.467175,999.644426 719.467175,1011.0581 C719.467175,1030.08134 734.867148,1045.50302 753.863613,1045.50302 C772.860077,1045.50302 788.260051,1030.08134 788.260051,1011.0581 C788.260051,935.725665 849.243559,874.656189 924.469944,874.656189 C935.867548,874.656189 945.107807,883.909474 945.107807,895.323144 C945.107807,906.736815 935.867548,915.9901 924.469944,915.9901 Z");
     			attr(path68, "fill", path68_fill_value = ctx.colors[2]);
-    			add_location(path68, file$1, 82, 8, 37700);
+    			add_location(path68, file, 82, 8, 37700);
     			attr(path69, "d", "M701.760223,742.632613 C788.320471,742.632613 858.492565,672.440079 858.492565,585.854617 C858.492565,574.462083 867.726025,565.225933 879.115242,565.225933 C890.504458,565.225933 899.737918,574.462083 899.737918,585.854617 C899.737918,695.226523 811.100279,783.88998 701.760223,783.88998 C690.371006,783.88998 681.137546,774.653831 681.137546,763.261297 C681.137546,751.868762 690.371006,742.632613 701.760223,742.632613 Z");
     			attr(path69, "fill", path69_fill_value = ctx.colors[4]);
     			attr(path69, "fill-rule", "nonzero");
-    			add_location(path69, file$1, 83, 8, 38425);
+    			add_location(path69, file, 83, 8, 38425);
     			attr(path70, "d", "M1309.79308,50.1812446 C1235.99168,50.1812446 1176.16477,110.02613 1176.16477,183.848474 C1176.16477,195.263931 1166.91273,204.518664 1155.5006,204.518664 C1144.08847,204.518664 1134.83643,195.263931 1134.83643,183.848474 C1134.83643,87.1943894 1213.16742,8.84086444 1309.79308,8.84086444 C1321.20521,8.84086444 1330.45725,18.0951842 1330.45725,29.5110545 C1330.45725,40.9269249 1321.20521,50.1812446 1309.79308,50.1812446 Z");
     			attr(path70, "fill", path70_fill_value = ctx.colors[4]);
     			attr(path70, "fill-rule", "nonzero");
-    			add_location(path70, file$1, 84, 8, 38914);
+    			add_location(path70, file, 84, 8, 38914);
     			attr(path71, "d", "M1273.89219,994.302554 C1273.89219,941.894695 1231.42048,899.410609 1179.02788,899.410609 C1167.63866,899.410609 1158.4052,890.17446 1158.4052,878.781925 C1158.4052,867.389391 1167.63866,858.153242 1179.02788,858.153242 C1254.19891,858.153242 1315.13755,919.109627 1315.13755,994.302554 C1315.13755,1005.69509 1305.90409,1014.93124 1294.51487,1014.93124 C1283.12565,1014.93124 1273.89219,1005.69509 1273.89219,994.302554 Z");
     			attr(path71, "fill", path71_fill_value = ctx.colors[0]);
-    			add_location(path71, file$1, 85, 8, 39404);
+    			add_location(path71, file, 85, 8, 39404);
     			attr(path72, "d", "M42.4237509,1062.08251 C42.4237509,1114.49037 84.8957923,1156.97446 137.287871,1156.97446 C148.67734,1156.97446 157.910781,1166.21061 157.910781,1177.60314 C157.910781,1188.99568 148.67734,1198.23183 137.287871,1198.23183 C62.1167173,1198.23183 1.17843866,1137.27544 1.17843866,1062.08251 C1.17843866,1050.68998 10.4115098,1041.45383 21.8011161,1041.45383 C33.1905848,1041.45383 42.4237509,1050.68998 42.4237509,1062.08251 Z");
     			attr(path72, "fill", path72_fill_value = ctx.colors[3]);
-    			add_location(path72, file$1, 86, 8, 39872);
+    			add_location(path72, file, 86, 8, 39872);
     			attr(path73, "d", "M586.305609,852.783955 C551.432501,852.783955 523.162016,881.062674 523.162016,915.94594 C523.162016,927.32059 513.943052,936.54224 502.571715,936.54224 C491.200377,936.54224 481.981413,927.32059 481.981413,915.94594 C481.981413,858.312002 528.688453,811.591356 586.305609,811.591356 C597.676946,811.591356 606.895911,820.813005 606.895911,832.187655 C606.895911,843.562305 597.676946,852.783955 586.305609,852.783955 Z");
     			attr(path73, "fill", path73_fill_value = ctx.colors[2]);
-    			add_location(path73, file$1, 87, 8, 40342);
+    			add_location(path73, file, 87, 8, 40342);
     			attr(path74, "d", "M1038.79368,1009.62672 C1038.79368,1021.01925 1029.56022,1030.2554 1018.171,1030.2554 C1006.78179,1030.2554 997.548327,1021.01925 997.548327,1009.62672 C997.548327,998.234185 1006.78179,988.998035 1018.171,988.998035 C1029.56022,988.998035 1038.79368,998.234185 1038.79368,1009.62672 Z");
     			attr(path74, "fill", path74_fill_value = ctx.colors[0]);
-    			add_location(path74, file$1, 88, 8, 40807);
+    			add_location(path74, file, 88, 8, 40807);
     			attr(path75, "d", "M945.697026,895.284872 C945.697026,906.677407 936.463566,915.913556 925.074349,915.913556 C913.685133,915.913556 904.451673,906.677407 904.451673,895.284872 C904.451673,883.892338 913.685133,874.656189 925.074349,874.656189 C936.463566,874.656189 945.697026,883.892338 945.697026,895.284872 Z");
     			attr(path75, "fill", path75_fill_value = ctx.colors[0]);
-    			add_location(path75, file$1, 89, 8, 41138);
+    			add_location(path75, file, 89, 8, 41138);
     			attr(path76, "d", "M945.107807,726.129666 C945.107807,737.5222 935.874347,746.75835 924.48513,746.75835 C913.095913,746.75835 903.862454,737.5222 903.862454,726.129666 C903.862454,714.737132 913.095913,705.500982 924.48513,705.500982 C935.874347,705.500982 945.107807,714.737132 945.107807,726.129666 Z");
     			attr(path76, "fill", path76_fill_value = ctx.colors[0]);
-    			add_location(path76, file$1, 90, 8, 41476);
+    			add_location(path76, file, 90, 8, 41476);
     			attr(path77, "d", "M945.107807,670.726916 C945.107807,682.11945 935.874347,691.355599 924.48513,691.355599 C913.095913,691.355599 903.862454,682.11945 903.862454,670.726916 C903.862454,659.334381 913.095913,650.098232 924.48513,650.098232 C935.874347,650.098232 945.107807,659.334381 945.107807,670.726916 Z");
     			attr(path77, "fill", path77_fill_value = ctx.colors[0]);
-    			add_location(path77, file$1, 91, 8, 41805);
+    			add_location(path77, file, 91, 8, 41805);
     			attr(path78, "d", "M905.630112,443.222004 C905.630112,454.614538 896.396652,463.850688 885.007435,463.850688 C873.618218,463.850688 864.384758,454.614538 864.384758,443.222004 C864.384758,431.82947 873.618218,422.59332 885.007435,422.59332 C896.396652,422.59332 905.630112,431.82947 905.630112,443.222004 Z");
     			attr(path78, "fill", path78_fill_value = ctx.colors[0]);
-    			add_location(path78, file$1, 92, 8, 42139);
+    			add_location(path78, file, 92, 8, 42139);
     			attr(path79, "d", "M1081.21747,780.943026 C1081.21747,792.33556 1071.98401,801.571709 1060.5948,801.571709 C1049.20558,801.571709 1039.97212,792.33556 1039.97212,780.943026 C1039.97212,769.550491 1049.20558,760.314342 1060.5948,760.314342 C1071.98401,760.314342 1081.21747,769.550491 1081.21747,780.943026 Z");
     			attr(path79, "fill", path79_fill_value = ctx.colors[0]);
-    			add_location(path79, file$1, 93, 8, 42472);
+    			add_location(path79, file, 93, 8, 42472);
     			attr(path80, "d", "M433.370818,123.12913 C414.363679,123.12913 398.955052,107.716153 398.955052,88.7033399 C398.955052,69.6905267 414.363679,54.2775496 433.370818,54.2775496 C452.377957,54.2775496 467.786583,69.6905267 467.786583,88.7033399 C467.786583,107.716153 452.377957,123.12913 433.370818,123.12913 Z M357.656134,88.7033399 C357.656134,130.531639 391.554286,164.440079 433.370818,164.440079 C475.18735,164.440079 509.085502,130.531639 509.085502,88.7033399 C509.085502,46.8751784 475.18735,12.9666012 433.370818,12.9666012 C391.554286,12.9666012 357.656134,46.8750407 357.656134,88.7033399 Z");
     			attr(path80, "fill", path80_fill_value = ctx.colors[2]);
-    			add_location(path80, file$1, 94, 8, 42806);
+    			add_location(path80, file, 94, 8, 42806);
     			attr(path81, "d", "M20.6226793,180.943026 C32.0123084,180.943026 41.2453556,190.18973 41.2453556,201.595285 C41.2453556,220.605001 56.6338593,236.015717 75.6164829,236.015717 L213.100992,236.015717 C232.083478,236.015717 247.472119,220.605001 247.472119,201.595285 C247.472119,190.18973 256.705579,180.943026 268.094796,180.943026 C279.484012,180.943026 288.717472,190.18973 288.717472,201.595285 C288.717472,243.417487 254.863287,277.320236 213.100992,277.320236 L78.3918827,277.320236 C78.3833587,277.320236 78.3746971,277.320236 78.3661731,277.320236 C59.3835494,277.320236 43.9950458,292.730952 43.9950458,311.740668 L43.9950458,449.422397 C43.9950458,468.432113 59.3835494,483.842829 78.3661731,483.842829 C89.7558023,483.842829 98.9888495,493.089534 98.9888495,504.495088 C98.9888495,515.900643 89.7558023,525.147348 78.3661731,525.147348 C36.6042911,525.147348 2.74967932,491.244599 2.74967932,449.422397 L2.74967932,311.740668 C2.74967932,290.713914 11.3077326,271.687676 25.1259844,257.966315 C9.70228469,244.103142 0,223.983711 0,201.595285 C0,190.18973 9.23309131,180.943026 20.6226793,180.943026 Z");
     			attr(path81, "fill", path81_fill_value = ctx.colors[3]);
-    			add_location(path81, file$1, 95, 8, 43431);
+    			add_location(path81, file, 95, 8, 43431);
     			attr(path82, "d", "M218.521983,126.320653 C229.414693,92.6932889 261.073632,68.3693517 298.430797,68.3693517 L378.256825,68.3693517 C389.658183,68.3693517 398.901487,77.5835044 398.901487,88.9498258 C398.901487,100.31601 389.658183,109.5303 378.256825,109.5303 L298.430797,109.5303 C278.91658,109.5303 262.462498,122.590095 257.383355,140.420263 C276.367071,154.133471 288.717472,176.433679 288.717472,201.613809 C288.717472,212.983093 279.484012,222.200393 268.094796,222.200393 C256.705578,222.200393 247.472119,212.983093 247.472119,201.613809 C247.472119,182.664544 232.083477,167.302835 213.100991,167.302835 L75.6164795,167.302835 C56.6338555,167.302835 41.2453532,182.664544 41.2453532,201.613809 C41.2453532,212.983093 32.0123043,222.200393 20.6226766,222.200393 C9.23308677,222.200393 0,212.983093 0,201.613809 C0,159.924603 33.8545967,126.129666 75.6164795,126.129666 L213.100991,126.129666 C214.923771,126.129666 216.731487,126.194046 218.521979,126.320653 L218.521983,126.320653 Z");
     			attr(path82, "fill", path82_fill_value = ctx.colors[4]);
     			attr(path82, "fill-rule", "nonzero");
-    			add_location(path82, file$1, 96, 8, 44567);
+    			add_location(path82, file, 96, 8, 44567);
     			attr(path83, "d", "M288.771038,201.866405 C288.771038,182.853729 304.179664,167.440614 323.186803,167.440614 C342.193942,167.440614 357.602568,182.853729 357.602568,201.866405 C357.602568,220.87908 342.193942,236.292195 323.186803,236.292195 C311.782795,236.292195 302.537344,245.540339 302.537344,256.947669 C302.537344,268.354999 311.782795,277.603143 323.186803,277.603143 C365.003335,277.603143 398.901487,243.695117 398.901487,201.866405 C398.901487,160.037692 365.003335,126.129666 323.186803,126.129666 C281.370271,126.129666 247.472119,160.037692 247.472119,201.866405 C247.472119,213.273735 256.71757,222.521879 268.121578,222.521879 C279.525586,222.521879 288.771038,213.273735 288.771038,201.866405 Z");
     			attr(path83, "fill", path83_fill_value = ctx.colors[1]);
-    			add_location(path83, file$1, 97, 8, 45606);
+    			add_location(path83, file, 97, 8, 45606);
     			attr(path84, "d", "M288.717472,202.1611 C288.717472,190.768566 279.484012,181.532417 268.094796,181.532417 C256.705579,181.532417 247.472119,190.768566 247.472119,202.1611 C247.472119,213.553635 256.705579,222.789784 268.094796,222.789784 C279.484012,222.789784 288.717472,213.553635 288.717472,202.1611 Z");
     			attr(path84, "fill", path84_fill_value = ctx.colors[0]);
-    			add_location(path84, file$1, 98, 8, 46344);
+    			add_location(path84, file, 98, 8, 46344);
     			attr(path85, "d", "M41.2453532,201.571709 C41.2453532,190.179175 32.0118934,180.943026 20.6226766,180.943026 C9.23345973,180.943026 0,190.179175 0,201.571709 C0,212.964244 9.23345973,222.200393 20.6226766,222.200393 C32.0118934,222.200393 41.2453532,212.964244 41.2453532,201.571709 Z");
     			attr(path85, "fill", path85_fill_value = ctx.colors[1]);
-    			add_location(path85, file$1, 99, 8, 46676);
+    			add_location(path85, file, 99, 8, 46676);
     			attr(path86, "d", "M268.094796,327.111984 C268.094796,315.71945 258.861336,306.483301 247.472119,306.483301 C236.082902,306.483301 226.849442,315.71945 226.849442,327.111984 C226.849442,338.504519 236.082902,347.740668 247.472119,347.740668 C258.861336,347.740668 268.094796,338.504519 268.094796,327.111984 Z");
     			attr(path86, "fill", path86_fill_value = ctx.colors[1]);
-    			add_location(path86, file$1, 100, 8, 46987);
+    			add_location(path86, file, 100, 8, 46987);
     			attr(path87, "d", "M268.094796,381.925344 C268.094796,370.532809 258.861336,361.29666 247.472119,361.29666 C236.082902,361.29666 226.849442,370.532809 226.849442,381.925344 C226.849442,393.317878 236.082902,402.554028 247.472119,402.554028 C258.861336,402.554028 268.094796,393.317878 268.094796,381.925344 Z");
     			attr(path87, "fill", path87_fill_value = ctx.colors[1]);
-    			add_location(path87, file$1, 101, 8, 47323);
+    			add_location(path87, file, 101, 8, 47323);
     			attr(path88, "d", "M447.217472,405.500982 C447.217472,394.108448 437.984012,384.872299 426.594796,384.872299 C415.205579,384.872299 405.972119,394.108448 405.972119,405.500982 C405.972119,416.893517 415.205579,426.129666 426.594796,426.129666 C437.984012,426.129666 447.217472,416.893517 447.217472,405.500982 Z");
     			attr(path88, "fill", path88_fill_value = ctx.colors[1]);
-    			add_location(path88, file$1, 102, 8, 47658);
+    			add_location(path88, file, 102, 8, 47658);
     			attr(path89, "d", "M503.782528,402.554028 C503.782528,391.161493 494.549068,381.925344 483.159851,381.925344 C471.770634,381.925344 462.537175,391.161493 462.537175,402.554028 C462.537175,413.946562 471.770634,423.182711 483.159851,423.182711 C494.549068,423.182711 503.782528,413.946562 503.782528,402.554028 Z");
     			attr(path89, "fill", path89_fill_value = ctx.colors[1]);
-    			add_location(path89, file$1, 103, 8, 47996);
+    			add_location(path89, file, 103, 8, 47996);
     			attr(path90, "d", "M503.782528,460.314342 C503.782528,448.921807 494.549068,439.685658 483.159851,439.685658 C471.770634,439.685658 462.537175,448.921807 462.537175,460.314342 C462.537175,471.706876 471.770634,480.943026 483.159851,480.943026 C494.549068,480.943026 503.782528,471.706876 503.782528,460.314342 Z");
     			attr(path90, "fill", path90_fill_value = ctx.colors[1]);
-    			add_location(path90, file$1, 104, 8, 48334);
+    			add_location(path90, file, 104, 8, 48334);
     			attr(path91, "d", "M222.724907,1178.78193 C222.724907,1167.38939 213.491447,1158.15324 202.10223,1158.15324 C190.713014,1158.15324 181.479554,1167.38939 181.479554,1178.78193 C181.479554,1190.17446 190.713014,1199.41061 202.10223,1199.41061 C213.491447,1199.41061 222.724907,1190.17446 222.724907,1178.78193 Z");
     			attr(path91, "fill", path91_fill_value = ctx.colors[1]);
-    			add_location(path91, file$1, 105, 8, 48672);
+    			add_location(path91, file, 105, 8, 48672);
     			attr(path92, "d", "M284.592937,1178.78193 C284.592937,1167.38939 275.359477,1158.15324 263.97026,1158.15324 C252.581043,1158.15324 243.347584,1167.38939 243.347584,1178.78193 C243.347584,1190.17446 252.581043,1199.41061 263.97026,1199.41061 C275.359477,1199.41061 284.592937,1190.17446 284.592937,1178.78193 Z");
     			attr(path92, "fill", path92_fill_value = ctx.colors[0]);
-    			add_location(path92, file$1, 106, 8, 49008);
+    			add_location(path92, file, 106, 8, 49008);
     			attr(path93, "d", "M470.786245,1177.60314 C470.786245,1166.21061 461.552786,1156.97446 450.163569,1156.97446 C438.774352,1156.97446 429.540892,1166.21061 429.540892,1177.60314 C429.540892,1188.99568 438.774352,1198.23183 450.163569,1198.23183 C461.552786,1198.23183 470.786245,1188.99568 470.786245,1177.60314 Z");
     			attr(path93, "fill", path93_fill_value = ctx.colors[1]);
-    			add_location(path93, file$1, 107, 8, 49344);
+    			add_location(path93, file, 107, 8, 49344);
     			attr(path94, "d", "M398.901487,88.9980354 C398.901487,77.6052259 389.668027,68.3693517 378.27881,68.3693517 C366.889594,68.3693517 357.656134,77.6052259 357.656134,88.9980354 C357.656134,100.390982 366.889594,109.626719 378.27881,109.626719 C389.668027,109.626719 398.901487,100.390982 398.901487,88.9980354 Z");
     			attr(path94, "fill", path94_fill_value = ctx.colors[0]);
-    			add_location(path94, file$1, 108, 8, 49682);
+    			add_location(path94, file, 108, 8, 49682);
     			attr(path95, "d", "M454.288104,88.9980354 C454.288104,77.6050884 445.054644,68.3693517 433.665428,68.3693517 C422.276211,68.3693517 413.042751,77.6050884 413.042751,88.9980354 C413.042751,100.390982 422.276211,109.626719 433.665428,109.626719 C445.054644,109.626719 454.288104,100.390982 454.288104,88.9980354 Z");
     			attr(path95, "fill", path95_fill_value = ctx.colors[0]);
-    			add_location(path95, file$1, 109, 8, 50018);
+    			add_location(path95, file, 109, 8, 50018);
     			attr(path96, "d", "M199.198221,180.889445 C180.254474,180.889445 164.897238,165.47633 164.897238,146.463654 C164.897238,127.450841 180.254474,112.037864 199.198221,112.037864 C210.564194,112.037864 219.77881,102.790133 219.77881,91.3823897 C219.77881,79.9746467 210.564194,70.7269155 199.198221,70.7269155 C157.521155,70.7269155 123.736059,104.635355 123.736059,146.463654 C123.736059,188.292366 157.521155,222.200393 199.198221,222.200393 C210.564194,222.200393 219.77881,212.952249 219.77881,201.544919 C219.77881,190.137589 210.564194,180.889445 199.198221,180.889445 Z");
     			attr(path96, "fill", path96_fill_value = ctx.colors[2]);
-    			add_location(path96, file$1, 110, 8, 50356);
+    			add_location(path96, file, 110, 8, 50356);
     			attr(path97, "d", "M96.6319703,388.998035 C149.024568,388.998035 191.496283,431.482122 191.496283,483.88998 C191.496283,495.282515 200.729742,504.518664 212.118959,504.518664 C223.508176,504.518664 232.741636,495.282515 232.741636,483.88998 C232.741636,408.697053 171.803001,347.740668 96.6319703,347.740668 C85.242341,347.740668 76.0092937,356.976817 76.0092937,368.369352 C76.0092937,379.761886 85.242341,388.998035 96.6319703,388.998035 Z");
     			attr(path97, "fill", path97_fill_value = ctx.colors[0]);
-    			add_location(path97, file$1, 111, 8, 50955);
+    			add_location(path97, file, 111, 8, 50955);
     			attr(path98, "d", "M100.167286,504.518664 C100.167286,493.12613 90.934239,483.88998 79.5446097,483.88998 C68.1549804,483.88998 58.9219331,493.12613 58.9219331,504.518664 C58.9219331,515.911198 68.1549804,525.147348 79.5446097,525.147348 C90.934239,525.147348 100.167286,515.911198 100.167286,504.518664 Z");
     			attr(path98, "fill", path98_fill_value = ctx.colors[0]);
-    			add_location(path98, file$1, 112, 8, 51423);
+    			add_location(path98, file, 112, 8, 51423);
     			attr(path99, "d", "M1000.49442,895.284872 C1000.49442,906.677407 991.260964,915.913556 979.871747,915.913556 C968.48253,915.913556 959.249071,906.677407 959.249071,895.284872 C959.249071,883.892338 968.48253,874.656189 979.871747,874.656189 C991.260964,874.656189 1000.49442,883.892338 1000.49442,895.284872 Z");
     			attr(path99, "fill", path99_fill_value = ctx.colors[1]);
-    			add_location(path99, file$1, 113, 8, 51754);
+    			add_location(path99, file, 113, 8, 51754);
     			attr(path100, "d", "M1055.29182,895.284872 C1055.29182,906.677407 1046.05836,915.913556 1034.66914,915.913556 C1023.27993,915.913556 1014.04647,906.677407 1014.04647,895.284872 C1014.04647,883.892338 1023.27993,874.656189 1034.66914,874.656189 C1046.05836,874.656189 1055.29182,883.892338 1055.29182,895.284872 Z");
     			attr(path100, "fill", path100_fill_value = ctx.colors[1]);
-    			add_location(path100, file$1, 114, 8, 52090);
+    			add_location(path100, file, 114, 8, 52090);
     			attr(path101, "d", "M718.258364,763.261297 C718.258364,774.653831 709.024905,783.88998 697.635688,783.88998 C686.246471,783.88998 677.013011,774.653831 677.013011,763.261297 C677.013011,751.868762 686.246471,742.632613 697.635688,742.632613 C709.024905,742.632613 718.258364,751.868762 718.258364,763.261297 Z");
     			attr(path101, "fill", path101_fill_value = ctx.colors[0]);
-    			add_location(path101, file$1, 115, 8, 52428);
+    			add_location(path101, file, 115, 8, 52428);
     			attr(path102, "d", "M719.436803,1010.8055 C719.436803,1022.19804 710.203343,1031.43418 698.814126,1031.43418 C687.42491,1031.43418 678.19145,1022.19804 678.19145,1010.8055 C678.19145,999.412967 687.42491,990.176817 698.814126,990.176817 C710.203343,990.176817 719.436803,999.412967 719.436803,1010.8055 Z");
     			attr(path102, "fill", path102_fill_value = ctx.colors[0]);
-    			add_location(path102, file$1, 116, 8, 52763);
+    			add_location(path102, file, 116, 8, 52763);
     			attr(path103, "d", "M949.300897,196.267191 C925.994367,196.267191 906.877064,215.290963 906.877064,239.034578 C906.877064,262.776817 925.994367,281.800589 949.300897,281.800589 C1033.99432,281.800589 1102.42937,350.765029 1102.42937,435.559921 C1102.42937,446.952456 1093.18057,456.188605 1081.77243,456.188605 C1070.3643,456.188605 1061.1155,446.952456 1061.1155,435.559921 C1061.1155,373.303929 1010.93155,323.057957 949.300897,323.057957 C902.93159,323.057957 865.563197,285.315717 865.563197,239.034578 C865.563197,192.752063 902.93159,155.009823 949.300897,155.009823 C960.71041,155.009823 969.957831,164.245972 969.957831,175.638507 C969.957831,187.031041 960.71041,196.267191 949.300897,196.267191 Z");
     			attr(path103, "fill", path103_fill_value = ctx.colors[2]);
-    			add_location(path103, file$1, 117, 8, 53093);
+    			add_location(path103, file, 117, 8, 53093);
     			attr(path104, "d", "M1060.5948,435.60633 C1060.5948,498.229807 1010.53531,548.630169 949.232342,548.630169 C937.843125,548.630169 928.609665,557.887097 928.609665,569.305261 C928.609665,580.723426 937.843125,589.980354 949.232342,589.980354 C1033.71657,589.980354 1101.84015,520.662282 1101.84015,435.60633 C1101.84015,424.188166 1092.60669,414.931238 1081.21747,414.931238 C1069.82826,414.931238 1060.5948,424.188166 1060.5948,435.60633 Z");
     			attr(path104, "fill", path104_fill_value = ctx.colors[0]);
-    			add_location(path104, file$1, 118, 8, 53825);
+    			add_location(path104, file, 118, 8, 53825);
     			attr(path105, "d", "M1081.21747,456.188605 C1069.82826,456.188605 1060.5948,446.952456 1060.5948,435.559921 C1060.5948,424.167387 1069.82826,414.931238 1081.21747,414.931238 C1092.60669,414.931238 1101.84015,424.167387 1101.84015,435.559921 C1101.84015,446.952456 1092.60669,456.188605 1081.21747,456.188605 Z");
     			attr(path105, "fill", path105_fill_value = ctx.colors[1]);
-    			add_location(path105, file$1, 119, 8, 54290);
+    			add_location(path105, file, 119, 8, 54290);
     			attr(path106, "d", "M800.749071,310.609037 C812.138287,310.609037 821.371747,319.859076 821.371747,331.268742 L821.371747,420.794127 C821.371747,432.203793 812.138287,441.453831 800.749071,441.453831 C789.359854,441.453831 780.126394,432.203793 780.126394,420.794127 L780.126394,331.268742 C780.126394,319.859076 789.359854,310.609037 800.749071,310.609037 Z");
     			attr(path106, "fill", path106_fill_value = ctx.colors[3]);
-    			add_location(path106, file$1, 120, 8, 54625);
+    			add_location(path106, file, 120, 8, 54625);
     			attr(path107, "d", "M462.496817,194.519202 C462.496817,271.306837 400.266866,333.554916 323.501591,333.554916 C312.10123,333.554916 302.858736,342.800102 302.858736,354.203784 C302.858736,365.607466 312.10123,374.852652 323.501591,374.852652 C423.067587,374.852652 503.782528,294.114201 503.782528,194.519202 C503.782528,183.115521 494.540033,173.870334 483.139673,173.870334 C471.739312,173.870334 462.496817,183.115521 462.496817,194.519202 Z");
     			attr(path107, "fill", path107_fill_value = ctx.colors[3]);
-    			add_location(path107, file$1, 121, 8, 55009);
+    			add_location(path107, file, 121, 8, 55009);
     			attr(path108, "d", "M1141.90706,238.70334 C1141.90706,250.095874 1132.6568,259.332024 1121.24686,259.332024 L946.323775,259.332024 C934.913832,259.332024 925.663569,250.095874 925.663569,238.70334 C925.663569,227.310806 934.913832,218.074656 946.323775,218.074656 L1121.24686,218.074656 C1132.6568,218.074656 1141.90706,227.310806 1141.90706,238.70334 Z");
     			attr(path108, "fill", path108_fill_value = ctx.colors[4]);
     			attr(path108, "fill-rule", "nonzero");
-    			add_location(path108, file$1, 122, 8, 55479);
+    			add_location(path108, file, 122, 8, 55479);
     			attr(path109, "d", "M503.782528,194.499018 C503.782528,183.106483 494.549068,173.870334 483.159851,173.870334 C471.770634,173.870334 462.537175,183.106483 462.537175,194.499018 C462.537175,205.891552 471.770634,215.127701 483.159851,215.127701 C494.549068,215.127701 503.782528,205.891552 503.782528,194.499018 Z");
     			attr(path109, "fill", path109_fill_value = ctx.colors[0]);
-    			add_location(path109, file$1, 123, 8, 55878);
+    			add_location(path109, file, 123, 8, 55878);
     			attr(path110, "d", "M1100.51352,194.350786 C1092.45968,202.406974 1079.4014,202.406974 1071.34893,194.350786 C1063.29509,186.294597 1063.29509,173.232515 1071.34893,165.177701 C1079.4014,157.121513 1092.45968,157.121513 1100.51352,165.177701 C1108.56736,173.232515 1108.56736,186.294597 1100.51352,194.350786 Z");
     			attr(path110, "fill", path110_fill_value = ctx.colors[1]);
-    			add_location(path110, file$1, 124, 8, 56216);
+    			add_location(path110, file, 124, 8, 56216);
     			attr(path111, "d", "M960.279321,132.464584 C952.225478,140.520974 939.167199,140.520974 931.114731,132.464584 C923.060889,124.408607 923.060889,111.347469 931.114731,103.291492 C939.167199,95.2355145 952.225478,95.2355145 960.279321,103.291492 C968.333163,111.347469 968.333163,124.408607 960.279321,132.464584 Z");
     			attr(path111, "fill", path111_fill_value = ctx.colors[1]);
-    			add_location(path111, file$1, 125, 8, 56552);
+    			add_location(path111, file, 125, 8, 56552);
     			attr(path112, "d", "M0,640.667976 C0,629.275442 9.23308852,620.039293 20.6226766,620.039293 L86.6152416,620.039293 C98.0048709,620.039293 107.237918,629.275442 107.237918,640.667976 C107.237918,652.060511 98.0048709,661.29666 86.6152416,661.29666 L20.6226766,661.29666 C9.23308852,661.29666 0,652.060511 0,640.667976 Z");
     			attr(path112, "fill", path112_fill_value = ctx.colors[1]);
-    			add_location(path112, file$1, 126, 8, 56890);
+    			add_location(path112, file, 126, 8, 56890);
     			attr(path113, "d", "M656.390335,1195.28487 C645.001118,1195.28487 635.767658,1186.0668 635.767658,1174.69656 L635.767658,1115.67672 C635.767658,1104.30648 645.001118,1095.08841 656.390335,1095.08841 C667.779551,1095.08841 677.013011,1104.30648 677.013011,1115.67672 L677.013011,1174.69656 C677.013011,1186.0668 667.779551,1195.28487 656.390335,1195.28487 Z");
     			attr(path113, "fill", path113_fill_value = ctx.colors[3]);
-    			add_location(path113, file$1, 127, 8, 57234);
+    			add_location(path113, file, 127, 8, 57234);
     			attr(path114, "d", "M755.379182,1178.78193 C755.379182,1167.38939 764.621495,1158.15324 776.021631,1158.15324 L939.78506,1158.15324 C951.185197,1158.15324 960.427509,1167.38939 960.427509,1178.78193 C960.427509,1190.17446 951.185197,1199.41061 939.78506,1199.41061 L776.021631,1199.41061 C764.621495,1199.41061 755.379182,1190.17446 755.379182,1178.78193 Z");
     			attr(path114, "fill", path114_fill_value = ctx.colors[2]);
-    			add_location(path114, file$1, 128, 8, 57616);
+    			add_location(path114, file, 128, 8, 57616);
     			attr(path115, "d", "M0,31.237721 C0,19.8447741 9.23308947,10.6090373 20.6226774,10.6090373 L115.486989,10.6090373 C126.876618,10.6090373 136.109665,19.8447741 136.109665,31.237721 C136.109665,42.630668 126.876618,51.8664047 115.486989,51.8664047 L20.6226774,51.8664047 C9.23308947,51.8664047 0,42.630668 0,31.237721 Z");
     			attr(path115, "fill", path115_fill_value = ctx.colors[0]);
-    			add_location(path115, file$1, 129, 8, 57998);
+    			add_location(path115, file, 129, 8, 57998);
     			attr(path116, "d", "M945.107807,1199.41061 C933.71859,1199.41061 924.48513,1190.17446 924.48513,1178.78193 C924.48513,1167.38939 933.71859,1158.15324 945.107807,1158.15324 C956.497024,1158.15324 965.730483,1167.38939 965.730483,1178.78193 C965.730483,1190.17446 956.497024,1199.41061 945.107807,1199.41061 Z");
     			attr(path116, "fill", path116_fill_value = ctx.colors[0]);
-    			add_location(path116, file$1, 130, 8, 58341);
+    			add_location(path116, file, 130, 8, 58341);
     			attr(path117, "d", "M885.03981,141.389063 C850.165329,141.389063 821.896217,169.667782 821.896217,204.551048 C821.896217,215.925698 812.677253,225.147348 801.305915,225.147348 C789.933205,225.147348 780.715613,215.925698 780.715613,204.551048 C780.715613,146.91711 827.422654,100.196464 885.03981,100.196464 C896.411147,100.196464 905.630112,109.417702 905.630112,120.792763 C905.630112,132.167825 896.411147,141.389063 885.03981,141.389063 Z");
     			attr(path117, "fill", path117_fill_value = ctx.colors[0]);
-    			add_location(path117, file$1, 131, 8, 58674);
+    			add_location(path117, file, 131, 8, 58674);
     			attr(path118, "d", "M786.755995,189.932122 C794.808463,181.875933 807.866742,181.875933 815.920585,189.932122 C823.974427,197.98831 823.974427,211.049018 815.920585,219.105206 C807.866742,227.161395 794.808463,227.161395 786.755995,219.105206 C778.702153,211.049018 778.702153,197.98831 786.755995,189.932122 Z");
     			attr(path118, "fill", path118_fill_value = ctx.colors[1]);
-    			add_location(path118, file$1, 132, 8, 59142);
+    			add_location(path118, file, 132, 8, 59142);
     			attr(path119, "d", "M1195.52602,793.320236 C1268.41893,793.320236 1327.51115,734.210806 1327.51115,661.29666 C1327.51115,649.904126 1336.74461,640.667976 1348.13383,640.667976 C1359.52305,640.667976 1368.75651,649.904126 1368.75651,661.29666 C1368.75651,756.99725 1291.19874,834.577603 1195.52602,834.577603 C1184.13681,834.577603 1174.90335,825.341454 1174.90335,813.948919 C1174.90335,802.556385 1184.13681,793.320236 1195.52602,793.320236 Z");
     			attr(path119, "fill", path119_fill_value = ctx.colors[3]);
-    			add_location(path119, file$1, 133, 8, 59478);
+    			add_location(path119, file, 133, 8, 59478);
     			attr(path120, "d", "M1362.71612,675.883202 C1354.66228,683.939391 1341.604,683.939391 1333.55153,675.883202 C1325.49769,667.827014 1325.49769,654.764931 1333.55153,646.710118 C1341.604,638.653929 1354.66228,638.653929 1362.71612,646.710118 C1370.76997,654.764931 1370.76997,667.827014 1362.71612,675.883202 Z");
     			attr(path120, "fill", path120_fill_value = ctx.colors[1]);
-    			add_location(path120, file$1, 134, 8, 59947);
+    			add_location(path120, file, 134, 8, 59947);
     			attr(path121, "d", "M1421.04678,675.883202 C1412.99018,683.939391 1399.92915,683.939391 1391.88631,675.883202 C1383.82972,667.827014 1383.82972,654.764931 1391.88631,646.710118 C1399.92915,638.653929 1412.99018,638.653929 1421.04678,646.710118 C1429.10337,654.764931 1429.10337,667.827014 1421.04678,675.883202 Z");
     			attr(path121, "fill", path121_fill_value = ctx.colors[1]);
-    			add_location(path121, file$1, 135, 8, 60281);
+    			add_location(path121, file, 135, 8, 60281);
     			attr(path122, "d", "M1559.04068,753.309009 C1460.16564,753.309009 1380.01901,833.483111 1380.01901,932.382823 C1380.01901,943.793958 1370.77048,953.045187 1359.36267,953.045187 C1347.95485,953.045187 1338.70632,943.793958 1338.70632,932.382823 C1338.70632,810.659464 1437.34726,711.984283 1559.04068,711.984283 C1570.44298,711.984283 1579.69703,721.235512 1579.69703,732.646646 C1579.69703,744.057781 1570.44298,753.309009 1559.04068,753.309009 Z");
     			attr(path122, "fill", path122_fill_value = ctx.colors[2]);
-    			add_location(path122, file$1, 136, 8, 60619);
+    			add_location(path122, file, 136, 8, 60619);
     			attr(path123, "d", "M1141.90706,238.599507 C1141.96454,249.992271 1132.77901,259.275367 1121.38819,259.332024 C1109.99874,259.389514 1100.71973,250.201313 1100.66171,238.807173 C1100.60424,227.414408 1109.79114,218.132688 1121.18058,218.074656 C1132.57003,218.017166 1141.85042,227.206742 1141.90706,238.599507 Z");
     			attr(path123, "fill", path123_fill_value = ctx.colors[0]);
-    			add_location(path123, file$1, 137, 8, 61091);
+    			add_location(path123, file, 137, 8, 61091);
     			attr(path124, "d", "M1330.45725,29.3653045 C1330.51472,40.758117 1321.3292,50.040477 1309.93838,50.0982318 C1298.54893,50.1555851 1289.26991,40.9666043 1289.2119,29.5737918 C1289.15442,18.1811168 1298.34132,8.89875677 1309.73077,8.84086444 C1321.12022,8.78351116 1330.40061,17.9726295 1330.45725,29.3653045 Z");
     			attr(path124, "fill", path124_fill_value = ctx.colors[0]);
-    			add_location(path124, file$1, 138, 8, 61429);
+    			add_location(path124, file, 138, 8, 61429);
     			attr(path125, "d", "M1141.90706,31.1334774 C1141.96454,42.5262899 1132.77901,51.8086499 1121.38819,51.8664047 C1109.99874,51.923758 1100.71973,42.7347771 1100.66171,31.3419647 C1100.60424,19.9492897 1109.79114,10.6669297 1121.18058,10.6090373 C1132.57003,10.5516841 1141.85042,19.7408024 1141.90706,31.1334774 Z");
     			attr(path125, "fill", path125_fill_value = ctx.colors[0]);
-    			add_location(path125, file$1, 139, 8, 61763);
+    			add_location(path125, file, 139, 8, 61763);
     			attr(path126, "d", "M1141.90706,85.9468369 C1141.96454,97.3396494 1132.77901,106.622009 1121.38819,106.679764 C1109.99874,106.737118 1100.71973,97.5481367 1100.66171,86.1553242 C1100.60424,74.7626492 1109.79114,65.4802892 1121.18058,65.4223969 C1132.57003,65.3650436 1141.85042,74.554162 1141.90706,85.9468369 Z");
     			attr(path126, "fill", path126_fill_value = ctx.colors[0]);
-    			add_location(path126, file$1, 140, 8, 62100);
+    			add_location(path126, file, 140, 8, 62100);
     			attr(path127, "d", "M1548.45194,681.925344 L1466.58337,681.925344 C1455.19057,681.925344 1445.94424,672.689194 1445.94424,661.29666 C1445.94424,649.904126 1455.19057,640.667976 1466.58337,640.667976 L1548.45194,640.667976 C1559.84475,640.667976 1569.09108,649.904126 1569.09108,661.29666 C1569.09108,672.689194 1559.84475,681.925344 1548.45194,681.925344 Z");
     			attr(path127, "fill", path127_fill_value = ctx.colors[4]);
     			attr(path127, "fill-rule", "nonzero");
-    			add_location(path127, file$1, 141, 8, 62437);
+    			add_location(path127, file, 141, 8, 62437);
     			attr(path128, "d", "M1579.69703,732.612967 C1579.69703,744.005501 1570.45807,753.24165 1559.07435,753.24165 C1547.69063,753.24165 1538.45167,744.005501 1538.45167,732.612967 C1538.45167,721.220432 1547.69063,711.984283 1559.07435,711.984283 C1570.45807,711.984283 1579.69703,721.220432 1579.69703,732.612967 Z");
     			attr(path128, "fill", path128_fill_value = ctx.colors[0]);
-    			add_location(path128, file$1, 142, 8, 62839);
+    			add_location(path128, file, 142, 8, 62839);
     			attr(path129, "d", "M1343.95573,183.595285 C1343.95573,164.582609 1328.5471,149.169495 1309.53996,149.169495 C1290.53282,149.169495 1275.1242,164.582609 1275.1242,183.595285 C1275.1242,202.60796 1290.53282,218.021075 1309.53996,218.021075 C1320.94397,218.021075 1330.18942,227.26922 1330.18942,238.676549 C1330.18942,250.083879 1320.94397,259.332024 1309.53996,259.332024 C1267.72343,259.332024 1233.82528,225.423997 1233.82528,183.595285 C1233.82528,141.766573 1267.72343,107.858546 1309.53996,107.858546 C1351.35649,107.858546 1385.25465,141.766573 1385.25465,183.595285 C1385.25465,195.002615 1376.00369,204.250759 1364.60519,204.250759 C1353.20118,204.250759 1343.95573,195.002615 1343.95573,183.595285 Z");
     			attr(path129, "fill", path129_fill_value = ctx.colors[1]);
-    			add_location(path129, file$1, 143, 8, 63174);
+    			add_location(path129, file, 143, 8, 63174);
     			attr(path130, "d", "M1450.11086,41.3109484 C1431.163,41.3109484 1415.80988,56.7239255 1415.80988,75.7367387 C1415.80988,94.7495519 1431.163,110.162529 1450.11086,110.162529 C1461.47135,110.162529 1470.69145,119.41026 1470.69145,130.818003 C1470.69145,142.225333 1461.47135,151.473477 1450.11086,151.473477 C1408.42831,151.473477 1374.6487,117.565038 1374.6487,75.7367387 C1374.6487,33.9084395 1408.42831,0 1450.11086,0 C1461.47135,0 1470.69145,9.24777251 1470.69145,20.6554742 C1470.69145,32.0632172 1461.47135,41.3109484 1450.11086,41.3109484 Z");
     			attr(path130, "fill", path130_fill_value = ctx.colors[4]);
     			attr(path130, "fill-rule", "nonzero");
-    			add_location(path130, file$1, 144, 8, 63908);
+    			add_location(path130, file, 144, 8, 63908);
     			attr(path131, "d", "M1331.63569,238.70334 C1331.63569,250.095874 1322.40223,259.332024 1311.01301,259.332024 C1299.62379,259.332024 1290.39033,250.095874 1290.39033,238.70334 C1290.39033,227.310806 1299.62379,218.074656 1311.01301,218.074656 C1322.40223,218.074656 1331.63569,227.310806 1331.63569,238.70334 Z");
     			attr(path131, "fill", path131_fill_value = ctx.colors[0]);
-    			add_location(path131, file$1, 145, 8, 64499);
+    			add_location(path131, file, 145, 8, 64499);
     			attr(path132, "d", "M1471.86989,130.844794 C1471.86989,142.237328 1462.63093,151.473477 1451.24721,151.473477 C1439.86349,151.473477 1430.62454,142.237328 1430.62454,130.844794 C1430.62454,119.451847 1439.86349,110.21611 1451.24721,110.21611 C1462.63093,110.21611 1471.86989,119.451847 1471.86989,130.844794 Z");
     			attr(path132, "fill", path132_fill_value = ctx.colors[1]);
-    			add_location(path132, file$1, 146, 8, 64834);
+    			add_location(path132, file, 146, 8, 64834);
     			attr(path133, "d", "M1387.0223,238.70334 C1387.0223,250.095874 1377.78335,259.332024 1366.39963,259.332024 C1355.01041,259.332024 1345.77695,250.095874 1345.77695,238.70334 C1345.77695,227.310806 1355.01041,218.074656 1366.39963,218.074656 C1377.78335,218.074656 1387.0223,227.310806 1387.0223,238.70334 Z");
     			attr(path133, "fill", path133_fill_value = ctx.colors[1]);
-    			add_location(path133, file$1, 147, 8, 65169);
+    			add_location(path133, file, 147, 8, 65169);
     			attr(path134, "d", "M1441.8197,238.70334 C1441.8197,250.095874 1432.58074,259.332024 1421.19703,259.332024 C1409.81331,259.332024 1400.57435,250.095874 1400.57435,238.70334 C1400.57435,227.310806 1409.81331,218.074656 1421.19703,218.074656 C1432.58074,218.074656 1441.8197,227.310806 1441.8197,238.70334 Z");
     			attr(path134, "fill", path134_fill_value = ctx.colors[1]);
-    			add_location(path134, file$1, 148, 8, 65500);
+    			add_location(path134, file, 148, 8, 65500);
     			attr(path135, "d", "M1473.63755,74.8526523 C1473.63755,86.2455992 1464.39859,95.481336 1453.01487,95.481336 C1441.63115,95.481336 1432.39219,86.2455992 1432.39219,74.8526523 C1432.39219,63.4597053 1441.63115,54.2239686 1453.01487,54.2239686 C1464.39859,54.2239686 1473.63755,63.4597053 1473.63755,74.8526523 Z");
     			attr(path135, "fill", path135_fill_value = ctx.colors[0]);
-    			add_location(path135, file$1, 149, 8, 65831);
+    			add_location(path135, file, 149, 8, 65831);
     			attr(path136, "d", "M1528.43494,74.8526523 C1528.43494,86.2455992 1519.19599,95.481336 1507.81227,95.481336 C1496.42855,95.481336 1487.18959,86.2455992 1487.18959,74.8526523 C1487.18959,63.4597053 1496.42855,54.2239686 1507.81227,54.2239686 C1519.19599,54.2239686 1528.43494,63.4597053 1528.43494,74.8526523 Z");
     			attr(path136, "fill", path136_fill_value = ctx.colors[0]);
-    			add_location(path136, file$1, 150, 8, 66166);
+    			add_location(path136, file, 150, 8, 66166);
     			attr(path137, "d", "M1583.82156,74.8526523 C1583.82156,86.2455992 1574.5826,95.481336 1563.19888,95.481336 C1551.81517,95.481336 1542.57621,86.2455992 1542.57621,74.8526523 C1542.57621,63.4597053 1551.81517,54.2239686 1563.19888,54.2239686 C1574.5826,54.2239686 1583.82156,63.4597053 1583.82156,74.8526523 Z");
     			attr(path137, "fill", path137_fill_value = ctx.colors[0]);
-    			add_location(path137, file$1, 151, 8, 66501);
+    			add_location(path137, file, 151, 8, 66501);
     			attr(path138, "d", "M1508.40149,442.632613 C1497.01777,442.632613 1487.77881,433.396464 1487.77881,422.003929 C1487.77881,410.611395 1497.01777,401.375246 1508.40149,401.375246 C1519.7852,401.375246 1529.02416,410.611395 1529.02416,422.003929 C1529.02416,433.396464 1519.7852,442.632613 1508.40149,442.632613 Z");
     			attr(path138, "fill", path138_fill_value = ctx.colors[1]);
-    			add_location(path138, file$1, 152, 8, 66834);
+    			add_location(path138, file, 152, 8, 66834);
     			attr(g0, "transform", "translate(0.589219, 1.178782)");
     			attr(g0, "id", "Shape");
-    			add_location(g0, file$1, 13, 6, 495);
+    			add_location(g0, file, 13, 6, 495);
     			attr(g1, "id", "Aare");
     			attr(g1, "transform", "translate(0.000000, -1.000000)");
-    			add_location(g1, file$1, 12, 4, 432);
+    			add_location(g1, file, 12, 4, 432);
     			attr(g2, "id", "Patterns");
     			attr(g2, "stroke", "none");
     			attr(g2, "stroke-width", "1");
     			attr(g2, "fill", "none");
     			attr(g2, "fill-rule", "evenodd");
-    			add_location(g2, file$1, 11, 2, 347);
+    			add_location(g2, file, 11, 2, 347);
     			attr(svg, "viewBox", "0 0 1586 1199");
     			attr(svg, "version", "1.1");
     			attr(svg, "xmlns", "http://www.w3.org/2000/svg");
     			attr(svg, "xmlns:xlink", "http://www.w3.org/1999/xlink");
     			attr(svg, "style", ctx.styles);
-    			add_location(svg, file$1, 10, 0, 206);
+    			add_location(svg, file, 10, 0, 206);
     		},
 
     		l: function claim(nodes) {
@@ -19975,7 +19034,7 @@ var app = (function () {
     	};
     }
 
-    function instance$2($$self, $$props, $$invalidate) {
+    function instance($$self, $$props, $$invalidate) {
 
       let { colors, styles } = $$props;
 
@@ -19995,7 +19054,7 @@ var app = (function () {
     class Aare extends SvelteComponentDev {
     	constructor(options) {
     		super(options);
-    		init(this, options, instance$2, create_fragment$2, safe_not_equal, ["colors", "styles"]);
+    		init(this, options, instance, create_fragment, safe_not_equal, ["colors", "styles"]);
 
     		const { ctx } = this.$$;
     		const props = options.props || {};
@@ -20026,9 +19085,9 @@ var app = (function () {
 
     /* src/patterns/Clarence.svelte generated by Svelte v3.6.7 */
 
-    const file$2 = "src/patterns/Clarence.svelte";
+    const file$1 = "src/patterns/Clarence.svelte";
 
-    function create_fragment$3(ctx) {
+    function create_fragment$1(ctx) {
     	var svg, g2, g1, g0, path0, path0_fill_value, path1, path1_fill_value, path2, path2_fill_value, path3, path3_fill_value, path4, path4_fill_value, path5, path5_fill_value, path6, path6_fill_value, path7, path7_fill_value, path8, path8_fill_value, path9, path9_fill_value, path10, path10_fill_value, path11, path11_fill_value, path12, path12_fill_value;
 
     	return {
@@ -20053,73 +19112,73 @@ var app = (function () {
     			attr(path0, "d", "M30.6611014,616.767081 C80.253118,749.104545 118.850817,886.059116 158.046246,1021.74913 C199.838372,1166.36947 199.955958,1318.52815 215.692923,1466.29518 C225.119424,1555.34359 243.600069,1641.15708 302.530396,1711.94292 C343.793384,1761.45674 393.277613,1794.80578 454.687052,1814.04862 C540.240875,1840.85921 633.310421,1841.40817 717.17884,1872.70843 C736.590376,1879.95268 756.227286,1889.71625 769.112784,1906.54761 C779.803337,1920.54597 784.898743,1938.13215 791.983317,1953.66955 C798.293781,1967.50127 808.93534,1973.01043 822.428366,1974.47104 C863.583567,1978.9117 916.448402,1954.14989 959.171419,1946.60175 C968.196167,1945.0039 979.74902,1943.30802 987.686094,1938.55367 C993.349833,1935.15211 993.183253,1930.31934 992.879488,1926.11395 C990.517964,1893.46091 991.997591,1859.20021 983.815545,1827.0275 C974.438039,1790.14946 951.038368,1764.64264 919.0353,1748.6053 C864.161699,1721.15753 793.384553,1719.11855 731.044223,1708.23747 C669.517199,1697.45442 607.578622,1685.69109 548.5993,1664.56611 C498.674122,1646.71525 451.884579,1621.4339 412.551966,1585.55574 C363.283311,1540.5708 336.669615,1478.43101 320.315322,1415.69325 C280.140007,1261.37797 283.471619,1095.99535 245.118892,939.405818 C226.040516,861.493361 201.866736,784.218085 178.026116,707.648609 C157.615096,642.077846 135.832236,575.938522 106.406268,514.357489 C98.1262337,497.01638 88.0236119,473.675972 69.5919613,464.363336 C60.6456047,459.844257 51.6208571,460.66769 42.9880639,462.294951 C30.1711586,464.716236 17.2954601,470.450859 9.60335717,481.26332 C-15.8736717,517.023844 15.7374418,581.555512 30.6611014,616.718067");
     			attr(path0, "fill", path0_fill_value = ctx.colors[1]);
     			attr(path0, "transform", "translate(496.500000, 1218.000000) rotate(-360.000000) translate(-496.500000, -1218.000000) ");
-    			add_location(path0, file$2, 14, 8, 591);
+    			add_location(path0, file$1, 14, 8, 591);
     			attr(path1, "d", "M128.555583,510.760006 C158.964923,581.105776 182.821541,654.049683 205.295024,727.160262 C220.058268,775.201276 234.242754,823.467788 248.505715,871.675475 C270.272917,945.207639 283.378362,1020.54379 294.041249,1096.32114 C305.616418,1178.55951 314.955028,1261.93518 331.533023,1342.94802 C350.347576,1434.88283 380.580345,1522.59199 455.818938,1584.29038 C515.656672,1633.31182 589.002038,1660.28342 663.171399,1679.11746 C709.275882,1690.81398 756.02779,1699.49077 802.809126,1707.72637 C846.441624,1715.41294 892.075253,1719.41309 933.275004,1736.76668 C988.688669,1760.11069 1014.9388,1805.91632 1041.91482,1855.86917 C1051.91067,1874.37967 1068.40038,1887.14485 1086.37132,1896.6158 C1129.44468,1919.32253 1179.9438,1929.46997 1228.60855,1937.48988 C1234.96508,1938.53893 1241.55704,1939.56839 1248.37462,1940.34292 C1261.94934,1941.87162 1275.62238,1942.34364 1289.27028,1941.75474 C1290.25123,1941.75474 1291.23217,1941.68611 1292.21312,1941.61748 C1301.78716,1940.90177 1313.14652,1940.31351 1321.58266,1934.87213 C1326.56586,1931.65632 1326.40891,1926.40123 1325.50644,1921.21476 C1307.91807,1823.48561 1283.68869,1721.20727 1197.86569,1663.69531 C1146.85647,1629.49796 1082.97724,1624.88994 1022.80599,1615.43861 C953.766975,1604.65389 884.492537,1593.54563 816.463901,1578.79998 C732.985358,1560.71107 646.956354,1537.96512 572.208234,1494.54192 C493.938517,1449.05983 451.993247,1380.46903 423.428086,1297.36788 C386.838784,1190.92272 371.222116,1077.27141 349.759008,966.257446 C328.374375,855.635659 295.669621,748.48459 262.062395,641.255086 C241.854898,576.791889 220.793978,511.211003 191.512726,451.228366 C182.978492,433.747319 173.100362,416.383925 158.611782,402.716746 C148.174512,392.824219 135.2064,383.019931 121.031724,379.666864 C111.987398,377.558942 98.6661449,380.441403 92.8981797,388.412289 C82.0391025,403.393242 91.7995197,426.50195 97.5871038,441.649576 C106.592192,465.179868 117.843648,487.974839 128.585012,510.760006");
     			attr(path1, "fill", path1_fill_value = ctx.colors[2]);
     			attr(path1, "transform", "translate(707.000000, 1160.500000) rotate(-360.000000) translate(-707.000000, -1160.500000) ");
-    			add_location(path1, file$2, 15, 8, 2356);
+    			add_location(path1, file$1, 15, 8, 2356);
     			attr(path2, "d", "M197.910457,430.410511 C229.056402,493.25542 252.134009,559.51986 273.456776,626.097838 C288.162132,672.148832 302.161632,718.601546 316.337596,764.848501 C339.287756,839.735255 354.806809,916.464048 370.110183,993.212438 C386.835076,1077.02525 404.491307,1161.25937 430.362931,1242.30912 C445.587877,1289.98659 464.09702,1337.57589 490.566662,1380.57968 C517.604911,1424.48489 558.113267,1456.1131 602.876372,1480.59851 C694.049584,1530.45116 798.614473,1554.53485 899.708898,1574.66012 C953.873629,1585.43801 1008.37168,1594.41305 1062.88934,1603.18234 C1113.73066,1611.36374 1166.33662,1615.91985 1213.15848,1638.98454 C1287.42053,1675.4726 1330.14449,1746.38133 1369.64308,1815.69298 C1383.03476,1839.20838 1400.60276,1859.40223 1420.30793,1877.36212 C1463.54168,1916.76021 1509.29495,1948.03569 1564.96943,1968.17075 C1571.92733,1970.84092 1579.0536,1973.05027 1586.302,1974.78446 C1598.94861,1977.50833 1612.27166,1979.35037 1625.33002,1976.74408 C1626.0947,1976.59711 1626.83977,1976.41094 1627.55543,1976.22478 C1637.05509,1973.70667 1641.28043,1968.66066 1643.48623,1961.41008 C1644.90775,1956.74619 1643.18232,1950.44602 1640.72162,1943.94009 C1595.6252,1824.63863 1551.31306,1689.63083 1445.83643,1612.14759 C1391.3874,1572.15181 1325.95837,1566.60609 1260.07837,1557.11175 C1178.27737,1545.35405 1096.2803,1533.52776 1015.18516,1518.60528 C911.404559,1499.51861 804.241723,1477.53171 707.725565,1432.78387 C661.648781,1411.40445 618.062104,1382.0004 587.651426,1340.5937 C561.622945,1305.13443 541.878553,1264.32541 525.143857,1224.08468 C482.066965,1120.46015 455.989466,1010.17292 428.24536,901.110451 C401.69729,796.682475 368.551416,694.762809 334.484006,592.725565 C315.386649,535.534151 296.004989,477.215957 268.996151,424.198526 C260.653312,407.806332 250.68308,391.992225 238.261956,377.990763 C223.06642,360.863713 205.821939,341.336132 185.557957,332.223915 C177.371975,328.549633 164.450869,323.013716 156.147244,327.961748 C137.03028,339.317727 189.744082,415.086308 197.930064,430.508492");
     			attr(path2, "fill", path2_fill_value = ctx.colors[3]);
     			attr(path2, "transform", "translate(898.000000, 1152.000000) rotate(-360.000000) translate(-898.000000, -1152.000000) ");
-    			add_location(path2, file$2, 16, 8, 4464);
+    			add_location(path2, file$1, 16, 8, 4464);
     			attr(path3, "d", "M272.460994,394.897687 C305.117618,451.389571 328.641374,512.039163 350.056037,573.365364 C365.75162,618.256849 380.593757,663.795524 395.406464,708.951769 C420.225106,784.594607 438.118071,862.806596 458.277087,939.841874 C481.025873,1026.79093 507.855512,1113.31834 542.640849,1195.9626 C562.103373,1242.16808 584.145859,1288.67754 613.722224,1329.73491 C647.752212,1376.96021 696.555668,1408.80982 749.420356,1431.47129 C861.25139,1479.39281 984.638298,1501.23058 1103.97378,1521.12679 C1166.6384,1531.57009 1229.53845,1540.60134 1292.40908,1549.56394 C1340.94767,1556.48692 1393.10606,1559.04627 1438.79001,1578.06974 C1528.79438,1615.55776 1584.66085,1703.58547 1632.15961,1783.81748 C1647.12927,1809.12655 1663.4723,1833.61192 1680.76687,1857.45991 C1713.47254,1902.56713 1748.10092,1960.21611 1799.67072,1985.43692 C1804.57559,1987.85899 1809.8238,1990.27124 1814.82677,1991.32047 C1825.41148,1993.62486 1833.46528,1989.82017 1837.49708,1983.65225 C1837.85226,1983.15418 1838.17975,1982.63696 1838.47805,1982.10291 C1842.46081,1974.30721 1840.92068,1961.93214 1839.31188,1953.92071 C1837.7154,1946.80556 1835.30943,1939.89645 1832.14096,1933.32828 C1770.57504,1801.92901 1693.31352,1658.7136 1573.16383,1576.12817 C1519.39665,1539.17948 1459.37085,1532.60951 1394.68542,1524.20584 C1312.79372,1513.56643 1230.49981,1504.85877 1148.90239,1493.34663 C1044.1638,1478.56911 935.52093,1461.86963 837.354864,1420.0474 C741.71971,1379.29401 684.4014,1304.8475 646.761428,1211.24022 C606.32568,1110.67074 585.313218,1003.00178 557.796897,897.90197 C531.340029,797.09715 493.307668,701.087424 455.471501,604.30303 C434.459038,550.566609 412.720655,495.859401 383.958497,446.770984 C374.423373,430.692761 363.174715,415.693821 350.409187,402.036394 C326.610758,376.295864 300.53647,351.173106 270.606953,332.787013 C257.952389,325.010922 243.904842,316.32288 229.543382,312.478961 C212.866825,308.017269 233.03565,336.101413 235.497895,339.778632 C247.809118,358.164725 260.875692,376.001686 272.421755,394.897687");
     			attr(path3, "fill", path3_fill_value = ctx.colors[4]);
     			attr(path3, "transform", "translate(1032.000000, 1152.000000) rotate(-360.000000) translate(-1032.000000, -1152.000000) ");
-    			add_location(path3, file$2, 17, 8, 6628);
+    			add_location(path3, file$1, 17, 8, 6628);
     			attr(path4, "d", "M382.550514,406.428836 C422.375731,459.549206 454.171197,517.306213 480.799776,577.641308 C499.898625,620.939459 515.86989,666.443197 532.880415,710.211873 C561.479666,783.731485 575.578303,863.71102 592.206459,941.475165 C610.942547,1029.11054 631.217916,1118.01046 663.25849,1201.24446 C681.07297,1247.4834 701.495404,1292.56562 735.153693,1330.18806 C771.802306,1371.14338 818.078777,1399.04163 869.237808,1418.19594 C974.536388,1457.54363 1089.41381,1470.28703 1200.46753,1482.44227 C1258.67588,1488.84338 1316.99208,1494.29363 1375.19062,1500.79277 C1424.21231,1506.27243 1477.72438,1508.32118 1524.42244,1525.29931 C1616.82832,1558.84385 1689.88043,1640.85253 1752.02032,1713.39188 C1772.9918,1737.89842 1794.55153,1761.98344 1816.05245,1785.93123 C1867.15265,1842.7864 1914.69388,1919.50166 1991.39321,1944.16504 C1999.23668,1946.69412 2007.6488,1948.90951 2016.0217,1949 C2030.41447,1949.13497 2048.02306,1943.04754 2055.88614,1929.84342 C2056.42505,1928.96892 2056.90965,1928.0621 2057.33718,1927.1281 C2063.60215,1912.95352 2057.49405,1897.61242 2052.52325,1883.99659 C2049.49371,1875.70358 2044.10133,1867.1753 2038.89522,1860.07821 C1981.89281,1782.29446 1911.24275,1711.16669 1838.02396,1647.25364 C1760.84422,1579.80185 1677.63481,1516.19268 1587.79767,1468.32651 C1557.16892,1452.02476 1524.77539,1436.61505 1490.73474,1427.91033 C1459.03731,1419.81337 1424.84959,1418.49982 1392.309,1416.35304 C1317.86466,1411.45174 1243.03796,1411.21647 1168.64265,1408.51095 C1074.90339,1405.16826 976.477647,1401.14919 887.140527,1369.30049 C842.344511,1353.33203 801.029034,1327.49234 769.400243,1291.69319 C740.153905,1258.57996 726.682746,1214.65444 718.731429,1172.16991 C700.142406,1073.01645 708.015288,970.157616 702.446425,869.386734 C699.671798,819.128728 694.122543,768.615853 680.749427,719.975277 C668.454788,675.245945 647.630376,633.447595 626.688312,592.472665 C600.216602,540.636437 570.5977,489.074682 534.449109,444.325745 C522.288303,429.419348 508.547348,415.874724 493.46698,403.929169 C459.298865,376.638689 422.277688,350.338273 380.991625,334.987378 C366.069423,329.439098 349.509898,324.91029 334.234741,323.175227 C312.067135,320.646152 332.077787,346.230977 336.999564,352.387019 C351.70607,370.786528 367.932248,387.921499 382.550514,406.399428");
     			attr(path4, "fill", path4_fill_value = ctx.colors[5]);
     			attr(path4, "transform", "translate(1192.000000, 1136.000000) rotate(-360.000000) translate(-1192.000000, -1136.000000) ");
-    			add_location(path4, file$2, 18, 8, 8791);
+    			add_location(path4, file$1, 18, 8, 8791);
     			attr(path5, "d", "M512.307622,377.049904 C565.084289,425.843072 612.12436,479.742959 649.309258,540.543285 C673.726556,580.46586 697.359363,624.387553 709.813165,669.014973 C730.876762,744.488536 725.502995,827.803509 723.541767,907.060552 C721.374609,994.453057 718.236643,1083.28642 732.66148,1168.2971 C740.447559,1214.17914 757.588698,1256.51295 792.871204,1289.13321 C825.996357,1319.78332 866.093679,1340.35722 909.299549,1352.65843 C1000.24173,1378.53508 1098.14627,1376.31008 1191.80475,1375.26129 C1242.12007,1374.69279 1292.4452,1373.57539 1342.76052,1374.45755 C1388.0453,1375.25149 1436.33075,1375.02605 1480.53685,1385.92561 C1603.64318,1416.31107 1718.10049,1495.88177 1820.81004,1566.60148 C1857.03393,1591.54696 1893.65988,1616.34542 1929.56017,1641.67317 C1987.41642,1682.4779 2042.33083,1727.78164 2099.86347,1769.34111 C2149.59043,1805.27437 2203.56344,1837.55157 2264.10657,1849.9802 C2277.17816,1852.66589 2291.30882,1854.9791 2304.13525,1853.57745 C2322.12953,1851.6171 2348.81204,1845.04012 2351.79311,1822.32944 C2351.97433,1821.03091 2352.0367,1819.71858 2351.97943,1818.40873 C2350.99881,1795.9921 2329.50375,1775.72206 2315.13775,1760.9018 C2306.01522,1751.63215 2296.39421,1742.86619 2286.31749,1734.64288 C2182.97054,1648.91667 2065.39488,1576.53066 1948.14281,1509.20236 C1828.29212,1440.49202 1704.35227,1375.61416 1576.27423,1325.64478 C1504.94434,1297.81758 1436.58571,1278.85117 1359.3231,1279.5765 C1294.3672,1280.21361 1229.60743,1288.21185 1165.16145,1294.27914 C1085.2708,1301.80689 1000.07502,1310.05017 921.772964,1286.8396 C880.175302,1274.50899 841.421422,1250.73971 812.297174,1218.45271 C782.878743,1185.91086 774.474878,1141.10701 774.827899,1099.56715 C775.661421,1000.84381 810.463426,901.571566 828.398863,802.867828 C836.900789,756.08402 843.225752,708.153406 839.705346,660.526647 C836.283002,614.262333 819.622364,574.614208 798.901982,534.083924 C770.728931,478.919611 737.388042,425.137345 697.192658,378.794617 C683.623779,363.196726 668.385591,349.132188 651.750988,336.85288 C607.62334,304.19341 556.856934,275.248809 500.383352,270.602774 C482.545976,269.13251 461.649083,269.926452 445.361079,277.826672 C399.25259,300.18449 495.78427,362.425675 512.307622,377.049904");
     			attr(path5, "fill", path5_fill_value = ctx.colors[0]);
     			attr(path5, "transform", "translate(1392.500000, 1062.000000) rotate(-360.000000) translate(-1392.500000, -1062.000000) ");
-    			add_location(path5, file$2, 19, 8, 11219);
+    			add_location(path5, file$1, 19, 8, 11219);
     			attr(path6, "d", "M643.996761,279.471182 C705.210281,332.252449 762.30432,389.80795 805.460783,457.353071 C831.491977,498.10562 857.856652,544.81861 865.124593,592.129604 C877.600734,673.291585 851.304716,761.237489 831.109453,842.007336 C809.325248,929.110151 776.751926,1024.34975 785.991333,1112.18782 C790.542378,1155.64609 807.569564,1190.77152 843.37962,1219.11302 C874.948222,1243.9748 912.307988,1260.43101 951.967167,1266.94359 C1028.47181,1279.76638 1108.08567,1264.67901 1183.66833,1252.23856 C1262.94872,1239.23931 1345.0735,1223.4363 1425.68782,1232.43578 C1482.8407,1238.80796 1538.99315,1261.36548 1592.17368,1282.07017 C1672.327,1313.28405 1750.65598,1349.34079 1827.82759,1386.96607 C1877.10442,1410.97449 1926.48915,1435.38485 1975.13825,1460.6579 C2071.85777,1510.90009 2166.24291,1566.08318 2261.96199,1618.55074 C2332.65031,1657.30341 2407.66409,1699.47744 2486.94448,1716.18236 C2497.94937,1718.49595 2510.13127,1720.18213 2521.13617,1717.95677 C2544.40142,1713.24136 2535.07374,1683.18427 2528.32564,1670.7144 C2527.31466,1668.92313 2526.2012,1667.1916 2524.99082,1665.52842 C2504.65824,1636.61833 2473.41885,1614.55097 2444.64133,1595.16974 C2431.2236,1586.11144 2417.11928,1577.32763 2403.1817,1568.80852 C2270.76983,1487.85241 2131.35484,1416.19968 1990.86093,1349.0761 C1861.02864,1287.04047 1728.63638,1226.85767 1592.64448,1180.62504 C1525.27135,1157.7244 1462.02752,1140.05876 1390.32894,1145.4506 C1331.70481,1149.86211 1273.99285,1163.00841 1216.55552,1174.39011 C1144.68039,1188.63438 1067.65591,1203.97664 994.66264,1187.55602 C955.331409,1178.733 917.412571,1157.9989 889.07643,1129.24566 C857.591828,1097.30632 849.274401,1053.89706 851.128167,1011.95831 C855.502663,913.326748 899.590914,814.401086 929.800438,717.700786 C944.767884,669.831001 958.921242,620.696582 963.148614,570.513205 C966.875763,526.672598 959.146833,489.086533 940.118756,450.265244 C913.791283,396.524051 879.618589,346.992281 838.720684,303.293337 C824.349729,288.125391 809.017121,273.897467 792.817901,260.697756 C741.079186,218.219816 679.934325,180.829818 614.012827,164.536641 C597.387781,160.438838 575.073928,156.782186 559.08642,164.585658 C509.476104,188.799946 627.558072,265.717074 644.006569,279.471182");
     			attr(path6, "fill", path6_fill_value = ctx.colors[6]);
     			attr(path6, "transform", "translate(1541.500000, 939.500000) rotate(-360.000000) translate(-1541.500000, -939.500000) ");
-    			add_location(path6, file$2, 20, 8, 13579);
+    			add_location(path6, file$1, 20, 8, 13579);
     			attr(path7, "d", "M1429.441,60.3618885 C1488.10716,99.9003527 1505.38904,155.846936 1516.60608,222.392065 C1530.34522,303.677024 1550.78711,383.332947 1586.64628,457.149856 C1610.1991,505.716712 1641.35753,566.609283 1687.50143,598.463801 C1740.81913,635.264308 1819.92718,617.168272 1876.21842,600.956422 C1959.93889,576.844731 2046.76049,538.876421 2122.27672,492.919949 C2151.92384,474.882794 2168.74448,465.187087 2197.73408,486.24679 C2201.84601,489.190831 2207.06689,493.400809 2212.71956,490.446955 C2217.06702,488.180044 2220.5705,482.174201 2223.97585,476.560897 C2231.38332,464.15012 2239.75047,452.337914 2249.00072,441.232411 C2257.41104,431.2423 2268,418.612366 2268,404.696868 C2268,395.560529 2263.53478,389.132707 2259.75651,384.333921 C2253.18135,375.963032 2238.74543,351.05645 2224.97684,356.679567 C2213.33782,361.439099 2202.64092,371.507718 2191.61035,378.808938 C2162.62075,398.05315 2131.64878,414.902875 2100.89272,430.359088 C1997.56453,482.301776 1848.19056,544.941145 1743.58659,461.438342 C1670.36675,402.969697 1621.61241,325.708261 1604.47773,234.747222 C1593.00554,173.815397 1585.76305,113.060214 1553.29941,59.0861376 C1541.14027,38.8802062 1524.83975,22.4328331 1504.76097,11.2552926 C1484.27001,-0.128330744 1453.56302,-4.9565572 1431.57057,6.75091061 C1412.46335,16.9569177 1412.56148,47.7908355 1429.441,60.3618885 Z");
     			attr(path7, "fill", path7_fill_value = ctx.colors[2]);
     			attr(path7, "transform", "translate(1842.500000, 310.000000) rotate(-360.000000) translate(-1842.500000, -310.000000) ");
-    			add_location(path7, file$2, 21, 8, 15937);
+    			add_location(path7, file$1, 21, 8, 15937);
     			attr(path8, "d", "M1317.74422,80.0164729 C1303.03462,80.290881 1293.32629,95.3441231 1298.32755,108.280503 C1299.3013,110.638386 1300.76925,112.760405 1302.63256,114.503686 C1335.10154,143.982952 1362.06913,181.831663 1376.08247,223.120276 C1382.25069,241.31941 1387.23234,260.126163 1391.90018,278.893714 C1400.72594,314.341355 1409.83608,349.994802 1418.03423,385.579647 C1427.14437,425.104208 1435.68574,465.118784 1445.49214,504.437538 C1449.80695,521.656644 1454.40615,539.012954 1459.2211,556.075255 C1474.29353,608.996809 1492.82762,661.536152 1517.76528,710.282784 C1536.15227,746.24004 1558.03034,777.238351 1600.44301,785.745 C1643.23812,794.320252 1690.44611,784.38276 1731.40743,774.082658 C1844.76937,745.55402 1955.77778,692.906874 2064.37381,646.914123 C2083.6826,638.740683 2105.99215,626.833333 2125.96778,628.803191 C2142.63866,630.449639 2158.32889,639.044492 2174.2937,647.061127 C2177.64749,648.736976 2181.3347,650.461827 2184.90422,650.853839 C2187.51175,651.251645 2190.15773,650.431613 2192.08251,648.629173 C2195.41668,645.483281 2197.14261,638.740683 2198.49589,632.047086 C2200.68272,621.26677 2202.75186,610.39825 2204.77198,599.568932 C2205.48785,595.776221 2206.1841,592.032511 2206.91958,588.367203 C2209.68499,574.529197 2211.88162,559.064343 2207.56681,545.245937 C2204.95148,537.138666 2200.47494,529.755122 2194.49488,523.685304 C2182.66837,511.023332 2164.90898,489.119688 2144.48226,493.461216 C2129.13525,496.724712 2114.52372,505.054956 2100.28483,511.856356 C2068.28656,527.125205 2035.77836,541.580629 2003.58396,556.271261 C1965.24095,573.774575 1926.24091,590.797675 1886.88784,605.184497 C1826.8727,627.097941 1754.39362,652.010273 1689.11244,640.465534 C1632.03922,630.322236 1594.79452,579.04713 1566.16965,533.907004 C1528.42483,474.389856 1506.47812,406.973676 1491.01343,337.744442 C1483.84496,305.687701 1478.66718,272.690132 1471.33199,240.897998 C1464.96764,213.300388 1456.50472,185.830181 1443.67796,161.133455 C1433.85996,142.086545 1420.21215,125.270951 1403.58941,111.740005 C1380.8778,93.1684592 1347.40857,79.4578565 1317.74422,80.0164729 Z");
     			attr(path8, "fill", path8_fill_value = ctx.colors[7]);
     			attr(path8, "transform", "translate(1753.500000, 434.500000) rotate(-360.000000) translate(-1753.500000, -434.500000) ");
-    			add_location(path8, file$2, 22, 8, 17424);
+    			add_location(path8, file$1, 22, 8, 17424);
     			attr(path9, "d", "M1196.10352,127.277529 C1186.0127,126.297566 1167.90224,127.189333 1168,142.163174 C1168.09666,143.95155 1168.6879,145.678223 1169.70838,147.151188 C1192.93296,185.94794 1225.07045,218.139738 1243.24963,259.846982 C1251.62265,279.064064 1258.95518,299.045519 1265.75765,318.919177 C1278.51841,356.520374 1290.70003,395.170131 1301.52704,433.114315 C1313.65958,475.625128 1322.32708,519.988073 1331.4363,563.694441 C1335.59828,583.617098 1339.74061,603.588752 1344.04001,623.47221 C1357.18359,684.141746 1371.96645,744.987675 1392.82538,803.128905 C1407.32357,843.542597 1422.52851,893.177744 1459.36785,919.675955 C1497.48326,947.114931 1548.80115,941.019559 1591.88345,934.267611 C1738.8776,911.189472 1876.44843,841.935457 2021.75424,807.695535 C2050.56411,800.914188 2083.15313,791.124353 2111.91392,798.385882 C2135.55078,804.363659 2158.1177,817.759759 2180.81222,827.255605 C2185.17051,829.078337 2189.93126,830.656078 2194.319,830.891269 C2197.41103,831.057863 2200.26747,830.313091 2202.32883,827.784785 C2205.13619,824.354913 2205.98037,817.436371 2206,810.341436 C2206,798.513277 2205.34233,786.596922 2204.23313,774.758964 C2203.8503,770.623518 2203.34969,766.507672 2202.88834,762.519221 C2201.17054,747.52578 2198.38281,731.669972 2191.58034,718.195475 C2187.17662,709.833445 2181.36226,702.291674 2174.39258,695.901307 C2155.25143,678.457958 2134.52992,659.289874 2106.66238,660.622624 C2087.03044,661.602587 2067.98746,668.668124 2049.49417,674.587103 C2013.00821,686.258467 1977.09157,698.909795 1941.51849,712.991869 C1899.37853,729.651247 1857.10115,747.212192 1814.63726,762.764212 C1747.22118,787.439691 1670.3425,815.339249 1597.04665,812.673749 C1523.16184,809.988649 1493.23294,749.95609 1465.18872,691.207282 C1426.51379,610.164307 1403.71129,522.085194 1384.18733,433.917885 C1375.98118,396.875267 1367.2057,359.803251 1357.81182,323.182018 C1350.37131,294.165301 1342.03755,264.893793 1329.86575,238.140792 C1320.95406,218.504783 1308.88831,200.454492 1294.14543,184.703386 C1269.16379,157.999383 1231.39193,130.580006 1196.10352,127.277529 Z");
     			attr(path9, "fill", path9_fill_value = ctx.colors[5]);
     			attr(path9, "transform", "translate(1687.000000, 533.500000) rotate(-360.000000) translate(-1687.000000, -533.500000) ");
-    			add_location(path9, file$2, 23, 8, 19657);
+    			add_location(path9, file$1, 23, 8, 19657);
     			attr(path10, "d", "M1067.67551,152.948473 C1054.79581,147.708359 1036.71715,140.685626 1023.1508,145.749437 C1022.13004,146.066086 1021.356,146.902431 1021.12026,147.943429 C1019.15839,163.516853 1041.71993,183.252984 1050.84264,194.281711 C1068.23464,215.232373 1086.28387,236.104679 1100.87039,258.926112 C1113.62257,278.858135 1125.66847,299.671673 1136.56667,320.63213 C1157.63693,361.3998 1175.50763,403.738339 1190.0179,447.266594 C1204.83985,491.596981 1216.14023,534.438589 1221.50596,581.080503 C1223.8602,601.570819 1225.58665,622.413741 1227.14634,643.08036 C1231.84503,705.148779 1234.72898,768.284811 1246.47079,828.942807 C1255.29922,874.49752 1267.8552,924.861385 1292.91813,965.087833 C1319.57998,1007.89026 1363.54555,1030.41786 1410.97383,1035.609 C1582.88294,1054.51259 1758.03895,954.010133 1930.17367,936.16436 C1987.88217,930.179856 2044.32525,943.667029 2097.05058,966.586407 C2148.31432,988.859342 2197.31209,1022.82704 2250.20419,1042.06364 C2256.41351,1044.3164 2261.82828,1045.57991 2265.44794,1044.73757 C2267.97875,1044.1401 2269.42073,1042.18118 2268.89103,1037.5973 C2268.27304,1032.22006 2264.79071,1023.28738 2260.71002,1013.97271 C2254.06908,998.810662 2246.97691,983.6682 2239.76702,968.780399 C2237.29506,963.696998 2234.86234,958.799695 2232.48847,954.08849 C2224.38594,937.80006 2216.18531,920.688883 2205.35577,906.516088 C2198.63751,897.534092 2191.00421,889.272201 2182.57843,881.863064 C2155.75963,858.777177 2126.66505,835.926361 2090.08593,832.498249 C2028.75779,826.748815 1957.3358,847.483996 1899.90198,864.036881 C1854.61214,877.093091 1809.3125,892.323703 1764.08152,906.153687 C1688.8535,929.08286 1609.09356,953.020878 1529.57885,954.206025 C1493.4902,954.744728 1459.02991,946.811097 1432.80947,920.649704 C1407.56017,895.457977 1394.0821,859.57054 1380.66289,827.522589 C1340.57202,731.780314 1315.53852,630.229837 1290.15189,529.325804 C1279.36159,486.307894 1265.83447,443.956017 1253.27849,401.398453 C1243.82226,369.281939 1234.0129,336.842204 1220.96644,306.478925 C1211.84927,285.104337 1200.16224,264.916338 1186.16282,246.359632 C1155.74398,206.182157 1113.84818,171.734528 1067.67551,152.948473 Z");
     			attr(path10, "fill", path10_fill_value = ctx.colors[4]);
     			attr(path10, "transform", "translate(1645.000000, 594.500000) rotate(-360.000000) translate(-1645.000000, -594.500000) ");
-    			add_location(path10, file$2, 24, 8, 21876);
+    			add_location(path10, file$1, 24, 8, 21876);
     			attr(path11, "d", "M913.663303,138.487064 C896.186996,129.236032 876.288327,119.642006 856.00718,117.24105 C854.115255,117 852.202721,116.935403 850.299429,117.074453 C831.185331,117.858439 869.658706,152.353812 873.150045,155.626953 C895.21609,176.422175 918.66494,196.080619 939.338373,218.061619 C957.452144,237.32807 975.10498,257.574502 991.384817,278.330525 C1022.35574,317.843408 1049.70783,360.903826 1070.82258,406.375001 C1091.93733,451.846175 1098.96905,495.033991 1095.99748,544.846487 C1094.72256,566.308097 1091.92753,588.249899 1088.65194,609.67231 C1078.62906,675.027323 1062.4669,740.784129 1055.00368,806.29594 C1049.60975,853.531082 1049.58033,901.138618 1058.48521,948.452159 C1068.44925,1001.4594 1094.26162,1042.53045 1139.81575,1067.88259 C1229.57061,1117.74409 1346.47161,1094.6753 1445.6119,1072.57671 C1536.81822,1052.26167 1635.87024,1014.53236 1730.38157,1021.12764 C1845.66439,1029.17329 1961.76121,1085.97306 2063.46116,1135.92276 C2123.54945,1165.43002 2182.86298,1197.33824 2242.17651,1228.78587 C2288.83884,1253.54022 2336.03075,1281.24432 2384.80162,1299.60918 C2393.45151,1302.87252 2403.17037,1306.85125 2412.60483,1307 C2417.01804,1307.06685 2419.8425,1305.12648 2418.77352,1299.87378 C2417.00823,1291.20094 2411.43778,1282.63589 2407.00496,1274.96263 C2396.73689,1257.26415 2384.61528,1240.09486 2372.17003,1223.62136 C2367.71759,1217.74147 2363.30438,1212.08697 2358.9304,1206.65787 C2343.89607,1187.96961 2327.95948,1169.58514 2310.33607,1153.54284 C2296.84288,1141.31098 2282.66156,1129.85921 2267.86139,1119.24346 C2199.14282,1069.81316 2124.67727,1027.18393 2045.98485,997.657066 C2003.29441,981.624557 1958.09334,968.463396 1911.9606,964.93546 C1870.49605,961.770117 1827.92329,968.620193 1787.76309,976.901043 C1742.35607,986.269673 1696.96867,999.019241 1651.82645,1010.73003 C1575.92906,1030.43747 1497.96237,1049.76272 1418.89728,1049.31193 C1381.28693,1049.09633 1343.06854,1041.71707 1311.76418,1019.91246 C1278.06687,996.392889 1259.51178,962.818698 1245.83083,926.049766 C1206.8671,821.250468 1199.01159,708.209521 1188.03741,595.854561 C1182.71214,541.396949 1173.10115,490.575072 1154.95796,439.126006 C1142.20869,403.052861 1127.58625,366.999315 1109.78631,333.425125 C1097.4178,310.225586 1083.13144,288.09905 1067.07625,267.276326 C1026.05303,213.945694 972.319754,169.523101 913.663303,138.487064 Z");
     			attr(path11, "fill", path11_fill_value = ctx.colors[8]);
     			attr(path11, "transform", "translate(1632.000000, 712.000000) rotate(-360.000000) translate(-1632.000000, -712.000000) ");
-    			add_location(path11, file$2, 25, 8, 24166);
+    			add_location(path11, file$1, 25, 8, 24166);
     			attr(path12, "d", "M984.232997,536.790632 C976.620143,627.932834 936.88811,717.859806 907.58451,805.483722 C878.859722,891.382797 843.120513,1004.07572 893.369272,1082.50701 C936.603609,1149.98164 1035.74729,1167.02425 1114.64236,1162.00653 C1195.9802,1156.82221 1275.14996,1134.37967 1354.61402,1117.81727 C1391.61877,1110.10448 1428.9865,1103.23451 1466.75646,1100.74525 C1509.49047,1097.94239 1548.5652,1104.66535 1589.57259,1116.60204 C1740.83881,1160.7031 1885.84602,1231.40201 2025.98727,1301.69911 C2133.97011,1355.88462 2240.62854,1413.51981 2347.76768,1469.85157 C2388.74563,1491.41209 2429.76283,1512.97261 2471.58447,1532.89649 C2496.62055,1544.80378 2523.27535,1558.73972 2550.74441,1563.48303 C2557.69997,1564.68846 2563.34094,1563.94364 2563.84127,1559.56294 C2566.3331,1537.74761 2538.87385,1508.06269 2524.52127,1491.48069 C2500.28964,1463.48142 2470.17177,1440.08825 2439.93619,1418.38073 C2257.13941,1287.11636 2047.17769,1180.97979 1835.12636,1102.5779 C1768.61199,1077.9891 1693.54298,1048.15718 1621.39745,1049.40181 C1561.28927,1050.44064 1501.85799,1064.86659 1443.56472,1078.26351 C1317.01084,1107.35061 1090.01831,1160.92851 1038.17046,1001.62566 C1010.58367,916.853612 1023.21944,818.684641 1036.5125,728.199055 C1049.00111,643.084 1074.21379,548.668519 1057.65387,463.935673 C1044.46872,396.461043 999.645101,330.005638 955.233518,278.074183 C903.846756,218.008533 837.33239,170.369582 765.77549,136.891973 C745.781939,127.542547 722.894326,117.771711 700.399128,117.036694 C662.138652,115.782263 693.384707,147.035218 706.285355,158.031084 C731.527459,179.532803 760.242436,196.928223 785.74942,217.812528 C848.830154,269.440175 907.309819,328.143593 948.111183,398.381889 C974.108686,443.168971 988.569184,484.868978 984.232997,536.790632 Z");
     			attr(path12, "fill", path12_fill_value = ctx.colors[4]);
     			attr(path12, "transform", "translate(1623.000000, 840.500000) rotate(-360.000000) translate(-1623.000000, -840.500000) ");
-    			add_location(path12, file$2, 26, 8, 26654);
+    			add_location(path12, file$1, 26, 8, 26654);
     			attr(g0, "transform", "translate(-310.000000, -500.000000)");
     			attr(g0, "id", "Shape");
-    			add_location(g0, file$2, 13, 6, 520);
+    			add_location(g0, file$1, 13, 6, 520);
     			attr(g1, "id", "Clarence");
     			attr(g1, "fill-rule", "nonzero");
-    			add_location(g1, file$2, 12, 4, 476);
+    			add_location(g1, file$1, 12, 4, 476);
     			attr(g2, "id", "Patterns");
     			attr(g2, "stroke", "none");
     			attr(g2, "stroke-width", "1");
     			attr(g2, "fill", "none");
     			attr(g2, "fill-rule", "evenodd");
-    			add_location(g2, file$2, 11, 2, 391);
+    			add_location(g2, file$1, 11, 2, 391);
     			attr(svg, "viewBox", "0 0 1600 1200");
     			attr(svg, "version", "1.1");
     			attr(svg, "xmlns", "http://www.w3.org/2000/svg");
     			attr(svg, "xmlns:xlink", "http://www.w3.org/1999/xlink");
     			attr(svg, "style", ctx.styles);
-    			add_location(svg, file$2, 10, 0, 250);
+    			add_location(svg, file$1, 10, 0, 250);
     		},
 
     		l: function claim(nodes) {
@@ -20215,7 +19274,7 @@ var app = (function () {
     	};
     }
 
-    function instance$3($$self, $$props, $$invalidate) {
+    function instance$1($$self, $$props, $$invalidate) {
 
       let { colors, styles } = $$props;
 
@@ -20235,7 +19294,7 @@ var app = (function () {
     class Clarence extends SvelteComponentDev {
     	constructor(options) {
     		super(options);
-    		init(this, options, instance$3, create_fragment$3, safe_not_equal, ["colors", "styles"]);
+    		init(this, options, instance$1, create_fragment$1, safe_not_equal, ["colors", "styles"]);
 
     		const { ctx } = this.$$;
     		const props = options.props || {};
@@ -20266,9 +19325,9 @@ var app = (function () {
 
     /* src/patterns/Doubs.svelte generated by Svelte v3.6.7 */
 
-    const file$3 = "src/patterns/Doubs.svelte";
+    const file$2 = "src/patterns/Doubs.svelte";
 
-    function create_fragment$4(ctx) {
+    function create_fragment$2(ctx) {
     	var svg, g2, g1, g0, path0, path0_fill_value, path1, path1_fill_value, path2, path2_fill_value, path3, path3_fill_value, path4, path4_fill_value, path5, path5_fill_value, path6, path6_fill_value, path7, path7_fill_value, path8, path8_fill_value, path9, path9_fill_value, path10, path10_fill_value, path11, path11_fill_value, path12, path12_fill_value;
 
     	return {
@@ -20292,65 +19351,65 @@ var app = (function () {
     			path12 = svg_element("path");
     			attr(path0, "d", "M3536.17828,2368.75435 C3083.69103,2394.80536 3279.87894,2965.06174 3670,3161 C3324.89223,3161 2528,2835.91795 2528,2438.40894 C2528,2040.89992 2566.208,1649 2911.30991,1649 C3256.41768,1649 3536.17828,1971.24533 3536.17828,2368.75435 Z");
     			attr(path0, "fill", path0_fill_value = ctx.colors[0]);
-    			add_location(path0, file$3, 14, 8, 590);
+    			add_location(path0, file$2, 14, 8, 590);
     			attr(path1, "d", "M4293,1444.25024 C4293,1904.99405 4035.97462,2074 3759.17986,2074 C3482.3851,2074 3258,1700.49357 3258,1239.74976 C3258,779.005951 3515.01952,610 3791.82014,610 C4068.6149,610 4293,983.506431 4293,1444.25024 Z");
     			attr(path1, "fill", path1_fill_value = ctx.colors[1]);
-    			add_location(path1, file$3, 15, 8, 872);
+    			add_location(path1, file$2, 15, 8, 872);
     			attr(path2, "d", "M3284.9363,506.038941 C3917.61468,569.323633 4155.34704,1388.18345 4110.77647,1836.04784 C4066.20591,2283.91223 3811.81059,1776.56644 3179.13221,1713.28175 C2546.45384,1649.99706 2651.09417,1498.42594 2695.66473,1050.56155 C2245.97658,1145.67421 2652.25793,442.746673 3284.9363,506.038941 Z");
     			attr(path2, "fill", path2_fill_value = ctx.colors[2]);
-    			add_location(path2, file$3, 16, 8, 1127);
+    			add_location(path2, file$2, 16, 8, 1127);
     			attr(path3, "d", "M3589.18896,999.922335 C3934.4545,1034.36896 4033.84682,1705.68024 4009.52113,1949.42846 C3985.19545,2193.17668 3846.37046,1917.0594 3501.10493,1882.61277 C3155.83939,1848.172 2970.44579,1734.24822 2994.76562,1490.5 C3019.09131,1246.75178 3243.92342,965.48156 3589.18896,999.922335 Z");
     			attr(path3, "fill", path3_fill_value = ctx.colors[3]);
     			attr(path3, "opacity", "0.1");
-    			add_location(path3, file$3, 17, 8, 1463);
+    			add_location(path3, file$2, 17, 8, 1463);
     			attr(path4, "d", "M3555.02938,1179.65668 C3781.63155,1202.26972 3606.97928,1744.91297 3585.53572,1959.83346 C3564.09801,2174.75395 3478.82096,1934.99129 3252.21294,1912.37824 C3025.61078,1889.75934 2707.59167,1799.57131 2729.02938,1584.65668 C2750.46709,1369.73619 3328.42137,1157.04363 3555.02938,1179.65668 Z");
     			attr(path4, "fill", path4_fill_value = ctx.colors[0]);
-    			add_location(path4, file$3, 18, 8, 1806);
+    			add_location(path4, file$2, 18, 8, 1806);
     			attr(path5, "d", "M4043.56369,1918.059 C4278.96672,2342.46469 4033.34684,2972.36986 3754.57193,3127.98606 C3475.79116,3283.59641 3081.28379,2820.9652 2883.60001,2467.09686 C2685.92208,2113.22852 3055.96987,1369.29605 3496.83928,1478.91294 C3726.90568,1536.11962 3928.60363,1710.79886 4043.56369,1918.059 Z");
     			attr(path5, "fill", path5_fill_value = ctx.colors[4]);
-    			add_location(path5, file$3, 19, 8, 2144);
+    			add_location(path5, file$2, 19, 8, 2144);
     			attr(path6, "d", "M4021.93901,2529.75238 C4034.71738,2822.14218 3931.13763,3029.55204 3761.67492,3124.19611 C3592.2122,3218.84018 3345.13642,2956.02849 3232.2335,2722.25019 C2991.38293,2223.53409 3315.27533,1558.97561 3668.03325,1827.89621 C3884.47492,1992.89517 4010.03908,2257.38784 4021.93901,2529.75238 Z");
     			attr(path6, "fill", path6_fill_value = ctx.colors[3]);
     			attr(path6, "opacity", "0.1");
-    			add_location(path6, file$3, 20, 8, 2477);
+    			add_location(path6, file$2, 20, 8, 2477);
     			attr(path7, "d", "M4250.17294,2387.10602 C4262.9445,2679.55885 4125.6064,2966.60447 3990.04766,2981.67791 C3803.03982,3002.4632 3750.63665,2774.0593 3745.15226,2585.81413 C3739.52153,2392.54839 3891.33445,1894.02354 3990.04766,2326.58379 C4062.9778,2646.15475 4238.27936,2114.68275 4250.17294,2387.10602 Z");
     			attr(path7, "fill", path7_fill_value = ctx.colors[5]);
-    			add_location(path7, file$3, 21, 8, 2827);
+    			add_location(path7, file$2, 21, 8, 2827);
     			attr(path8, "d", "M3643.17769,2432.95667 C3466.42383,2773.6564 2721.04973,3200.95131 2021.99837,3029 C1322.94702,2857.04869 2339.286,2766.46197 2339.286,2369.23808 C2339.286,1972.01419 2563.69581,1650 2908.25708,1650 C3056.43491,1650 3192.53211,1709.49913 3299.55041,1808.97606 C3520.87282,1950.41799 3752.27765,2222.66408 3643.17769,2432.95667 Z");
     			attr(path8, "fill", path8_fill_value = ctx.colors[6]);
-    			add_location(path8, file$3, 22, 8, 3160);
+    			add_location(path8, file$2, 22, 8, 3160);
     			attr(path9, "d", "M2543.63582,2518.84557 C2145.16551,2619.69964 1562.94565,2582.86181 1671.18097,2279.4114 C1850.16663,1777.61875 2283.27205,1442.05632 2819,1509.64298 C3029.7879,1536.23119 3231.49617,1701.31755 3331.94405,1854.85313 C3562.95489,2207.95548 3151.63574,2364.95533 2543.63582,2518.84557 Z");
     			attr(path9, "fill", path9_fill_value = ctx.colors[7]);
-    			add_location(path9, file$3, 23, 8, 3534);
+    			add_location(path9, file$2, 23, 8, 3534);
     			attr(path10, "d", "M2417.45789,1200.18191 C2814.38238,1274.5566 3356.92746,1597.35509 3122.58898,2071.46755 C2992.64058,2334.37851 2411.06718,2555.97026 2209.56718,2465.97026 C1875.56156,2316.78661 1777.20593,1080.21632 2417.45789,1200.18191 Z");
     			attr(path10, "fill", path10_fill_value = ctx.colors[8]);
-    			add_location(path10, file$3, 24, 8, 3864);
+    			add_location(path10, file$2, 24, 8, 3864);
     			attr(path11, "d", "M2758,1754.99031 C2758,2165.35772 2264.69158,2769 1869.81059,2769 C1474.92374,2769 1328,2165.35772 1328,1754.99031 C1328,1344.62876 1474.92374,1011 1869.81059,1011 C2264.69158,1011 2758,1344.62876 2758,1754.99031 Z");
     			attr(path11, "fill", path11_fill_value = ctx.colors[0]);
     			attr(path11, "transform", "translate(2043.000000, 1890.000000) rotate(35.000000) translate(-2043.000000, -1890.000000) ");
-    			add_location(path11, file$3, 25, 8, 4134);
+    			add_location(path11, file$2, 25, 8, 4134);
     			attr(path12, "d", "M2504,1694.1445 C2504,2104.04672 2100.91061,2707 1778.24478,2707 C1455.57895,2707 1115,2238.90222 1115,1829 C1115,1419.10363 1455.57895,951 1778.24478,951 C2100.91061,951 2504,1284.24813 2504,1694.1445 Z");
     			attr(path12, "fill", path12_fill_value = ctx.colors[2]);
     			attr(path12, "transform", "translate(1809.500000, 1829.000000) rotate(47.000000) translate(-1809.500000, -1829.000000) ");
-    			add_location(path12, file$3, 26, 8, 4499);
+    			add_location(path12, file$2, 26, 8, 4499);
     			attr(g0, "transform", "translate(-2340.000000, -1578.000000)");
     			attr(g0, "id", "Shape");
-    			add_location(g0, file$3, 13, 6, 517);
+    			add_location(g0, file$2, 13, 6, 517);
     			attr(g1, "id", "Doubs");
     			attr(g1, "fill-rule", "nonzero");
-    			add_location(g1, file$3, 12, 4, 476);
+    			add_location(g1, file$2, 12, 4, 476);
     			attr(g2, "id", "Patterns");
     			attr(g2, "stroke", "none");
     			attr(g2, "stroke-width", "1");
     			attr(g2, "fill", "none");
     			attr(g2, "fill-rule", "evenodd");
-    			add_location(g2, file$3, 11, 2, 391);
+    			add_location(g2, file$2, 11, 2, 391);
     			attr(svg, "viewBox", "0 0 1600 1200");
     			attr(svg, "version", "1.1");
     			attr(svg, "xmlns", "http://www.w3.org/2000/svg");
     			attr(svg, "xmlns:xlink", "http://www.w3.org/1999/xlink");
     			attr(svg, "style", ctx.styles);
-    			add_location(svg, file$3, 10, 0, 250);
+    			add_location(svg, file$2, 10, 0, 250);
     		},
 
     		l: function claim(nodes) {
@@ -20446,7 +19505,7 @@ var app = (function () {
     	};
     }
 
-    function instance$4($$self, $$props, $$invalidate) {
+    function instance$2($$self, $$props, $$invalidate) {
 
       let { colors, styles } = $$props;
 
@@ -20466,7 +19525,7 @@ var app = (function () {
     class Doubs extends SvelteComponentDev {
     	constructor(options) {
     		super(options);
-    		init(this, options, instance$4, create_fragment$4, safe_not_equal, ["colors", "styles"]);
+    		init(this, options, instance$2, create_fragment$2, safe_not_equal, ["colors", "styles"]);
 
     		const { ctx } = this.$$;
     		const props = options.props || {};
@@ -20497,9 +19556,9 @@ var app = (function () {
 
     /* src/patterns/Hinterrhein.svelte generated by Svelte v3.6.7 */
 
-    const file$4 = "src/patterns/Hinterrhein.svelte";
+    const file$3 = "src/patterns/Hinterrhein.svelte";
 
-    function create_fragment$5(ctx) {
+    function create_fragment$3(ctx) {
     	var svg, g3, g2, g1, ellipse0, ellipse0_stroke_value, path0, path0_stroke_value, path1, path1_stroke_value, path2, path2_stroke_value, path3, path3_stroke_value, path4, path4_stroke_value, path5, path5_stroke_value, path6, path6_stroke_value, path7, path7_stroke_value, path8, path8_stroke_value, path9, path9_stroke_value, path10, path10_stroke_value, path11, path11_stroke_value, path12, path12_stroke_value, path13, path13_stroke_value, path14, path14_stroke_value, path15, path15_stroke_value, path16, path16_stroke_value, path17, path17_stroke_value, path18, path18_stroke_value, circle, circle_stroke_value, path19, path19_stroke_value, path20, path20_stroke_value, path21, path21_stroke_value, path22, path22_stroke_value, path23, path23_stroke_value, path24, path24_stroke_value, path25, path25_stroke_value, ellipse1, ellipse1_stroke_value, path26, path26_stroke_value, path27, path27_stroke_value, path28, path28_stroke_value, path29, path29_stroke_value, path30, path30_stroke_value, path31, path31_stroke_value, path32, path32_stroke_value, ellipse2, ellipse2_stroke_value, path33, path33_stroke_value, path34, path34_stroke_value, path35, path35_stroke_value, path36, path36_stroke_value, ellipse3, ellipse3_stroke_value, path37, path37_stroke_value, path38, path38_stroke_value, path39, path39_stroke_value, path40, path40_stroke_value, path41, path41_stroke_value, path42, path42_stroke_value, path43, path43_stroke_value, path44, path44_stroke_value, path45, path45_stroke_value, path46, path46_stroke_value, path47, path47_stroke_value, path48, path48_stroke_value, path49, path49_stroke_value, path50, path50_stroke_value, path51, path51_stroke_value, path52, path52_stroke_value, ellipse4, ellipse4_stroke_value, path53, path53_stroke_value, path54, path54_stroke_value, path55, path55_stroke_value, ellipse5, ellipse5_stroke_value, g0, path56, path56_stroke_value, path57, path57_stroke_value, path58, path58_stroke_value, path59, path59_stroke_value, path60, path60_stroke_value, path61, path61_stroke_value, path62, path62_stroke_value, path63, path63_stroke_value, path64, path64_stroke_value, path65, path65_stroke_value, path66, path66_stroke_value, path67, path67_stroke_value, path68, path68_stroke_value, path69, path69_stroke_value, path70, path70_stroke_value;
 
     	return {
@@ -20593,350 +19652,350 @@ var app = (function () {
     			attr(ellipse0, "cy", "110.5");
     			attr(ellipse0, "rx", "38");
     			attr(ellipse0, "ry", "37.5");
-    			add_location(ellipse0, file$4, 14, 8, 555);
+    			add_location(ellipse0, file$3, 14, 8, 555);
     			attr(path0, "d", "M1609,971.95215 C1609,916.747664 1658.24555,872 1719,872 C1740.09181,872 1759.80569,877.393271 1776.54448,886.751028 M1829,1040 L1829,971.95215 C1829,950.174953 1821.33523,930.022804 1808.32313,913.607477");
     			attr(path0, "stroke", path0_stroke_value = ctx.colors[1]);
     			attr(path0, "stroke-linejoin", "round");
-    			add_location(path0, file$4, 15, 8, 667);
+    			add_location(path0, file$3, 15, 8, 667);
     			attr(path1, "d", "M1872,280 L1908.54783,280 C1933.09826,280 1953,260.971806 1953,237.5 C1953,214.028194 1933.09826,195 1908.54783,195 L1835.45217,195 C1810.90174,195 1791,214.028194 1791,237.5");
     			attr(path1, "stroke", path1_stroke_value = ctx.colors[1]);
     			attr(path1, "stroke-linejoin", "round");
-    			add_location(path1, file$4, 16, 8, 943);
+    			add_location(path1, file$3, 16, 8, 943);
     			attr(path2, "d", "M1258.95215,220 C1203.74766,220 1159,170.751317 1159,110 C1159,88.9050534 1164.39327,69.1966548 1173.75103,52.455516 M1327,-1.48858703e-12 L1258.95215,-1.48858703e-12 C1237.17495,-1.48858703e-12 1217.0228,7.66382918 1200.60748,20.674363");
     			attr(path2, "stroke", path2_stroke_value = ctx.colors[0]);
     			attr(path2, "stroke-linejoin", "round");
-    			add_location(path2, file$4, 17, 8, 1189);
+    			add_location(path2, file$3, 17, 8, 1189);
     			attr(path3, "d", "M1535.5,1120 L1532.36486,1120 C1510.07405,1120 1492,1138.13456 1492,1160.5 C1492,1182.86544 1510.07405,1201 1532.36486,1201 L1625.63514,1201 C1647.92595,1201 1666,1182.86544 1666,1160.5 C1666,1138.13456 1647.92595,1120 1625.63514,1120 L1622.5,1120");
     			attr(path3, "stroke", path3_stroke_value = ctx.colors[2]);
     			attr(path3, "stroke-linejoin", "round");
-    			add_location(path3, file$4, 18, 8, 1497);
+    			add_location(path3, file$3, 18, 8, 1497);
     			attr(path4, "d", "M1182,1205 C1156.04033,1205 1135,1183.95967 1135,1158 C1135,1132.04033 1156.04033,1111 1182,1111");
     			attr(path4, "stroke", path4_stroke_value = ctx.colors[3]);
     			attr(path4, "stroke-linejoin", "round");
-    			add_location(path4, file$4, 19, 8, 1816);
+    			add_location(path4, file$3, 19, 8, 1816);
     			attr(path5, "d", "M1582.56338,228 C1604.34028,228 1622,210.53903 1622,189 C1622,167.46097 1604.34028,150 1582.56338,150 L1538,150");
     			attr(path5, "stroke", path5_stroke_value = ctx.colors[1]);
     			attr(path5, "stroke-linejoin", "round");
-    			add_location(path5, file$4, 20, 8, 1984);
+    			add_location(path5, file$3, 20, 8, 1984);
     			attr(path6, "d", "M331,10 L108.050265,10 C64.3920468,10 29,45.3695515 29,89");
     			attr(path6, "stroke", path6_stroke_value = ctx.colors[2]);
     			attr(path6, "stroke-linejoin", "round");
-    			add_location(path6, file$4, 21, 8, 2167);
+    			add_location(path6, file$3, 21, 8, 2167);
     			attr(path7, "d", "M1743,1205 L1743,1052.9203 C1743,1023.14038 1718.82522,999 1689,999 C1659.17478,999 1635,1023.14038 1635,1052.9203 L1635,1076.45757");
     			attr(path7, "stroke", path7_stroke_value = ctx.colors[3]);
     			attr(path7, "stroke-linejoin", "round");
-    			add_location(path7, file$4, 22, 8, 2296);
+    			add_location(path7, file$3, 22, 8, 2296);
     			attr(path8, "d", "M206,406 C257.914633,406 300,364.586653 300,313.5 C300,262.413347 257.914633,221 206,221 C154.085367,221 112,262.413347 112,313.5");
     			attr(path8, "stroke", path8_stroke_value = ctx.colors[1]);
     			attr(path8, "stroke-linejoin", "round");
-    			add_location(path8, file$4, 23, 8, 2499);
+    			add_location(path8, file$3, 23, 8, 2499);
     			attr(path9, "d", "M281.380368,105.5 C281.380368,129.524541 262.04373,149 238.190184,149 C214.336638,149 195,129.524541 195,105.5 C195,81.4754595 214.336638,62 238.190184,62 L323,62");
     			attr(path9, "stroke", path9_stroke_value = ctx.colors[0]);
     			attr(path9, "stroke-linejoin", "round");
-    			add_location(path9, file$4, 24, 8, 2700);
+    			add_location(path9, file$3, 24, 8, 2700);
     			attr(path10, "d", "M862,98.5 L862,40.1526549 C862,23.4997743 875.433766,10 892,10 C908.566234,10 922,23.4997743 922,40.1526549 L922,156.847345 C922,173.500226 908.566234,187 892,187 C875.433766,187 862,173.500226 862,156.847345 L862,142.75");
     			attr(path10, "stroke", path10_stroke_value = ctx.colors[1]);
     			attr(path10, "stroke-linejoin", "round");
-    			add_location(path10, file$4, 25, 8, 2934);
+    			add_location(path10, file$3, 25, 8, 2934);
     			attr(path11, "d", "M806,19 L806,170.829094 C806,216.21096 842.936429,253 888.5,253 C934.063571,253 971,216.21096 971,170.829094 L971,134.957208");
     			attr(path11, "stroke", path11_stroke_value = ctx.colors[3]);
     			attr(path11, "stroke-linejoin", "round");
-    			add_location(path11, file$4, 26, 8, 3226);
+    			add_location(path11, file$3, 26, 8, 3226);
     			attr(path12, "d", "M1394,62 L1573.97897,62 C1642.47299,62 1698,117.740764 1698,186.5 C1698,255.259236 1642.47299,311 1573.97897,311 L1519.83093,311");
     			attr(path12, "stroke", path12_stroke_value = ctx.colors[3]);
     			attr(path12, "stroke-linejoin", "round");
-    			add_location(path12, file$4, 27, 8, 3422);
+    			add_location(path12, file$3, 27, 8, 3422);
     			attr(path13, "d", "M1877,316 L1877,398.011565 C1877,433.351043 1848.08459,462 1812.41096,462 L1762,462");
     			attr(path13, "stroke", path13_stroke_value = ctx.colors[2]);
     			attr(path13, "stroke-linejoin", "round");
-    			add_location(path13, file$4, 28, 8, 3622);
+    			add_location(path13, file$3, 28, 8, 3622);
     			attr(path14, "d", "M634,366 L634,420.993352 C634,460.761599 666.235652,493 706,493");
     			attr(path14, "stroke", path14_stroke_value = ctx.colors[3]);
     			attr(path14, "stroke-linejoin", "round");
-    			add_location(path14, file$4, 29, 8, 3777);
+    			add_location(path14, file$3, 29, 8, 3777);
     			attr(path15, "d", "M523,755 L523,668.920385 C523,619.356033 561.840526,577.837138 614,567");
     			attr(path15, "stroke", path15_stroke_value = ctx.colors[1]);
     			attr(path15, "stroke-linejoin", "round");
-    			add_location(path15, file$4, 30, 8, 3912);
+    			add_location(path15, file$3, 30, 8, 3912);
     			attr(path16, "d", "M1516.5,445.5 L1621.81017,445.5 C1682.44741,445.5 1733.2418,492.876905 1746.5,556.5");
     			attr(path16, "stroke", path16_stroke_value = ctx.colors[2]);
-    			add_location(path16, file$4, 31, 8, 4054);
+    			add_location(path16, file$3, 31, 8, 4054);
     			attr(path17, "d", "M1732,326.3 C1732,300.177109 1753.26901,279 1779.5,279 C1805.73099,279 1827,300.177109 1827,326.3 L1827,360.7 C1827,386.822891 1805.73099,408 1779.5,408 C1753.26901,408 1732,386.822891 1732,360.7 L1732,326.3 Z");
     			attr(path17, "stroke", path17_stroke_value = ctx.colors[3]);
     			attr(path17, "stroke-linejoin", "round");
-    			add_location(path17, file$4, 32, 8, 4185);
+    			add_location(path17, file$3, 32, 8, 4185);
     			attr(path18, "d", "M746.99922,373 L747,172.197372 C747,132.876519 715.212286,101 676,101");
     			attr(path18, "stroke", path18_stroke_value = ctx.colors[1]);
     			attr(path18, "stroke-linejoin", "round");
-    			add_location(path18, file$4, 33, 8, 4466);
+    			add_location(path18, file$3, 33, 8, 4466);
     			attr(circle, "stroke", circle_stroke_value = ctx.colors[3]);
     			attr(circle, "stroke-linejoin", "round");
     			attr(circle, "cx", "1419");
     			attr(circle, "cy", "221");
     			attr(circle, "r", "32");
-    			add_location(circle, file$4, 34, 8, 4607);
+    			add_location(circle, file$3, 34, 8, 4607);
     			attr(path19, "d", "M1419,311 C1469.80749,311 1511,270.481857 1511,220.5 C1511,170.518143 1469.80749,130 1419,130 C1368.19251,130 1327,170.518143 1327,220.5");
     			attr(path19, "stroke", path19_stroke_value = ctx.colors[1]);
     			attr(path19, "stroke-linejoin", "round");
-    			add_location(path19, file$4, 35, 8, 4704);
+    			add_location(path19, file$3, 35, 8, 4704);
     			attr(path20, "d", "M1263.5,72 C1242.78906,72 1226,88.7889474 1226,109.5 C1226,130.211053 1242.78906,147 1263.5,147 C1284.21094,147 1301,130.211053 1301,109.5 L1301,72");
     			attr(path20, "stroke", path20_stroke_value = ctx.colors[2]);
     			attr(path20, "stroke-linejoin", "round");
-    			add_location(path20, file$4, 36, 8, 4912);
+    			add_location(path20, file$3, 36, 8, 4912);
     			attr(path21, "d", "M1115.5,817.758427 C1091.47703,817.758427 1072,837.059551 1072,860.875281 C1072,884.691011 1091.47703,904 1115.5,904 C1139.52297,904 1159,884.691011 1159,860.875281 L1159,729");
     			attr(path21, "stroke", path21_stroke_value = ctx.colors[0]);
     			attr(path21, "stroke-linejoin", "round");
-    			add_location(path21, file$4, 37, 8, 5131);
+    			add_location(path21, file$3, 37, 8, 5131);
     			attr(path22, "d", "M945.831409,1111.5 C945.831409,1133.31495 963.333949,1151 984.91963,1151 C1006.50531,1151 1024,1133.31495 1024,1111.5 C1024,1089.68505 1006.50531,1072 984.91963,1072 L854,1072");
     			attr(path22, "stroke", path22_stroke_value = ctx.colors[1]);
     			attr(path22, "stroke-linejoin", "round");
-    			add_location(path22, file$4, 38, 8, 5377);
+    			add_location(path22, file$3, 38, 8, 5377);
     			attr(path23, "d", "M781.791855,1127 L881.208145,1127 C901.529774,1127 918,1143.5634 918,1164 C918,1184.4366 901.529774,1201 881.208145,1201 L781.791855,1201 C761.472575,1201 745,1184.4366 745,1164 C745,1143.5634 761.472575,1127 781.791855,1127 Z");
     			attr(path23, "stroke", path23_stroke_value = ctx.colors[0]);
     			attr(path23, "stroke-linejoin", "round");
-    			add_location(path23, file$4, 39, 8, 5624);
+    			add_location(path23, file$3, 39, 8, 5624);
     			attr(path24, "d", "M597,267 C597,316.705826 556.705826,357 507,357 C457.294174,357 417,316.705826 417,267");
     			attr(path24, "stroke", path24_stroke_value = ctx.colors[1]);
     			attr(path24, "stroke-linejoin", "round");
-    			add_location(path24, file$4, 40, 8, 5922);
+    			add_location(path24, file$3, 40, 8, 5922);
     			attr(path25, "d", "M675,312 L675,202.002021 C675,180.461549 657.53892,163 636,163 C614.46108,163 597,180.461549 597,202.002021 L597,219.027911");
     			attr(path25, "stroke", path25_stroke_value = ctx.colors[2]);
     			attr(path25, "stroke-linejoin", "round");
-    			add_location(path25, file$4, 41, 8, 6080);
+    			add_location(path25, file$3, 41, 8, 6080);
     			attr(ellipse1, "stroke", ellipse1_stroke_value = ctx.colors[2]);
     			attr(ellipse1, "stroke-linejoin", "round");
     			attr(ellipse1, "cx", "444");
     			attr(ellipse1, "cy", "429.5");
     			attr(ellipse1, "rx", "27");
     			attr(ellipse1, "ry", "26.5");
-    			add_location(ellipse1, file$4, 42, 8, 6275);
+    			add_location(ellipse1, file$3, 42, 8, 6275);
     			attr(path26, "d", "M467,250.225 L467,139.775 C467,118.360233 484.46097,101 506,101 C527.53903,101 545,118.360233 545,139.775 L545,250.225 C545,271.639767 527.53903,289 506,289 C484.46097,289 467,271.639767 467,250.225 Z");
     			attr(path26, "stroke", path26_stroke_value = ctx.colors[0]);
     			attr(path26, "stroke-linejoin", "round");
-    			add_location(path26, file$4, 43, 8, 6386);
+    			add_location(path26, file$3, 43, 8, 6386);
     			attr(path27, "d", "M1360,312 L1271.92522,312 C1216.18783,312 1171,357.219031 1171,413");
     			attr(path27, "stroke", path27_stroke_value = ctx.colors[1]);
     			attr(path27, "stroke-linejoin", "round");
-    			add_location(path27, file$4, 44, 8, 6658);
+    			add_location(path27, file$3, 44, 8, 6658);
     			attr(path28, "d", "M205.5,353.509804 C226.210938,353.509804 243,336.830588 243,316.254902 C243,295.679216 226.210938,279 205.5,279 C184.789062,279 168,295.679216 168,316.254902 L168,559");
     			attr(path28, "stroke", path28_stroke_value = ctx.colors[2]);
     			attr(path28, "stroke-linejoin", "round");
-    			add_location(path28, file$4, 45, 8, 6796);
+    			add_location(path28, file$3, 45, 8, 6796);
     			attr(path29, "d", "M1447.5,506 C1425.68505,506 1408,523.46108 1408,545 C1408,566.53892 1425.68505,584 1447.5,584 C1469.31495,584 1487,566.53892 1487,545 L1487,506");
     			attr(path29, "stroke", path29_stroke_value = ctx.colors[1]);
     			attr(path29, "stroke-linejoin", "round");
-    			add_location(path29, file$4, 46, 8, 7034);
+    			add_location(path29, file$3, 46, 8, 7034);
     			attr(path30, "d", "M1689,690.754093 C1689,746.670617 1734.8933,792 1791.5,792 C1848.1067,792 1894,746.670617 1894,690.754093 L1894,582");
     			attr(path30, "stroke", path30_stroke_value = ctx.colors[3]);
     			attr(path30, "stroke-linejoin", "round");
-    			add_location(path30, file$4, 47, 8, 7249);
+    			add_location(path30, file$3, 47, 8, 7249);
     			attr(path31, "d", "M1635.62574,738 L1630.52959,738 C1601.52071,738 1578,714.494888 1578,685.5 C1578,656.505112 1601.52071,633 1630.52959,633 L1790.47041,633 C1819.47929,633 1843,656.505112 1843,685.5 C1843,714.494888 1819.47929,738 1790.47041,738 L1788.90237,738");
     			attr(path31, "stroke", path31_stroke_value = ctx.colors[2]);
     			attr(path31, "stroke-linejoin", "round");
-    			add_location(path31, file$4, 48, 8, 7436);
+    			add_location(path31, file$3, 48, 8, 7436);
     			attr(path32, "d", "M1538,506 L1602.53071,506 C1645.87071,506 1681,540.92216 1681,584");
     			attr(path32, "stroke", path32_stroke_value = ctx.colors[3]);
     			attr(path32, "stroke-linejoin", "round");
-    			add_location(path32, file$4, 49, 8, 7751);
+    			add_location(path32, file$3, 49, 8, 7751);
     			attr(ellipse2, "stroke", ellipse2_stroke_value = ctx.colors[2]);
     			attr(ellipse2, "stroke-linejoin", "round");
     			attr(ellipse2, "cx", "869");
     			attr(ellipse2, "cy", "862.5");
     			attr(ellipse2, "rx", "38");
     			attr(ellipse2, "ry", "37.5");
-    			add_location(ellipse2, file$4, 50, 8, 7888);
+    			add_location(ellipse2, file$3, 50, 8, 7888);
     			attr(path33, "d", "M776.403578,840.520014 C762.460481,892.643707 792.620681,946.025666 843.760284,959.7565 C894.899888,973.487334 947.656493,942.360965 961.597235,890.237272 C975.537978,838.113579 945.380133,784.73162 894.240529,771");
     			attr(path33, "stroke", path33_stroke_value = ctx.colors[0]);
     			attr(path33, "stroke-linejoin", "round");
-    			add_location(path33, file$4, 51, 8, 7999);
+    			add_location(path33, file$3, 51, 8, 7999);
     			attr(path34, "d", "M845.65848,770.60169 L660.398666,770.60169 C624.696229,770.582931 595.7394,741.080367 595.722595,704.701923 C595.705848,668.32348 624.633252,638.846139 660.335552,638.864352 C696.037852,638.882633 724.996214,668.384786 725.011456,704.763641 L664.692251,704.763641 L664.692251,704.763641");
     			attr(path34, "stroke", path34_stroke_value = ctx.colors[2]);
-    			add_location(path34, file$4, 52, 8, 8284);
+    			add_location(path34, file$3, 52, 8, 8284);
     			attr(path35, "d", "M841.5,557 C841.5,565.958167 841.5,678.732452 841.5,734");
     			attr(path35, "stroke", path35_stroke_value = ctx.colors[3]);
     			attr(path35, "stroke-linejoin", "round");
-    			add_location(path35, file$4, 53, 8, 8618);
+    			add_location(path35, file$3, 53, 8, 8618);
     			attr(path36, "d", "M501.019608,1112 C484.992157,1112 472,1099.24137 472,1083.5 C472,1067.75863 484.992157,1055 501.019608,1055 L532,1055");
     			attr(path36, "stroke", path36_stroke_value = ctx.colors[0]);
     			attr(path36, "stroke-linejoin", "round");
-    			add_location(path36, file$4, 54, 8, 8745);
+    			add_location(path36, file$3, 54, 8, 8745);
     			attr(ellipse3, "stroke", ellipse3_stroke_value = ctx.colors[1]);
     			attr(ellipse3, "stroke-linejoin", "round");
     			attr(ellipse3, "cx", "327.5");
     			attr(ellipse3, "cy", "1114");
     			attr(ellipse3, "rx", "41.5");
     			attr(ellipse3, "ry", "41");
-    			add_location(ellipse3, file$4, 55, 8, 8934);
+    			add_location(ellipse3, file$3, 55, 8, 8934);
     			attr(path37, "d", "M415,1113 C415,1062.19251 374.481857,1021 324.5,1021 C274.518143,1021 234,1062.19251 234,1113 C234,1163.80749 274.518143,1205 324.5,1205");
     			attr(path37, "stroke", path37_stroke_value = ctx.colors[2]);
     			attr(path37, "stroke-linejoin", "round");
-    			add_location(path37, file$4, 56, 8, 9046);
+    			add_location(path37, file$3, 56, 8, 9046);
     			attr(path38, "d", "M569,1055 L606.905196,1055 C632.362692,1055 653,1035.30214 653,1011 C653,986.697857 632.362692,967 606.905196,967 L531.094804,967 C505.637308,967 485,986.697857 485,1011");
     			attr(path38, "stroke", path38_stroke_value = ctx.colors[2]);
     			attr(path38, "stroke-linejoin", "round");
-    			add_location(path38, file$4, 57, 8, 9254);
+    			add_location(path38, file$3, 57, 8, 9254);
     			attr(path39, "d", "M416,992 C416,945.611589 453.444786,908 499.636143,908 L647,908");
     			attr(path39, "stroke", path39_stroke_value = ctx.colors[2]);
     			attr(path39, "stroke-linejoin", "round");
-    			add_location(path39, file$4, 58, 8, 9495);
+    			add_location(path39, file$3, 58, 8, 9495);
     			attr(path40, "d", "M368.5,908 C368.5,912.248462 368.5,965.766154 368.5,992");
     			attr(path40, "stroke", path40_stroke_value = ctx.colors[1]);
     			attr(path40, "stroke-linejoin", "round");
-    			add_location(path40, file$4, 59, 8, 9630);
+    			add_location(path40, file$3, 59, 8, 9630);
     			attr(path41, "d", "M786.5,657 C786.5,660.694923 786.5,707.20575 786.5,730");
     			attr(path41, "stroke", path41_stroke_value = ctx.colors[1]);
     			attr(path41, "stroke-linejoin", "round");
-    			add_location(path41, file$4, 60, 8, 9757);
+    			add_location(path41, file$3, 60, 8, 9757);
     			attr(path42, "d", "M902.084977,450.5 C902.084977,473.419745 883.712534,492 861.042489,492 C838.372443,492 820,473.419745 820,450.5 C820,427.580255 838.372443,409 861.042489,409 L993,409");
     			attr(path42, "stroke", path42_stroke_value = ctx.colors[1]);
     			attr(path42, "stroke-linejoin", "round");
-    			add_location(path42, file$4, 61, 8, 9883);
+    			add_location(path42, file$3, 61, 8, 9883);
     			attr(path43, "d", "M1046,539.5 L1046,481.152655 C1046,464.499774 1059.43377,451 1076,451 C1092.56623,451 1106,464.499774 1106,481.152655 L1106,597.847345 C1106,614.500226 1092.56623,628 1076,628 C1059.43377,628 1046,614.500226 1046,597.847345 L1046,583.75");
     			attr(path43, "stroke", path43_stroke_value = ctx.colors[0]);
     			attr(path43, "stroke-linejoin", "round");
-    			add_location(path43, file$4, 62, 8, 10121);
+    			add_location(path43, file$3, 62, 8, 10121);
     			attr(path44, "d", "M994,451 L994,602.829094 C994,648.21096 1030.93643,685 1076.5,685 C1122.06357,685 1159,648.21096 1159,602.829094 L1159,566.957208");
     			attr(path44, "stroke", path44_stroke_value = ctx.colors[3]);
     			attr(path44, "stroke-linejoin", "round");
-    			add_location(path44, file$4, 63, 8, 10429);
+    			add_location(path44, file$3, 63, 8, 10429);
     			attr(path45, "d", "M1007,316 L963.695312,316 C932.382812,316 907,341.519603 907,373");
     			attr(path45, "stroke", path45_stroke_value = ctx.colors[2]);
     			attr(path45, "stroke-linejoin", "round");
-    			add_location(path45, file$4, 64, 8, 10630);
+    			add_location(path45, file$3, 64, 8, 10630);
     			attr(path46, "d", "M1045.5,273 C1045.5,279.070225 1045.5,371.552576 1045.5,409");
     			attr(path46, "stroke", path46_stroke_value = ctx.colors[1]);
     			attr(path46, "stroke-linejoin", "round");
-    			add_location(path46, file$4, 65, 8, 10766);
+    			add_location(path46, file$3, 65, 8, 10766);
     			attr(path47, "d", "M1294,495.14852 L1294,508.33208 C1294,526.9265 1278.8282,542 1260.12442,542 C1241.41279,542 1226.24099,526.9265 1226.24099,508.33208 L1226.24099,497.41208 C1226.24099,478.95884 1211.18692,464 1192.62442,464 C1174.05407,464 1159,478.95884 1159,497.41208 L1159,510.85148");
     			attr(path47, "stroke", path47_stroke_value = ctx.colors[3]);
     			attr(path47, "stroke-linejoin", "round");
-    			add_location(path47, file$4, 66, 8, 10897);
+    			add_location(path47, file$3, 66, 8, 10897);
     			attr(path48, "d", "M222.5,769.081301 C201.789062,769.081301 185,785.855203 185,806.54065 C185,827.226098 201.789062,844 222.5,844 C243.210938,844 260,827.226098 260,806.54065 L260,747");
     			attr(path48, "stroke", path48_stroke_value = ctx.colors[2]);
     			attr(path48, "stroke-linejoin", "round");
-    			add_location(path48, file$4, 67, 8, 11237);
+    			add_location(path48, file$3, 67, 8, 11237);
     			attr(path49, "d", "M265,692 L265,632.934418 C265,598.924545 291.889975,570.435873 328,563");
     			attr(path49, "stroke", path49_stroke_value = ctx.colors[0]);
     			attr(path49, "stroke-linejoin", "round");
-    			add_location(path49, file$4, 68, 8, 11473);
+    			add_location(path49, file$3, 68, 8, 11473);
     			attr(path50, "d", "M222.5,605 C222.5,597.128807 222.5,511.561646 222.5,463");
     			attr(path50, "stroke", path50_stroke_value = ctx.colors[3]);
     			attr(path50, "stroke-linejoin", "round");
-    			add_location(path50, file$4, 69, 8, 11615);
+    			add_location(path50, file$3, 69, 8, 11615);
     			attr(path51, "d", "M319,672.879245 C319,646.436558 340.490623,625 367,625 C393.509377,625 415,646.436558 415,672.879245 L415,785.120755 C415,811.564226 393.509377,833 367,833 C340.490623,833 319,811.564226 319,785.120755 L319,672.879245 Z");
     			attr(path51, "stroke", path51_stroke_value = ctx.colors[3]);
     			attr(path51, "stroke-linejoin", "round");
-    			add_location(path51, file$4, 70, 8, 11742);
+    			add_location(path51, file$3, 70, 8, 11742);
     			attr(path52, "d", "M1226,890.43662 C1226,868.659718 1243.45939,851 1265,851 C1286.54061,851 1304,868.659718 1304,890.43662 L1304,935");
     			attr(path52, "stroke", path52_stroke_value = ctx.colors[1]);
     			attr(path52, "stroke-linejoin", "round");
-    			add_location(path52, file$4, 71, 8, 12033);
+    			add_location(path52, file$3, 71, 8, 12033);
     			attr(ellipse4, "stroke", ellipse4_stroke_value = ctx.colors[1]);
     			attr(ellipse4, "stroke-linejoin", "round");
     			attr(ellipse4, "cx", "1386.5");
     			attr(ellipse4, "cy", "828");
     			attr(ellipse4, "rx", "41.5");
     			attr(ellipse4, "ry", "41");
-    			add_location(ellipse4, file$4, 72, 8, 12218);
+    			add_location(ellipse4, file$3, 72, 8, 12218);
     			attr(path53, "d", "M1305.73333,1009.5 C1305.73333,1030.21094 1289.00093,1047 1268.36667,1047 C1247.7324,1047 1231,1030.21094 1231,1009.5 C1231,988.789062 1247.7324,972 1268.36667,972 L1408,972");
     			attr(path53, "stroke", path53_stroke_value = ctx.colors[0]);
     			attr(path53, "stroke-linejoin", "round");
-    			add_location(path53, file$4, 73, 8, 12330);
+    			add_location(path53, file$3, 73, 8, 12330);
     			attr(path54, "d", "M1259,733 L1395.16314,733 C1446.98771,733 1489,775.0885 1489,827 C1489,878.9115 1446.98771,921 1395.16314,921 L1354.20273,921");
     			attr(path54, "stroke", path54_stroke_value = ctx.colors[2]);
     			attr(path54, "stroke-linejoin", "round");
-    			add_location(path54, file$4, 74, 8, 12575);
+    			add_location(path54, file$3, 74, 8, 12575);
     			attr(path55, "d", "M1457,972 L1500.14577,972 C1543.69821,972 1579,1007.45367 1579,1051.195 L1579,1132");
     			attr(path55, "stroke", path55_stroke_value = ctx.colors[0]);
     			attr(path55, "stroke-linejoin", "round");
-    			add_location(path55, file$4, 75, 8, 12772);
+    			add_location(path55, file$3, 75, 8, 12772);
     			attr(ellipse5, "stroke", ellipse5_stroke_value = ctx.colors[2]);
     			attr(ellipse5, "stroke-linejoin", "round");
     			attr(ellipse5, "cx", "1499");
     			attr(ellipse5, "cy", "1051.5");
     			attr(ellipse5, "rx", "27");
     			attr(ellipse5, "ry", "26.5");
-    			add_location(ellipse5, file$4, 76, 8, 12926);
+    			add_location(ellipse5, file$3, 76, 8, 12926);
     			attr(path56, "d", "M0.471425188,59 C0.490475063,69 0.509524937,79 0.528574812,89");
     			attr(path56, "stroke", path56_stroke_value = ctx.colors[3]);
-    			add_location(path56, file$4, 78, 10, 13125);
+    			add_location(path56, file$3, 78, 10, 13125);
     			attr(path57, "d", "M0.471425188,0 C0.490475063,10 0.509524937,20 0.528574812,30");
     			attr(path57, "stroke", path57_stroke_value = ctx.colors[0]);
-    			add_location(path57, file$4, 79, 10, 13236);
+    			add_location(path57, file$3, 79, 10, 13236);
     			attr(g0, "transform", "translate(1352.000000, 1082.000000)");
     			attr(g0, "stroke-linejoin", "round");
-    			add_location(g0, file$4, 77, 8, 13039);
+    			add_location(g0, file$3, 77, 8, 13039);
     			attr(path58, "d", "M1165.47143,1031 C1165.49048,1041 1165.50952,1051 1165.52857,1061");
     			attr(path58, "stroke", path58_stroke_value = ctx.colors[3]);
     			attr(path58, "stroke-linejoin", "round");
-    			add_location(path58, file$4, 81, 8, 13357);
+    			add_location(path58, file$3, 81, 8, 13357);
     			attr(path59, "d", "M1165.47143,972 C1165.49048,982 1165.50952,992 1165.52857,1002");
     			attr(path59, "stroke", path59_stroke_value = ctx.colors[1]);
     			attr(path59, "stroke-linejoin", "round");
-    			add_location(path59, file$4, 82, 8, 13494);
+    			add_location(path59, file$3, 82, 8, 13494);
     			attr(path60, "d", "M1105.47143,972 C1105.49048,982 1105.50952,992 1105.52857,1002");
     			attr(path60, "stroke", path60_stroke_value = ctx.colors[0]);
     			attr(path60, "stroke-linejoin", "round");
-    			add_location(path60, file$4, 83, 8, 13628);
+    			add_location(path60, file$3, 83, 8, 13628);
     			attr(path61, "d", "M689.471425,893 C689.490475,903 689.509525,913 689.528575,923");
     			attr(path61, "stroke", path61_stroke_value = ctx.colors[2]);
     			attr(path61, "stroke-linejoin", "round");
-    			add_location(path61, file$4, 84, 8, 13762);
+    			add_location(path61, file$3, 84, 8, 13762);
     			attr(path62, "d", "M246.471425,914 C246.490475,924 246.509525,934 246.528575,944");
     			attr(path62, "stroke", path62_stroke_value = ctx.colors[1]);
     			attr(path62, "stroke-linejoin", "round");
-    			add_location(path62, file$4, 85, 8, 13895);
+    			add_location(path62, file$3, 85, 8, 13895);
     			attr(path63, "d", "M381.471425,510 C381.490475,520 381.509525,530 381.528575,540");
     			attr(path63, "stroke", path63_stroke_value = ctx.colors[1]);
     			attr(path63, "stroke-linejoin", "round");
-    			add_location(path63, file$4, 86, 8, 14028);
+    			add_location(path63, file$3, 86, 8, 14028);
     			attr(path64, "d", "M332.471425,436 C332.490475,446 332.509525,456 332.528575,466");
     			attr(path64, "stroke", path64_stroke_value = ctx.colors[0]);
     			attr(path64, "stroke-linejoin", "round");
-    			add_location(path64, file$4, 87, 8, 14161);
+    			add_location(path64, file$3, 87, 8, 14161);
     			attr(path65, "d", "M746.471425,477 C746.490475,487 746.509525,497 746.528575,507");
     			attr(path65, "stroke", path65_stroke_value = ctx.colors[3]);
     			attr(path65, "stroke-linejoin", "round");
-    			add_location(path65, file$4, 88, 8, 14294);
+    			add_location(path65, file$3, 88, 8, 14294);
     			attr(path66, "d", "M1044.47143,160 C1044.49048,170 1044.50952,180 1044.52857,190");
     			attr(path66, "stroke", path66_stroke_value = ctx.colors[3]);
     			attr(path66, "stroke-linejoin", "round");
-    			add_location(path66, file$4, 89, 8, 14427);
+    			add_location(path66, file$3, 89, 8, 14427);
     			attr(path67, "d", "M1044.47143,103 C1044.49048,113 1044.50952,123 1044.52857,133");
     			attr(path67, "stroke", path67_stroke_value = ctx.colors[2]);
     			attr(path67, "stroke-linejoin", "round");
-    			add_location(path67, file$4, 90, 8, 14560);
+    			add_location(path67, file$3, 90, 8, 14560);
     			attr(path68, "d", "M1373.47143,637 C1373.49048,647 1373.50952,657 1373.52857,667");
     			attr(path68, "stroke", path68_stroke_value = ctx.colors[2]);
     			attr(path68, "stroke-linejoin", "round");
-    			add_location(path68, file$4, 91, 8, 14693);
+    			add_location(path68, file$3, 91, 8, 14693);
     			attr(path69, "d", "M1444.47143,637 C1444.49048,647 1444.50952,657 1444.52857,667");
     			attr(path69, "stroke", path69_stroke_value = ctx.colors[2]);
     			attr(path69, "stroke-linejoin", "round");
-    			add_location(path69, file$4, 92, 8, 14826);
+    			add_location(path69, file$3, 92, 8, 14826);
     			attr(path70, "d", "M1515.47143,637 C1515.49048,647 1515.50952,657 1515.52857,667");
     			attr(path70, "stroke", path70_stroke_value = ctx.colors[2]);
     			attr(path70, "stroke-linejoin", "round");
-    			add_location(path70, file$4, 93, 8, 14959);
+    			add_location(path70, file$3, 93, 8, 14959);
     			attr(g1, "transform", "translate(-218.000000, -5.000000)");
     			attr(g1, "id", "Shape");
-    			add_location(g1, file$4, 13, 6, 486);
+    			add_location(g1, file$3, 13, 6, 486);
     			attr(g2, "id", "Hinterrhein");
     			attr(g2, "fill-rule", "nonzero");
     			attr(g2, "stroke-width", "30");
-    			add_location(g2, file$4, 12, 4, 421);
+    			add_location(g2, file$3, 12, 4, 421);
     			attr(g3, "id", "Patterns");
     			attr(g3, "stroke", "none");
     			attr(g3, "stroke-width", "1");
     			attr(g3, "fill", "none");
     			attr(g3, "fill-rule", "evenodd");
-    			add_location(g3, file$4, 11, 2, 336);
+    			add_location(g3, file$3, 11, 2, 336);
     			attr(svg, "viewBox", "0 0 1600 1200");
     			attr(svg, "version", "1.1");
     			attr(svg, "xmlns", "http://www.w3.org/2000/svg");
     			attr(svg, "xmlns:xlink", "http://www.w3.org/1999/xlink");
     			attr(svg, "style", ctx.styles);
-    			add_location(svg, file$4, 10, 0, 195);
+    			add_location(svg, file$3, 10, 0, 195);
     		},
 
     		l: function claim(nodes) {
@@ -21358,7 +20417,7 @@ var app = (function () {
     	};
     }
 
-    function instance$5($$self, $$props, $$invalidate) {
+    function instance$3($$self, $$props, $$invalidate) {
 
       let { colors, styles } = $$props;
 
@@ -21378,7 +20437,7 @@ var app = (function () {
     class Hinterrhein extends SvelteComponentDev {
     	constructor(options) {
     		super(options);
-    		init(this, options, instance$5, create_fragment$5, safe_not_equal, ["colors", "styles"]);
+    		init(this, options, instance$3, create_fragment$3, safe_not_equal, ["colors", "styles"]);
 
     		const { ctx } = this.$$;
     		const props = options.props || {};
@@ -21409,9 +20468,9 @@ var app = (function () {
 
     /* src/patterns/Inn.svelte generated by Svelte v3.6.7 */
 
-    const file$5 = "src/patterns/Inn.svelte";
+    const file$4 = "src/patterns/Inn.svelte";
 
-    function create_fragment$6(ctx) {
+    function create_fragment$4(ctx) {
     	var svg, g2, g1, g0, path0, path0_fill_value, path1, path1_fill_value, path2, path2_fill_value, path3, path3_fill_value, path4, path4_fill_value, path5, path5_fill_value, path6, path6_fill_value, ellipse0, ellipse0_fill_value, path7, path7_fill_value, path8, path8_fill_value, path9, path9_fill_value, path10, path10_fill_value, path11, path11_fill_value, path12, path12_fill_value, path13, path13_fill_value, path14, path14_fill_value, ellipse1, ellipse1_fill_value, ellipse2, ellipse2_fill_value, ellipse3, ellipse3_fill_value, path15, path15_fill_value, path16, path16_fill_value, path17, path17_fill_value, path18, path18_fill_value, path19, path19_fill_value, path20, path20_fill_value, path21, path21_fill_value, path22, path22_fill_value, path23, path23_fill_value, path24, path24_fill_value, path25, path25_fill_value, path26, path26_fill_value, path27, path27_fill_value, path28, path28_fill_value, path29, path29_fill_value, path30, path30_fill_value, path31, path31_fill_value, path32, path32_fill_value, path33, path33_fill_value, path34, path34_fill_value, path35, path35_fill_value, path36, path36_fill_value, path37, path37_fill_value, path38, path38_fill_value, path39, path39_fill_value, path40, path40_fill_value, path41, path41_fill_value, path42, path42_fill_value, path43, path43_fill_value, path44, path44_fill_value, path45, path45_fill_value, path46, path46_fill_value, path47, path47_fill_value, path48, path48_fill_value, path49, path49_fill_value, path50, path50_fill_value, path51, path51_fill_value, path52, path52_fill_value, path53, path53_fill_value, path54, path54_fill_value, path55, path55_fill_value, path56, path56_fill_value, path57, path57_fill_value, path58, path58_fill_value, path59, path59_fill_value, path60, path60_fill_value, path61, path61_fill_value, path62, path62_fill_value, path63, path63_fill_value, path64, path64_fill_value, path65, path65_fill_value, path66, path66_fill_value, path67, path67_fill_value, path68, path68_fill_value, path69, path69_fill_value, path70, path70_fill_value, path71, path71_fill_value, path72, path72_fill_value, path73, path73_fill_value, path74, path74_fill_value, path75, path75_fill_value, path76, path76_fill_value, path77, path77_fill_value, path78, path78_fill_value, path79, path79_fill_value, path80, path80_fill_value, path81, path81_fill_value, path82, path82_fill_value, path83, path83_fill_value, path84, path84_fill_value, path85, path85_fill_value, path86, path86_fill_value, path87, path87_fill_value, path88, path88_fill_value, path89, path89_fill_value, path90, path90_fill_value;
 
     	return {
@@ -21517,318 +20576,318 @@ var app = (function () {
     			path90 = svg_element("path");
     			attr(path0, "d", "M217.461082,322.986248 C217.461082,308.667466 214.64931,294.488251 209.184513,281.259843 C203.719716,268.031434 195.710625,256.011159 185.613907,245.885953 C175.517189,235.760747 163.530734,227.729057 150.339545,222.248841 C137.148355,216.769279 123.009036,213.948919 108.730541,213.948919 C94.4520465,213.948919 80.3127269,216.769279 67.1215377,222.248841 C53.9303484,227.729057 41.9438936,235.760747 31.8471755,245.885953 C21.7504574,256.011159 13.7413658,268.031434 8.27656879,281.259843 C2.81177179,294.488251 0,308.667466 0,322.986248 L108.730541,322.986248 L217.461082,322.986248 Z");
     			attr(path0, "fill", path0_fill_value = ctx.colors[1]);
-    			add_location(path0, file$5, 14, 8, 483);
+    			add_location(path0, file$4, 14, 8, 483);
     			attr(path1, "d", "M0,218.074656 C14.3171898,218.074656 28.4948273,215.261919 41.721765,209.797167 C54.9487027,204.332197 66.9676412,196.322432 77.0917216,186.224592 C87.2158021,176.126968 95.2465986,164.13918 100.726205,150.946089 C106.205812,137.752781 109.025204,123.612324 109.025204,109.332024 C109.025204,95.0517236 106.205812,80.9112666 100.726205,67.717958 C95.2465986,54.5246493 87.2158021,42.537079 77.0917216,32.4394556 C66.9676412,22.3416147 54.9487027,14.3317629 41.721765,8.86692365 C28.4948273,3.40210615 14.3171898,0.589390963 0,0.589390963 L0,109.332024 L0,218.074656 Z");
     			attr(path1, "fill", path1_fill_value = ctx.colors[0]);
-    			add_location(path1, file$5, 15, 8, 1116);
+    			add_location(path1, file$4, 15, 8, 1116);
     			attr(path2, "d", "M239.266123,588.801572 C224.948933,588.801572 210.771296,585.981866 197.544358,580.50165 C184.31742,575.021434 172.298482,566.989745 162.174401,556.864538 C152.050321,546.739332 144.019524,534.719057 138.539918,521.490648 C133.060311,508.26224 130.240919,494.083026 130.240919,479.764244 L239.266123,479.764244 L239.266123,588.801572 Z");
     			attr(path2, "fill", path2_fill_value = ctx.colors[2]);
-    			add_location(path2, file$5, 16, 8, 1729);
+    			add_location(path2, file$4, 16, 8, 1729);
     			attr(path3, "d", "M0,348.330059 C14.3171898,348.330059 28.4948273,351.149764 41.721765,356.62998 C54.9487027,362.110196 66.9676412,370.141886 77.0917216,380.267092 C87.2158021,390.392299 95.2465986,402.412574 100.726205,415.640982 C106.205812,428.869391 109.025204,443.048605 109.025204,457.367387 L0,457.367387 L0,348.330059 Z");
     			attr(path3, "fill", path3_fill_value = ctx.colors[0]);
-    			add_location(path3, file$5, 17, 8, 2110);
+    			add_location(path3, file$4, 17, 8, 2110);
     			attr(path4, "d", "M130.240919,110.21611 C130.240919,95.89711 133.060311,81.718332 138.539918,68.4892692 C144.019524,55.2602063 152.050321,43.2401493 162.174401,33.1151611 C172.298482,22.9899548 184.31742,14.9583961 197.544358,9.47874695 C210.771296,3.99911965 224.948933,1.17878193 239.266123,1.17878193 L239.266123,110.21611 L130.240919,110.21611 Z");
     			attr(path4, "fill", path4_fill_value = ctx.colors[3]);
-    			add_location(path4, file$5, 18, 8, 2465);
+    			add_location(path4, file$4, 18, 8, 2465);
     			attr(path5, "d", "M0,534.282908 C0,504.17334 24.4063821,479.764244 54.5126019,479.764244 L109.025204,479.764244 L109.025204,588.801572 L54.5126019,588.801572 C24.4063821,588.801572 0,564.392475 0,534.282908 L0,534.282908 Z");
     			attr(path5, "fill", path5_fill_value = ctx.colors[3]);
-    			add_location(path5, file$5, 19, 8, 2842);
+    			add_location(path5, file$4, 19, 8, 2842);
     			attr(path6, "d", "M130.240919,403.438114 C130.240919,433.547682 154.647301,457.956778 184.753521,457.956778 L239.266123,457.956778 L239.266123,348.91945 L184.753521,348.91945 C154.647301,348.91945 130.240919,373.328546 130.240919,403.438114 L130.240919,403.438114 Z");
     			attr(path6, "fill", path6_fill_value = ctx.colors[4]);
-    			add_location(path6, file$5, 20, 8, 3092);
+    			add_location(path6, file$4, 20, 8, 3092);
     			attr(ellipse0, "fill", ellipse0_fill_value = ctx.colors[3]);
     			attr(ellipse0, "cx", "195.950704");
     			attr(ellipse0, "cy", "174.75442");
     			attr(ellipse0, "rx", "43.3154188");
     			attr(ellipse0, "ry", "43.3202358");
-    			add_location(ellipse0, file$5, 21, 8, 3385);
+    			add_location(ellipse0, file$4, 21, 8, 3385);
     			attr(path7, "d", "M1587.6427,218.074656 C1587.6427,203.755656 1584.82331,189.576878 1579.3437,176.347815 C1573.86409,163.118752 1565.8333,151.098695 1555.70922,140.973707 C1545.58514,130.848501 1533.5662,122.817029 1520.33926,117.33725 C1507.11232,111.857688 1492.93468,109.037328 1478.61749,109.037328 L1478.61749,218.074656 L1587.6427,218.074656 Z");
     			attr(path7, "fill", path7_fill_value = ctx.colors[1]);
-    			add_location(path7, file$5, 22, 8, 3495);
+    			add_location(path7, file$4, 22, 8, 3495);
     			attr(path8, "d", "M1239.35137,110.21611 C1246.47137,110.21611 1253.52166,108.806039 1260.09969,106.066149 C1266.67763,103.326259 1272.65462,99.3104145 1277.6893,94.2480295 C1282.72398,89.1854263 1286.71746,83.1752888 1289.44224,76.5608664 C1292.16702,69.9462259 1293.56931,62.8568369 1293.56931,55.697446 C1293.56931,48.538055 1292.16702,41.448666 1289.44224,34.8340255 C1286.71746,28.2196031 1282.72398,22.2094438 1277.6893,17.1469279 C1272.65462,12.084412 1266.67763,8.068589 1260.09969,5.32876444 C1253.52166,2.58894861 1246.47137,1.17878193 1239.35137,1.17878193 L1239.35137,55.697446 L1239.35137,110.21611 Z");
     			attr(path8, "fill", path8_fill_value = ctx.colors[1]);
-    			add_location(path8, file$5, 23, 8, 3872);
+    			add_location(path8, file$4, 23, 8, 3872);
     			attr(path9, "d", "M1457.40178,0.589390963 C1443.08437,0.589390963 1428.90717,3.40210615 1415.67958,8.86692365 C1402.4522,14.3317629 1390.43327,22.3416147 1380.3094,32.4394556 C1370.18532,42.537079 1362.15474,54.5246493 1356.67557,67.717958 C1351.19662,80.9112666 1348.37658,95.0517236 1348.37658,109.332024 C1348.37658,123.612324 1351.19662,137.752781 1356.67557,150.946089 C1362.15474,164.13918 1370.18532,176.126968 1380.3094,186.224592 C1390.43327,196.322432 1402.4522,204.332197 1415.67958,209.797167 C1428.90717,215.261919 1443.08437,218.074656 1457.40178,218.074656 L1457.40178,109.332024 L1457.40178,0.589390963 Z");
     			attr(path9, "fill", path9_fill_value = ctx.colors[0]);
-    			add_location(path9, file$5, 24, 8, 4512);
+    			add_location(path9, file$4, 24, 8, 4512);
     			attr(path10, "d", "M1348.37658,479.174853 C1348.37658,464.856071 1351.19662,450.676857 1356.67557,437.448448 C1362.15474,424.220039 1370.18532,412.199764 1380.3094,402.074558 C1390.43327,391.949352 1402.4522,383.917662 1415.67958,378.437446 C1428.90717,372.95723 1443.08437,370.137525 1457.40178,370.137525 L1457.40178,479.174853 L1348.37658,479.174853 Z");
     			attr(path10, "fill", path10_fill_value = ctx.colors[2]);
-    			add_location(path10, file$5, 25, 8, 5160);
+    			add_location(path10, file$4, 25, 8, 5160);
     			attr(path11, "d", "M1478.61749,587.62279 C1492.93468,587.62279 1507.11232,584.810705 1520.33926,579.345301 C1533.5662,573.879896 1545.58514,565.869914 1555.70922,555.772073 C1565.8333,545.674232 1573.86409,533.686444 1579.3437,520.493788 C1584.82331,507.301132 1587.6427,493.16024 1587.6427,478.880157 C1587.6427,464.600075 1584.82331,450.459183 1579.3437,437.266527 C1573.86409,424.07387 1565.8333,412.086083 1555.70922,401.988242 C1545.58514,391.890401 1533.5662,383.880418 1520.33926,378.415014 C1507.11232,372.949609 1492.93468,370.137525 1478.61749,370.137525 L1478.61749,478.880157 L1478.61749,587.62279 Z");
     			attr(path11, "fill", path11_fill_value = ctx.colors[1]);
-    			add_location(path11, file$5, 26, 8, 5541);
+    			add_location(path11, file$4, 26, 8, 5541);
     			attr(path12, "d", "M1239.35137,240.471513 C1253.66877,240.471513 1267.84597,243.283597 1281.07356,248.749002 C1294.30116,254.214407 1306.31988,262.224389 1316.44374,272.32223 C1326.56782,282.420071 1334.59862,294.407859 1340.07758,307.600515 C1345.55653,320.793171 1348.37658,334.934063 1348.37658,349.214145 C1348.37658,363.494228 1345.55653,377.63512 1340.07758,390.827776 C1334.59862,404.020432 1326.56782,416.00822 1316.44396,426.106061 C1306.31988,436.203902 1294.30116,444.213884 1281.07356,449.679289 C1267.84597,455.144694 1253.66879,457.956778 1239.35137,457.956778 L1239.35137,349.214145 L1239.35137,240.471513 Z");
     			attr(path12, "fill", path12_fill_value = ctx.colors[5]);
-    			add_location(path12, file$5, 27, 8, 6179);
+    			add_location(path12, file$4, 27, 8, 6179);
     			attr(path13, "d", "M1369.59229,239.882122 C1369.59229,254.200904 1372.40471,268.380118 1377.86886,281.608527 C1383.33322,294.836935 1391.3421,306.85721 1401.43881,316.982417 C1411.53531,327.107623 1423.52177,335.139312 1436.71339,340.619528 C1449.90523,346.099745 1464.04434,348.91945 1478.32283,348.91945 C1492.60133,348.91945 1506.74065,346.099745 1519.93184,340.619528 C1533.12302,335.139312 1545.10948,327.107623 1555.2062,316.982417 C1565.30292,306.85721 1573.31201,294.836935 1578.7768,281.608527 C1584.2416,268.380118 1587.05337,254.200904 1587.05337,239.882122 L1478.32283,239.882122 L1369.59229,239.882122 Z");
     			attr(path13, "fill", path13_fill_value = ctx.colors[1]);
-    			add_location(path13, file$5, 28, 8, 6828);
+    			add_location(path13, file$4, 28, 8, 6828);
     			attr(path14, "d", "M1348.37658,534.282908 C1348.37658,564.392475 1323.97041,588.801572 1293.86398,588.801572 L1239.35137,588.801572 L1239.35137,479.764244 L1293.86398,479.764244 C1323.97041,479.764244 1348.37658,504.17334 1348.37658,534.282908 L1348.37658,534.282908 Z");
     			attr(path14, "fill", path14_fill_value = ctx.colors[0]);
-    			add_location(path14, file$5, 29, 8, 7471);
+    			add_location(path14, file$4, 29, 8, 7471);
     			attr(ellipse1, "fill", ellipse1_fill_value = ctx.colors[3]);
     			attr(ellipse1, "cx", "1521.93291");
     			attr(ellipse1, "cy", "44.4990177");
     			attr(ellipse1, "rx", "43.3154188");
     			attr(ellipse1, "ry", "43.3202358");
-    			add_location(ellipse1, file$5, 30, 8, 7766);
+    			add_location(ellipse1, file$4, 30, 8, 7766);
     			attr(ellipse2, "fill", ellipse2_fill_value = ctx.colors[0]);
     			attr(ellipse2, "cx", "1282.66679");
     			attr(ellipse2, "cy", "174.75442");
     			attr(ellipse2, "rx", "43.3154188");
     			attr(ellipse2, "ry", "43.3202358");
-    			add_location(ellipse2, file$5, 31, 8, 7877);
+    			add_location(ellipse2, file$4, 31, 8, 7877);
     			attr(ellipse3, "fill", ellipse3_fill_value = ctx.colors[3]);
     			attr(ellipse3, "cx", "1412.90771");
     			attr(ellipse3, "cy", "545.481336");
     			attr(ellipse3, "rx", "43.3154188");
     			attr(ellipse3, "ry", "43.3202358");
-    			add_location(ellipse3, file$5, 32, 8, 7987);
+    			add_location(ellipse3, file$4, 32, 8, 7987);
     			attr(path15, "d", "M608.773165,370.137525 C608.773165,384.456525 605.953774,398.635303 600.474167,411.864365 C594.99456,425.093428 586.963764,437.113485 576.839683,447.238473 C566.715603,457.36368 554.696664,465.395151 541.469726,470.874931 C528.242789,476.354493 514.065151,479.174853 499.747961,479.174853 L499.747961,370.137525 L608.773165,370.137525 Z");
     			attr(path15, "fill", path15_fill_value = ctx.colors[3]);
-    			add_location(path15, file$5, 33, 8, 8098);
+    			add_location(path15, file$4, 33, 8, 8098);
     			attr(path16, "d", "M957.064492,500.982318 C949.944592,500.982318 942.894092,499.572248 936.316371,496.832358 C929.738651,494.092468 923.761665,490.076623 918.725903,485.014238 C913.69231,479.951635 909.697532,473.941497 906.973623,467.327075 C904.249713,460.712434 902.846553,453.623045 902.846553,446.463654 C902.846553,439.304263 904.249713,432.214874 906.973623,425.600234 C909.697532,418.985811 913.69231,412.975674 918.725903,407.913071 C923.761665,402.850686 929.738651,398.834841 936.316371,396.094951 C942.894092,393.355061 949.944592,391.94499 957.064492,391.94499 L957.064492,500.982318 Z");
     			attr(path16, "fill", path16_fill_value = ctx.colors[2]);
-    			add_location(path16, file$5, 34, 8, 8480);
+    			add_location(path16, file$4, 34, 8, 8480);
     			attr(path17, "d", "M717.798369,109.037328 C710.678469,109.037328 703.627969,107.626385 697.050248,104.887367 C690.472528,102.14835 684.495542,98.1314145 679.45978,93.0699018 C674.426187,88.0062083 670.431409,81.9960707 667.707499,75.3818664 C664.98359,68.7676621 663.58043,61.678055 663.58043,54.518664 C663.58043,47.3592731 664.98359,40.269666 667.707499,33.6554617 C670.431409,27.0412574 674.426187,21.0311198 679.45978,15.9674263 C684.495542,10.9059136 690.472528,6.88897839 697.050248,4.14996071 C703.627969,1.41094303 710.678469,0 717.798369,0 L717.798369,109.037328 Z");
     			attr(path17, "fill", path17_fill_value = ctx.colors[0]);
-    			add_location(path17, file$5, 35, 8, 9105);
+    			add_location(path17, file$4, 35, 8, 9105);
     			attr(path18, "d", "M260.481838,478.585462 C267.60184,478.585462 274.652128,479.995532 281.230156,482.735422 C287.808097,485.475312 293.785086,489.491157 298.819767,494.553542 C303.854448,499.616145 307.847927,505.626283 310.572706,512.240705 C313.297484,518.855346 314.699778,525.944735 314.699778,533.104126 C314.699778,540.263517 313.297484,547.352906 310.572706,553.967546 C307.847927,560.581969 303.854448,566.592128 298.819767,571.654644 C293.785086,576.71716 287.808097,580.732983 281.230156,583.472807 C274.652128,586.212623 267.60184,587.62279 260.481838,587.62279 L260.481838,478.585462 Z");
     			attr(path18, "fill", path18_fill_value = ctx.colors[1]);
-    			add_location(path18, file$5, 36, 8, 9705);
+    			add_location(path18, file$4, 36, 8, 9705);
     			attr(path19, "d", "M478.532246,587.62279 C464.214838,587.62279 450.037637,584.810075 436.810045,579.345257 C423.582671,573.880418 411.563733,565.870566 401.43987,555.772725 C391.31579,545.675102 383.285211,533.687531 377.806041,520.494223 C372.327088,507.300914 369.507042,493.160457 369.507042,478.880157 C369.507042,464.599857 372.327088,450.4594 377.806041,437.266092 C383.285211,424.073 391.31579,412.085213 401.43987,401.987589 C411.563733,391.889748 423.582671,383.879983 436.810045,378.415014 C450.037637,372.950261 464.214838,370.137525 478.532246,370.137525 L478.532246,587.62279 Z");
     			attr(path19, "fill", path19_fill_value = ctx.colors[1]);
-    			add_location(path19, file$5, 37, 8, 10329);
+    			add_location(path19, file$4, 37, 8, 10329);
     			attr(path20, "d", "M369.507042,109.037328 L478.532246,109.037328 L478.532246,218.074656 C464.214838,218.074656 450.037637,215.254951 436.810045,209.774735 C423.582671,204.294519 411.563733,196.262829 401.43987,186.137623 C391.31579,176.012417 383.285211,163.992141 377.806041,150.763733 C372.327088,137.535324 369.507042,123.35611 369.507042,109.037328 Z");
     			attr(path20, "fill", path20_fill_value = ctx.colors[0]);
-    			add_location(path20, file$5, 38, 8, 10946);
+    			add_location(path20, file$4, 38, 8, 10946);
     			attr(path21, "d", "M499.747961,0.589390963 C514.065151,0.589390963 528.242789,3.40147544 541.469726,8.86688016 C554.696664,14.3322849 566.715603,22.3422672 576.839683,32.4401081 C586.963764,42.5379489 594.99456,54.5257367 600.474167,67.7183929 C605.953774,80.9110491 608.773165,95.0519411 608.773165,109.332024 C608.773165,123.612106 605.953774,137.752998 600.474167,150.945654 C594.99456,164.13831 586.963764,176.126098 576.839683,186.223939 C566.715603,196.32178 554.696664,204.331762 541.469726,209.797167 C528.242789,215.262572 514.065151,218.074656 499.747961,218.074656 L499.747961,0.589390963 Z");
     			attr(path21, "fill", path21_fill_value = ctx.colors[3]);
-    			add_location(path21, file$5, 39, 8, 11327);
+    			add_location(path21, file$4, 39, 8, 11327);
     			attr(path22, "d", "M739.60341,587.62279 C739.60341,573.303812 742.415182,559.125012 747.879979,545.895949 C753.344776,532.666886 761.353867,520.646829 771.450585,510.521841 C781.547303,500.396635 793.533758,492.365163 806.724948,486.885383 C819.916137,481.405821 834.055456,478.585462 848.333951,478.585462 C862.612446,478.585462 876.751765,481.405821 889.942955,486.885383 C903.134144,492.365163 915.120599,500.396635 925.217317,510.521841 C935.314035,520.646829 943.323126,532.666886 948.787923,545.895949 C954.25272,559.125012 957.064492,573.303812 957.064492,587.62279 L739.60341,587.62279 Z");
     			attr(path22, "fill", path22_fill_value = ctx.colors[4]);
-    			add_location(path22, file$5, 40, 8, 11955);
+    			add_location(path22, file$4, 40, 8, 11955);
     			attr(path23, "d", "M1195.74129,265.225933 C1195.74129,279.544715 1192.92952,293.723929 1187.46472,306.952338 C1181.99992,320.180747 1173.99083,332.201022 1163.89411,342.326228 C1153.7974,352.451434 1141.81094,360.483124 1128.61975,365.96334 C1115.42856,371.442902 1101.28924,374.263261 1087.01075,374.263261 C1072.73225,374.263261 1058.59293,371.442902 1045.40175,365.96334 C1032.21056,360.483124 1020.2241,352.451434 1010.12738,342.326228 C1000.03067,332.201022 992.021573,320.180747 986.556776,306.952338 C981.091979,293.723929 978.280208,279.544715 978.280208,265.225933 L1195.74129,265.225933 Z");
     			attr(path23, "fill", path23_fill_value = ctx.colors[3]);
-    			add_location(path23, file$5, 41, 8, 12577);
+    			add_location(path23, file$4, 41, 8, 12577);
     			attr(path24, "d", "M978.280208,370.137525 C992.597397,370.137525 1006.77503,372.950261 1020.00197,378.415014 C1033.22891,383.879983 1045.24785,391.889748 1055.37193,401.987589 C1065.49601,412.085213 1073.52681,424.073 1079.00641,437.266092 C1084.48602,450.4594 1087.30541,464.599857 1087.30541,478.880157 C1087.30541,493.160457 1084.48602,507.300914 1079.00641,520.494223 C1073.52681,533.687531 1065.49601,545.675102 1055.37193,555.772725 C1045.24785,565.870566 1033.22891,573.880418 1020.00197,579.345257 C1006.77503,584.810075 992.597397,587.62279 978.280208,587.62279 L978.280208,370.137525 Z");
     			attr(path24, "fill", path24_fill_value = ctx.colors[0]);
-    			add_location(path24, file$5, 42, 8, 13202);
+    			add_location(path24, file$4, 42, 8, 13202);
     			attr(path25, "d", "M869.844329,239.292731 C869.844329,224.973949 872.656101,210.794735 878.120898,197.566326 C883.585695,184.337917 891.594787,172.317642 901.691505,162.192436 C911.788223,152.06723 923.774678,144.03554 936.965867,138.555324 C950.157056,133.075108 964.296376,130.255403 978.57487,130.255403 C992.853365,130.255403 1006.99268,133.075108 1020.18387,138.555324 C1033.37506,144.03554 1045.36152,152.06723 1055.45824,162.192436 C1065.55495,172.317642 1073.56405,184.337917 1079.02884,197.566326 C1084.49364,210.794735 1087.30541,224.973949 1087.30541,239.292731 L869.844329,239.292731 Z");
     			attr(path25, "fill", path25_fill_value = ctx.colors[4]);
-    			add_location(path25, file$5, 43, 8, 13824);
+    			add_location(path25, file$4, 43, 8, 13824);
     			attr(path26, "d", "M957.064492,0 C957.064492,14.3187819 954.25272,28.4979961 948.787923,41.7264047 C943.323126,54.9548134 935.314035,66.9750884 925.217317,77.1002947 C915.120599,87.225501 903.134144,95.2571906 889.942955,100.737407 C876.751765,106.217623 862.612446,109.037328 848.333951,109.037328 C834.055456,109.037328 819.916137,106.217623 806.724948,100.737407 C793.533758,95.2571906 781.547303,87.225501 771.450585,77.1002947 C761.353867,66.9750884 753.344776,54.9548134 747.879979,41.7264047 C742.415182,28.4979961 739.60341,14.3187819 739.60341,0 L957.064492,0 Z");
     			attr(path26, "fill", path26_fill_value = ctx.colors[3]);
-    			add_location(path26, file$5, 44, 8, 14448);
+    			add_location(path26, file$4, 44, 8, 14448);
     			attr(path27, "d", "M717.798369,347.740668 C703.481179,347.740668 689.303542,344.928583 676.076604,339.463179 C662.849666,333.997774 650.830728,325.987792 640.706648,315.889951 C630.582567,305.79211 622.551771,293.804322 617.072164,280.611666 C611.592557,267.41901 608.773165,253.278118 608.773165,238.998035 C608.773165,224.717953 611.592557,210.577061 617.072164,197.384405 C622.551771,184.191749 630.582567,172.203961 640.706648,162.10612 C650.830728,152.008279 662.849666,143.998297 676.076604,138.532892 C689.303542,133.067487 703.481179,130.255403 717.798369,130.255403 L717.798369,347.740668 Z");
     			attr(path27, "fill", path27_fill_value = ctx.colors[1]);
-    			add_location(path27, file$5, 45, 8, 15045);
+    			add_location(path27, file$4, 45, 8, 15045);
     			attr(path28, "d", "M260.481838,347.740668 L260.481838,130.255403 C274.799256,130.255403 288.976437,133.067487 302.204031,138.532892 C315.431624,143.998297 327.450346,152.008279 337.574428,162.10612 C347.698292,172.203961 355.729089,184.191749 361.208043,197.384405 C366.686996,210.577061 369.507042,224.717953 369.507042,238.998035 C369.507042,253.278118 366.686996,267.41901 361.208043,280.611666 C355.729089,293.804322 347.698292,305.79211 337.57421,315.889951 C327.450346,325.987792 315.431624,333.997774 302.204031,339.463179 C288.976437,344.928583 274.799234,347.740668 260.481838,347.740668 Z");
     			attr(path28, "fill", path28_fill_value = ctx.colors[3]);
-    			add_location(path28, file$5, 46, 8, 15671);
+    			add_location(path28, file$4, 46, 8, 15671);
     			attr(path29, "d", "M390.722758,348.330059 C390.722758,334.011277 393.535182,319.832063 398.999326,306.603654 C404.463688,293.375246 412.472563,281.354971 422.569281,271.229764 C432.665781,261.104558 444.652236,253.072868 457.84386,247.592652 C471.035702,242.112436 485.174804,239.292731 499.453299,239.292731 C513.731793,239.292731 527.871113,242.112436 541.062302,247.592652 C554.253491,253.072868 566.239946,261.104558 576.336664,271.229764 C586.433382,281.354971 594.442474,293.375246 599.907271,306.603654 C605.372068,319.832063 608.18384,334.011277 608.18384,348.330059 L390.722758,348.330059 Z");
     			attr(path29, "fill", path29_fill_value = ctx.colors[0]);
-    			add_location(path29, file$5, 47, 8, 16296);
+    			add_location(path29, file$4, 47, 8, 16296);
     			attr(path30, "d", "M848.039288,370.137525 C848.039288,384.456525 845.227517,398.635303 839.76272,411.864365 C834.297923,425.093428 826.288831,437.113485 816.192113,447.238473 C806.095395,457.36368 794.10894,465.395151 780.917751,470.874931 C767.726561,476.354493 753.587242,479.174853 739.308747,479.174853 C725.030253,479.174853 710.890933,476.354493 697.699744,470.874931 C684.508554,465.395151 672.5221,457.36368 662.425382,447.238473 C652.328664,437.113485 644.319572,425.093428 638.854775,411.864365 C633.389978,398.635303 630.578206,384.456525 630.578206,370.137525 L848.039288,370.137525 Z");
     			attr(path30, "fill", path30_fill_value = ctx.colors[0]);
-    			add_location(path30, file$5, 48, 8, 16922);
+    			add_location(path30, file$4, 48, 8, 16922);
     			attr(path31, "d", "M848.039288,239.292731 L739.014085,239.292731 L739.014085,130.255403 C753.331274,130.255403 767.508912,133.075108 780.73585,138.555324 C793.962787,144.03554 805.981726,152.06723 816.105806,162.192436 C826.229887,172.317642 834.260683,184.337917 839.74029,197.566326 C845.219897,210.794735 848.039288,224.973949 848.039288,239.292731 Z");
     			attr(path31, "fill", path31_fill_value = ctx.colors[2]);
-    			add_location(path31, file$5, 49, 8, 17545);
+    			add_location(path31, file$4, 49, 8, 17545);
     			attr(path32, "d", "M1217.54633,0 L1217.54633,109.037328 L1108.52113,109.037328 C1108.52113,94.7185462 1111.34052,80.539332 1116.82013,67.3109234 C1122.29973,54.0825147 1130.33053,42.0622397 1140.45461,31.9370334 C1150.57869,21.8118271 1162.59763,13.7801375 1175.82457,8.29992141 C1189.0515,2.8197053 1203.22914,0 1217.54633,0 Z");
     			attr(path32, "fill", path32_fill_value = ctx.colors[2]);
-    			add_location(path32, file$5, 50, 8, 17925);
+    			add_location(path32, file$4, 50, 8, 17925);
     			attr(path33, "d", "M848.039288,261.100196 L957.064492,261.100196 L957.064492,370.137525 C942.747302,370.137525 928.569665,367.317819 915.342727,361.837603 C902.115789,356.357387 890.096851,348.325697 879.972771,338.200491 C869.84869,328.075285 861.817894,316.05501 856.338287,302.826601 C850.85868,289.598193 848.039288,275.418978 848.039288,261.100196 Z");
     			attr(path33, "fill", path33_fill_value = ctx.colors[0]);
-    			add_location(path33, file$5, 51, 8, 18279);
+    			add_location(path33, file$4, 51, 8, 18279);
     			attr(path34, "d", "M1108.52113,478.585462 L1217.54633,478.585462 L1217.54633,587.62279 C1203.22914,587.62279 1189.0515,584.802452 1175.82457,579.322825 C1162.59763,573.843176 1150.57869,565.811617 1140.45461,555.686411 C1130.33053,545.561422 1122.29973,533.541365 1116.82013,520.312303 C1111.34052,507.08324 1108.52113,492.904462 1108.52113,478.585462 Z");
     			attr(path34, "fill", path34_fill_value = ctx.colors[5]);
-    			add_location(path34, file$5, 52, 8, 18660);
+    			add_location(path34, file$4, 52, 8, 18660);
     			attr(path35, "d", "M663.285767,478.585462 C693.391987,478.585462 717.798369,502.994339 717.798369,533.104126 L717.798369,587.62279 L608.773165,587.62279 L608.773165,533.104126 C608.773165,502.994339 633.179547,478.585462 663.285767,478.585462 Z");
     			attr(path35, "fill", path35_fill_value = ctx.colors[5]);
-    			add_location(path35, file$5, 53, 8, 19040);
+    			add_location(path35, file$4, 53, 8, 19040);
     			attr(path36, "d", "M369.507042,54.518664 C369.507042,84.6282318 345.10088,109.037328 314.99444,109.037328 L260.481838,109.037328 L260.481838,0 L314.99444,0 C345.10088,0 369.507042,24.4090963 369.507042,54.518664 Z");
     			attr(path36, "fill", path36_fill_value = ctx.colors[4]);
-    			add_location(path36, file$5, 54, 8, 19311);
+    			add_location(path36, file$4, 54, 8, 19311);
     			attr(path37, "d", "M978.280208,54.518664 C978.280208,24.4090963 1002.68659,0 1032.79281,0 L1087.30541,0 L1087.30541,109.037328 L1032.79281,109.037328 C1002.68659,109.037328 978.280208,84.6282318 978.280208,54.518664 Z");
     			attr(path37, "fill", path37_fill_value = ctx.colors[4]);
-    			add_location(path37, file$5, 55, 8, 19551);
+    			add_location(path37, file$4, 55, 8, 19551);
     			attr(path38, "d", "M1108.52113,184.774067 C1108.52113,154.664499 1132.92751,130.255403 1163.03373,130.255403 L1217.54633,130.255403 L1217.54633,239.292731 L1163.03373,239.292731 C1132.92751,239.292731 1108.52113,214.883635 1108.52113,184.774067 Z");
     			attr(path38, "fill", path38_fill_value = ctx.colors[1]);
-    			add_location(path38, file$5, 56, 8, 19795);
+    			add_location(path38, file$4, 56, 8, 19795);
     			attr(path39, "d", "M543.06338,500.982318 C566.985826,500.982318 586.378799,520.377448 586.378799,544.302554 C586.378799,568.22766 566.985826,587.62279 543.06338,587.62279 C519.140935,587.62279 499.747961,568.22766 499.747961,544.302554 C499.747961,520.377448 519.140935,500.982318 543.06338,500.982318 Z");
     			attr(path39, "fill", path39_fill_value = ctx.colors[0]);
-    			add_location(path39, file$5, 57, 8, 20068);
+    			add_location(path39, file$4, 57, 8, 20068);
     			attr(path40, "d", "M303.797257,370.726916 C327.719702,370.726916 347.112676,390.122046 347.112676,414.047151 C347.112676,437.972257 327.719702,457.367387 303.797257,457.367387 C279.874812,457.367387 260.481838,437.972257 260.481838,414.047151 C260.481838,390.122046 279.874812,370.726916 303.797257,370.726916 Z");
     			attr(path40, "fill", path40_fill_value = ctx.colors[5]);
-    			add_location(path40, file$5, 58, 8, 20398);
+    			add_location(path40, file$4, 58, 8, 20398);
     			attr(path41, "d", "M434.038176,0 C457.960622,0 477.353595,19.3951302 477.353595,43.3202358 C477.353595,67.2453413 457.960622,86.6404715 434.038176,86.6404715 C410.115731,86.6404715 390.722758,67.2453413 390.722758,43.3202358 C390.722758,19.3951302 410.115731,0 434.038176,0 Z");
     			attr(path41, "fill", path41_fill_value = ctx.colors[2]);
-    			add_location(path41, file$5, 59, 8, 20736);
+    			add_location(path41, file$4, 59, 8, 20736);
     			attr(path42, "d", "M782.918829,261.689587 C806.841274,261.689587 826.234248,281.084718 826.234248,305.009823 C826.234248,328.934929 806.841274,348.330059 782.918829,348.330059 C758.996384,348.330059 739.60341,328.934929 739.60341,305.009823 C739.60341,281.084718 758.996384,261.689587 782.918829,261.689587 Z");
     			attr(path42, "fill", path42_fill_value = ctx.colors[1]);
-    			add_location(path42, file$5, 60, 8, 21038);
+    			add_location(path42, file$4, 60, 8, 21038);
     			attr(path43, "d", "M1174.23091,370.726916 C1198.15336,370.726916 1217.54633,390.122046 1217.54633,414.047151 C1217.54633,437.972257 1198.15336,457.367387 1174.23091,457.367387 C1150.30847,457.367387 1130.91549,437.972257 1130.91549,414.047151 C1130.91549,390.122046 1150.30847,370.726916 1174.23091,370.726916 Z");
     			attr(path43, "fill", path43_fill_value = ctx.colors[3]);
-    			add_location(path43, file$5, 61, 8, 21373);
+    			add_location(path43, file$4, 61, 8, 21373);
     			attr(path44, "d", "M348.291327,982.514735 C348.291327,996.833735 345.471935,1011.01251 339.992328,1024.24158 C334.512722,1037.47064 326.481925,1049.4907 316.357845,1059.61568 C306.233764,1069.74089 294.214826,1077.77236 280.987888,1083.25214 C267.76095,1088.7317 253.583313,1091.55206 239.266123,1091.55206 L239.266123,982.514735 L348.291327,982.514735 Z");
     			attr(path44, "fill", path44_fill_value = ctx.colors[1]);
-    			add_location(path44, file$5, 62, 8, 21711);
+    			add_location(path44, file$4, 62, 8, 21711);
     			attr(path45, "d", "M696.582654,1113.35953 C689.462754,1113.35953 682.412253,1111.94946 675.834533,1109.20957 C669.256812,1106.46968 663.279827,1102.45383 658.244065,1097.39145 C653.210471,1092.32884 649.215693,1086.31871 646.491784,1079.70428 C643.767875,1073.08964 642.364715,1066.00026 642.364715,1058.84086 C642.364715,1051.68147 643.767875,1044.59208 646.491784,1037.97744 C649.215693,1031.36302 653.210471,1025.35288 658.244065,1020.29028 C663.279827,1015.2279 669.256812,1011.21205 675.834533,1008.47216 C682.412253,1005.73227 689.462754,1004.3222 696.582654,1004.3222 L696.582654,1113.35953 Z");
     			attr(path45, "fill", path45_fill_value = ctx.colors[3]);
-    			add_location(path45, file$5, 63, 8, 22092);
+    			add_location(path45, file$4, 63, 8, 22092);
     			attr(path46, "d", "M457.316531,721.414538 C450.196631,721.414538 443.14613,720.003595 436.56841,717.264578 C429.990689,714.52556 424.013704,710.508625 418.977942,705.447112 C413.944348,700.383418 409.94957,694.373281 407.225661,687.759077 C404.501752,681.144872 403.098592,674.055265 403.098592,666.895874 C403.098592,659.736483 404.501752,652.646876 407.225661,646.032672 C409.94957,639.418468 413.944348,633.40833 418.977942,628.344637 C424.013704,623.283124 429.990689,619.266189 436.56841,616.527171 C443.14613,613.788153 450.196631,612.37721 457.316531,612.37721 L457.316531,721.414538 Z");
     			attr(path46, "fill", path46_fill_value = ctx.colors[2]);
-    			add_location(path46, file$5, 64, 8, 22718);
+    			add_location(path46, file$4, 64, 8, 22718);
     			attr(path47, "d", "M0,1090.96267 C7.12000115,1090.96267 14.1702894,1092.37274 20.7483174,1095.11263 C27.3262587,1097.85252 33.303248,1101.86837 38.3379289,1106.93075 C43.3726098,1111.99336 47.3660887,1118.00349 50.0908672,1124.61792 C52.8156456,1131.23256 54.2179392,1138.32194 54.2179392,1145.48134 C54.2179392,1152.64073 52.8156456,1159.73012 50.0908672,1166.34476 C47.3660887,1172.95918 43.3726098,1178.96934 38.3379289,1184.03185 C33.303248,1189.09437 27.3262587,1193.11019 20.7483174,1195.85002 C14.1702894,1198.58983 7.12000115,1200 0,1200 L0,1090.96267 Z");
     			attr(path47, "fill", path47_fill_value = ctx.colors[2]);
-    			add_location(path47, file$5, 65, 8, 23337);
+    			add_location(path47, file$4, 65, 8, 23337);
     			attr(path48, "d", "M218.050408,1200 C203.733,1200 189.555798,1197.18728 176.328207,1191.72247 C163.100833,1186.25763 151.081894,1178.24778 140.958032,1168.14994 C130.833951,1158.05231 122.803373,1146.06474 117.324202,1132.87143 C111.84525,1119.67812 109.025204,1105.53767 109.025204,1091.25737 C109.025204,1076.97707 111.84525,1062.83661 117.324202,1049.6433 C122.803373,1036.45021 130.833951,1024.46242 140.958032,1014.3648 C151.081894,1004.26696 163.100833,996.257194 176.328207,990.792224 C189.555798,985.327472 203.733,982.514735 218.050408,982.514735 L218.050408,1200 Z");
     			attr(path48, "fill", path48_fill_value = ctx.colors[3]);
-    			add_location(path48, file$5, 66, 8, 23925);
+    			add_location(path48, file$4, 66, 8, 23925);
     			attr(path49, "d", "M109.025204,720.825147 L218.050408,720.825147 L218.050408,829.862475 C203.733,829.862475 189.555798,827.04277 176.328207,821.562554 C163.100833,816.082338 151.081894,808.050648 140.958032,797.925442 C130.833951,787.800236 122.803373,775.779961 117.324202,762.551552 C111.84525,749.323143 109.025204,735.143929 109.025204,720.825147 Z");
     			attr(path49, "fill", path49_fill_value = ctx.colors[0]);
-    			add_location(path49, file$5, 67, 8, 24526);
+    			add_location(path49, file$4, 67, 8, 24526);
     			attr(path50, "d", "M239.266123,612.37721 C253.583313,612.37721 267.76095,615.189295 280.987888,620.654699 C294.214826,626.120104 306.233764,634.130086 316.357845,644.227927 C326.481925,654.325768 334.512722,666.313556 339.992328,679.506212 C345.471935,692.698868 348.291327,706.83976 348.291327,721.119843 C348.291327,735.399925 345.471935,749.540817 339.992328,762.733473 C334.512722,775.92613 326.481925,787.913917 316.357845,798.011758 C306.233764,808.109599 294.214826,816.119582 280.987888,821.584986 C267.76095,827.050391 253.583313,829.862475 239.266123,829.862475 L239.266123,612.37721 Z");
     			attr(path50, "fill", path50_fill_value = ctx.colors[0]);
-    			add_location(path50, file$5, 68, 8, 24905);
+    			add_location(path50, file$4, 68, 8, 24905);
     			attr(path51, "d", "M479.121572,1200 C479.121572,1185.68102 481.933343,1171.50222 487.39814,1158.27316 C492.862937,1145.0441 500.872029,1133.02404 510.968747,1122.89905 C521.065465,1112.77384 533.05192,1104.74237 546.243109,1099.26259 C559.434298,1093.78303 573.573618,1090.96267 587.852113,1090.96267 C602.130607,1090.96267 616.269927,1093.78303 629.461116,1099.26259 C642.652305,1104.74237 654.63876,1112.77384 664.735478,1122.89905 C674.832196,1133.02404 682.841288,1145.0441 688.306085,1158.27316 C693.770882,1171.50222 696.582654,1185.68102 696.582654,1200 L479.121572,1200 Z");
     			attr(path51, "fill", path51_fill_value = ctx.colors[1]);
-    			add_location(path51, file$5, 69, 8, 25527);
+    			add_location(path51, file$4, 69, 8, 25527);
     			attr(path52, "d", "M935.259451,878.192534 C935.259451,892.511316 932.44768,906.69053 926.982883,919.918939 C921.518086,933.147348 913.508994,945.167623 903.412276,955.292829 C893.315558,965.418035 881.329103,973.449725 868.137914,978.929941 C854.946725,984.409503 840.807405,987.229862 826.52891,987.229862 C812.250416,987.229862 798.111096,984.409503 784.919907,978.929941 C771.728718,973.449725 759.742263,965.418035 749.645545,955.292829 C739.548827,945.167623 731.539735,933.147348 726.074938,919.918939 C720.610141,906.69053 717.798369,892.511316 717.798369,878.192534 L935.259451,878.192534 Z");
     			attr(path52, "fill", path52_fill_value = ctx.colors[3]);
-    			add_location(path52, file$5, 70, 8, 26133);
+    			add_location(path52, file$4, 70, 8, 26133);
     			attr(path53, "d", "M717.798369,982.514735 C732.115559,982.514735 746.293196,985.327472 759.520134,990.792224 C772.747072,996.257194 784.76601,1004.26696 794.890091,1014.3648 C805.014171,1024.46242 813.044968,1036.45021 818.524574,1049.6433 C824.004181,1062.83661 826.823573,1076.97707 826.823573,1091.25737 C826.823573,1105.53767 824.004181,1119.67812 818.524574,1132.87143 C813.044968,1146.06474 805.014171,1158.05231 794.890091,1168.14994 C784.76601,1178.24778 772.747072,1186.25763 759.520134,1191.72247 C746.293196,1197.18728 732.115559,1200 717.798369,1200 L717.798369,982.514735 Z");
     			attr(path53, "fill", path53_fill_value = ctx.colors[4]);
-    			add_location(path53, file$5, 71, 8, 26758);
+    			add_location(path53, file$4, 71, 8, 26758);
     			attr(path54, "d", "M609.362491,851.669941 C609.362491,837.351159 612.174263,823.171945 617.63906,809.943536 C623.103857,796.715128 631.112948,784.694853 641.209666,774.569646 C651.306384,764.44444 663.292839,756.41275 676.484028,750.932534 C689.675218,745.452318 703.814537,742.632613 718.093032,742.632613 C732.371527,742.632613 746.510846,745.452318 759.702035,750.932534 C772.893225,756.41275 784.879679,764.44444 794.976398,774.569646 C805.073116,784.694853 813.082207,796.715128 818.547004,809.943536 C824.011801,823.171945 826.823573,837.351159 826.823573,851.669941 L609.362491,851.669941 Z");
     			attr(path54, "fill", path54_fill_value = ctx.colors[0]);
-    			add_location(path54, file$5, 72, 8, 27371);
+    			add_location(path54, file$4, 72, 8, 27371);
     			attr(path55, "d", "M696.582654,612.37721 C696.582654,626.695992 693.770882,640.875206 688.306085,654.103615 C682.841288,667.332024 674.832196,679.352299 664.735478,689.477505 C654.63876,699.602711 642.652305,707.634401 629.461116,713.114617 C616.269927,718.594833 602.130607,721.414538 587.852113,721.414538 C573.573618,721.414538 559.434298,718.594833 546.243109,713.114617 C533.05192,707.634401 521.065465,699.602711 510.968747,689.477505 C500.872029,679.352299 492.862937,667.332024 487.39814,654.103615 C481.933343,640.875206 479.121572,626.695992 479.121572,612.37721 L696.582654,612.37721 Z");
     			attr(path55, "fill", path55_fill_value = ctx.colors[0]);
-    			add_location(path55, file$5, 73, 8, 27995);
+    			add_location(path55, file$4, 73, 8, 27995);
     			attr(path56, "d", "M457.316531,960.707269 C442.999341,960.707269 428.821703,957.895185 415.594766,952.42978 C402.367828,946.964375 390.34889,938.954393 380.224809,928.856552 C370.100729,918.758711 362.069932,906.770923 356.590325,893.578267 C351.110719,880.385611 348.291327,866.244719 348.291327,851.964637 C348.291327,837.684554 351.110719,823.543662 356.590325,810.351006 C362.069932,797.15835 370.100729,785.170562 380.224809,775.072721 C390.34889,764.97488 402.367828,756.964898 415.594766,751.499493 C428.821703,746.034088 442.999341,743.222004 457.316531,743.222004 L457.316531,960.707269 Z");
     			attr(path56, "fill", path56_fill_value = ctx.colors[1]);
-    			add_location(path56, file$5, 74, 8, 28618);
+    			add_location(path56, file$4, 74, 8, 28618);
     			attr(path57, "d", "M0,960.707269 L0,743.222004 C14.3174173,743.222004 28.4945987,746.034088 41.7221923,751.499493 C54.9497859,756.964898 66.9685079,764.97488 77.0925897,775.072721 C87.2164534,785.170562 95.2472509,797.15835 100.726204,810.351006 C106.205158,823.543662 109.025204,837.684554 109.025204,851.964637 C109.025204,866.244719 106.205158,880.385611 100.726204,893.578267 C95.2472509,906.770923 87.2164534,918.758711 77.0923716,928.856552 C66.9685079,938.954393 54.9497859,946.964375 41.7221923,952.42978 C28.4945987,957.895185 14.3173955,960.707269 0,960.707269 Z");
     			attr(path57, "fill", path57_fill_value = ctx.colors[0]);
-    			add_location(path57, file$5, 75, 8, 29242);
+    			add_location(path57, file$4, 75, 8, 29242);
     			attr(path58, "d", "M130.240919,960.707269 C130.240919,946.388487 133.053343,932.209273 138.517488,918.980864 C143.98185,905.752456 151.990724,893.732181 162.087442,883.606974 C172.183943,873.481768 184.170398,865.450079 197.362022,859.969862 C210.553864,854.489646 224.692966,851.669941 238.97146,851.669941 C253.249955,851.669941 267.389275,854.489646 280.580464,859.969862 C293.771653,865.450079 305.758108,873.481768 315.854826,883.606974 C325.951544,893.732181 333.960636,905.752456 339.425433,918.980864 C344.89023,932.209273 347.702001,946.388487 347.702001,960.707269 L130.240919,960.707269 Z");
     			attr(path58, "fill", path58_fill_value = ctx.colors[4]);
-    			add_location(path58, file$5, 76, 8, 29841);
+    			add_location(path58, file$4, 76, 8, 29841);
     			attr(path59, "d", "M587.55745,982.514735 C587.55745,996.833735 584.745678,1011.01251 579.280881,1024.24158 C573.816084,1037.47064 565.806993,1049.4907 555.710274,1059.61568 C545.613556,1069.74089 533.627102,1077.77236 520.435912,1083.25214 C507.244723,1088.7317 493.105403,1091.55206 478.826909,1091.55206 C464.548414,1091.55206 450.409095,1088.7317 437.217905,1083.25214 C424.026716,1077.77236 412.040261,1069.74089 401.943543,1059.61568 C391.846825,1049.4907 383.837733,1037.47064 378.372936,1024.24158 C372.908139,1011.01251 370.096368,996.833735 370.096368,982.514735 L587.55745,982.514735 Z");
     			attr(path59, "fill", path59_fill_value = ctx.colors[0]);
-    			add_location(path59, file$5, 77, 8, 30467);
+    			add_location(path59, file$4, 77, 8, 30467);
     			attr(path60, "d", "M587.55745,851.669941 L478.532246,851.669941 L478.532246,742.632613 C492.849436,742.632613 507.027073,745.452318 520.254011,750.932534 C533.480949,756.41275 545.499887,764.44444 555.623968,774.569646 C565.748048,784.694853 573.778845,796.715128 579.258451,809.943536 C584.738058,823.171945 587.55745,837.351159 587.55745,851.669941 Z");
     			attr(path60, "fill", path60_fill_value = ctx.colors[1]);
-    			add_location(path60, file$5, 78, 8, 31089);
+    			add_location(path60, file$4, 78, 8, 31089);
     			attr(path61, "d", "M957.064492,612.37721 L957.064492,721.414538 L848.039288,721.414538 C848.039288,707.095756 850.85868,692.916542 856.338287,679.688134 C861.817894,666.459725 869.84869,654.43945 879.972771,644.314244 C890.096851,634.189037 902.115789,626.157348 915.342727,620.677132 C928.569665,615.196916 942.747302,612.37721 957.064492,612.37721 Z");
     			attr(path61, "fill", path61_fill_value = ctx.colors[2]);
-    			add_location(path61, file$5, 79, 8, 31468);
+    			add_location(path61, file$4, 79, 8, 31468);
     			attr(path62, "d", "M587.55745,873.477407 L696.582654,873.477407 L696.582654,982.514735 C682.265464,982.514735 668.087827,979.695029 654.860889,974.214813 C641.633951,968.734597 629.615013,960.702908 619.490932,950.577701 C609.366852,940.452495 601.336055,928.43222 595.856448,915.203811 C590.376842,901.975403 587.55745,887.796189 587.55745,873.477407 Z");
     			attr(path62, "fill", path62_fill_value = ctx.colors[3]);
-    			add_location(path62, file$5, 80, 8, 31846);
+    			add_location(path62, file$4, 80, 8, 31846);
     			attr(path63, "d", "M848.039288,1090.96267 L957.064492,1090.96267 L957.064492,1200 C942.747302,1200 928.569665,1197.17966 915.342727,1191.70003 C902.115789,1186.22039 890.096851,1178.18883 879.972771,1168.06362 C869.84869,1157.93863 861.817894,1145.91858 856.338287,1132.68951 C850.85868,1119.46045 848.039288,1105.28167 848.039288,1090.96267 Z");
     			attr(path63, "fill", path63_fill_value = ctx.colors[0]);
-    			add_location(path63, file$5, 81, 8, 32226);
+    			add_location(path63, file$4, 81, 8, 32226);
     			attr(path64, "d", "M402.803929,1090.96267 C432.910149,1090.96267 457.316531,1115.37155 457.316531,1145.48134 L457.316531,1200 L348.291327,1200 L348.291327,1145.48134 C348.291327,1115.37155 372.697709,1090.96267 402.803929,1090.96267 Z");
     			attr(path64, "fill", path64_fill_value = ctx.colors[4]);
-    			add_location(path64, file$5, 82, 8, 32596);
+    			add_location(path64, file$4, 82, 8, 32596);
     			attr(path65, "d", "M109.025204,666.895874 C109.025204,697.005442 84.6190419,721.414538 54.5126019,721.414538 L0,721.414538 L0,612.37721 L54.5126019,612.37721 C84.6190419,612.37721 109.025204,636.786306 109.025204,666.895874 Z");
     			attr(path65, "fill", path65_fill_value = ctx.colors[4]);
-    			add_location(path65, file$5, 83, 8, 32857);
+    			add_location(path65, file$4, 83, 8, 32857);
     			attr(path66, "d", "M717.798369,666.895874 C717.798369,636.786306 742.204751,612.37721 772.310971,612.37721 L826.823573,612.37721 L826.823573,721.414538 L772.310971,721.414538 C742.204751,721.414538 717.798369,697.005442 717.798369,666.895874 Z");
     			attr(path66, "fill", path66_fill_value = ctx.colors[3]);
-    			add_location(path66, file$5, 84, 8, 33109);
+    			add_location(path66, file$4, 84, 8, 33109);
     			attr(path67, "d", "M848.039288,797.151277 C848.039288,767.041709 872.44567,742.632613 902.55189,742.632613 L957.064492,742.632613 L957.064492,851.669941 L902.55189,851.669941 C872.44567,851.669941 848.039288,827.260845 848.039288,797.151277 Z");
     			attr(path67, "fill", path67_fill_value = ctx.colors[5]);
-    			add_location(path67, file$5, 85, 8, 33379);
+    			add_location(path67, file$4, 85, 8, 33379);
     			attr(path68, "d", "M282.581542,1113.35953 C306.503987,1113.35953 325.896961,1132.75466 325.896961,1156.67976 C325.896961,1180.60487 306.503987,1200 282.581542,1200 C258.659097,1200 239.266123,1180.60487 239.266123,1156.67976 C239.266123,1132.75466 258.659097,1113.35953 282.581542,1113.35953 Z");
     			attr(path68, "fill", path68_fill_value = ctx.colors[5]);
-    			add_location(path68, file$5, 86, 8, 33648);
+    			add_location(path68, file$4, 86, 8, 33648);
     			attr(path69, "d", "M43.3154188,983.104126 C67.2378641,983.104126 86.6308377,1002.49926 86.6308377,1026.42436 C86.6308377,1050.34947 67.2378641,1069.7446 43.3154188,1069.7446 C19.3929736,1069.7446 0,1050.34947 0,1026.42436 C0,1002.49926 19.3929736,983.104126 43.3154188,983.104126 Z");
     			attr(path69, "fill", path69_fill_value = ctx.colors[4]);
-    			add_location(path69, file$5, 87, 8, 33968);
+    			add_location(path69, file$4, 87, 8, 33968);
     			attr(path70, "d", "M173.556338,612.37721 C197.478783,612.37721 216.871757,631.77234 216.871757,655.697446 C216.871757,679.622552 197.478783,699.017682 173.556338,699.017682 C149.633893,699.017682 130.240919,679.622552 130.240919,655.697446 C130.240919,631.77234 149.633893,612.37721 173.556338,612.37721 Z");
     			attr(path70, "fill", path70_fill_value = ctx.colors[2]);
-    			add_location(path70, file$5, 88, 8, 34276);
+    			add_location(path70, file$4, 88, 8, 34276);
     			attr(path71, "d", "M522.43699,874.066798 C546.359436,874.066798 565.752409,893.461928 565.752409,917.387033 C565.752409,941.312139 546.359436,960.707269 522.43699,960.707269 C498.514545,960.707269 479.121572,941.312139 479.121572,917.387033 C479.121572,893.461928 498.514545,874.066798 522.43699,874.066798 Z");
     			attr(path71, "fill", path71_fill_value = ctx.colors[2]);
-    			add_location(path71, file$5, 89, 8, 34608);
+    			add_location(path71, file$4, 89, 8, 34608);
     			attr(path72, "d", "M913.749073,983.104126 C937.671519,983.104126 957.064492,1002.49926 957.064492,1026.42436 C957.064492,1050.34947 937.671519,1069.7446 913.749073,1069.7446 C889.826628,1069.7446 870.433655,1050.34947 870.433655,1026.42436 C870.433655,1002.49926 889.826628,983.104126 913.749073,983.104126 Z");
     			attr(path72, "fill", path72_fill_value = ctx.colors[2]);
-    			add_location(path72, file$5, 90, 8, 34943);
+    			add_location(path72, file$4, 90, 8, 34943);
     			attr(path73, "d", "M1241.11935,699.017682 C1248.23925,699.017682 1255.28975,700.427752 1261.86747,703.167642 C1268.44519,705.907532 1274.42217,709.923377 1279.45794,714.985762 C1284.49153,720.048365 1288.48631,726.058503 1291.21022,732.672925 C1293.93413,739.287566 1295.33729,746.376955 1295.33729,753.536346 C1295.33729,760.695737 1293.93413,767.785126 1291.21022,774.399766 C1288.48631,781.014189 1284.49153,787.024326 1279.45794,792.086929 C1274.42217,797.149314 1268.44519,801.165159 1261.86747,803.905049 C1255.28975,806.644939 1248.23925,808.05501 1241.11935,808.05501 L1241.11935,699.017682 Z");
     			attr(path73, "fill", path73_fill_value = ctx.colors[2]);
-    			add_location(path73, file$5, 91, 8, 35278);
+    			add_location(path73, file$4, 91, 8, 35278);
     			attr(path74, "d", "M1480.9748,1090.96267 C1488.0947,1090.96267 1495.1452,1092.37361 1501.72292,1095.11263 C1508.30064,1097.85165 1514.27762,1101.86859 1519.31339,1106.9301 C1524.34698,1111.99379 1528.34176,1118.00393 1531.06567,1124.61813 C1533.78958,1131.23234 1535.19274,1138.32194 1535.19274,1145.48134 C1535.19274,1152.64073 1533.78958,1159.73033 1531.06567,1166.34454 C1528.34176,1172.95874 1524.34698,1178.96888 1519.31339,1184.03257 C1514.27762,1189.09409 1508.30064,1193.11102 1501.72292,1195.85004 C1495.1452,1198.58906 1488.0947,1200 1480.9748,1200 L1480.9748,1090.96267 Z");
     			attr(path74, "fill", path74_fill_value = ctx.colors[2]);
-    			add_location(path74, file$5, 92, 8, 35905);
+    			add_location(path74, file$4, 92, 8, 35905);
     			attr(path75, "d", "M1458.58043,612.37721 C1458.58043,626.696188 1455.76866,640.874988 1450.30386,654.104051 C1444.83906,667.333114 1436.82997,679.353171 1426.73325,689.478159 C1416.63654,699.603365 1404.65008,707.634837 1391.45889,713.114617 C1378.2677,718.594179 1364.12838,721.414538 1349.84989,721.414538 C1335.57139,721.414538 1321.43207,718.594179 1308.24089,713.114617 C1295.0497,707.634837 1283.06324,699.603365 1272.96652,689.478159 C1262.86981,679.353171 1254.86071,667.333114 1249.39592,654.104051 C1243.93112,640.874988 1241.11935,626.696188 1241.11935,612.37721 L1458.58043,612.37721 Z");
     			attr(path75, "fill", path75_fill_value = ctx.colors[1]);
-    			add_location(path75, file$5, 93, 8, 36514);
+    			add_location(path75, file$4, 93, 8, 36514);
     			attr(path76, "d", "M1002.44255,934.774067 C1002.44255,920.455285 1005.25432,906.276071 1010.71912,893.047662 C1016.18392,879.819253 1024.19301,867.798978 1034.28973,857.673772 C1044.38644,847.548566 1056.3729,839.516876 1069.56409,834.03666 C1082.75528,828.557098 1096.8946,825.736739 1111.17309,825.736739 C1125.45159,825.736739 1139.59091,828.557098 1152.78209,834.03666 C1165.97328,839.516876 1177.95974,847.548566 1188.05646,857.673772 C1198.15317,867.798978 1206.16227,879.819253 1211.62706,893.047662 C1217.09186,906.276071 1219.90363,920.455285 1219.90363,934.774067 L1002.44255,934.774067 Z");
     			attr(path76, "fill", path76_fill_value = ctx.colors[1]);
-    			add_location(path76, file$5, 94, 8, 37138);
+    			add_location(path76, file$4, 94, 8, 37138);
     			attr(path77, "d", "M1219.90363,829.862475 C1205.58644,829.862475 1191.40881,827.049739 1178.18187,821.584986 C1164.95493,816.120017 1152.93599,808.110252 1142.81191,798.012411 C1132.68783,787.914787 1124.65703,775.927 1119.17743,762.733908 C1113.69782,749.5406 1110.87843,735.400143 1110.87843,721.119843 C1110.87843,706.839543 1113.69782,692.699086 1119.17743,679.505777 C1124.65703,666.312469 1132.68783,654.324898 1142.81191,644.227275 C1152.93599,634.129434 1164.95493,626.119582 1178.18187,620.654743 C1191.40881,615.189925 1205.58644,612.37721 1219.90363,612.37721 L1219.90363,829.862475 Z");
     			attr(path77, "fill", path77_fill_value = ctx.colors[4]);
-    			add_location(path77, file$5, 95, 8, 37763);
+    			add_location(path77, file$4, 95, 8, 37763);
     			attr(path78, "d", "M1328.33951,960.707269 C1328.33951,975.026051 1325.52774,989.205265 1320.06294,1002.43367 C1314.59814,1015.66208 1306.58905,1027.68236 1296.49234,1037.80756 C1286.39562,1047.93277 1274.40916,1055.96446 1261.21797,1061.44468 C1248.02678,1066.92489 1233.88746,1069.7446 1219.60897,1069.7446 C1205.33047,1069.7446 1191.19116,1066.92489 1177.99997,1061.44468 C1164.80878,1055.96446 1152.82232,1047.93277 1142.7256,1037.80756 C1132.62889,1027.68236 1124.61979,1015.66208 1119.155,1002.43367 C1113.6902,989.205265 1110.87843,975.026051 1110.87843,960.707269 L1328.33951,960.707269 Z");
     			attr(path78, "fill", path78_fill_value = ctx.colors[0]);
-    			add_location(path78, file$5, 96, 8, 38385);
+    			add_location(path78, file$4, 96, 8, 38385);
     			attr(path79, "d", "M1241.11935,1200 C1241.11935,1185.68122 1243.93112,1171.502 1249.39592,1158.2736 C1254.86071,1145.04519 1262.86981,1133.02491 1272.96652,1122.89971 C1283.06324,1112.7745 1295.0497,1104.74281 1308.24089,1099.26259 C1321.43207,1093.78238 1335.57139,1090.96267 1349.84989,1090.96267 C1364.12838,1090.96267 1378.2677,1093.78238 1391.45889,1099.26259 C1404.65008,1104.74281 1416.63654,1112.7745 1426.73325,1122.89971 C1436.82997,1133.02491 1444.83906,1145.04519 1450.30386,1158.2736 C1455.76866,1171.502 1458.58043,1185.68122 1458.58043,1200 L1241.11935,1200 Z");
     			attr(path79, "fill", path79_fill_value = ctx.colors[3]);
-    			add_location(path79, file$5, 97, 8, 39007);
+    			add_location(path79, file$4, 97, 8, 39007);
     			attr(path80, "d", "M1480.9748,852.259332 C1495.29199,852.259332 1509.46962,855.071417 1522.69656,860.536821 C1535.9235,866.002226 1547.94244,874.012208 1558.06652,884.110049 C1568.1906,894.20789 1576.22139,906.195678 1581.701,919.388334 C1587.18061,932.58099 1590,946.721882 1590,961.001965 C1590,975.282047 1587.18061,989.422939 1581.701,1002.6156 C1576.22139,1015.80825 1568.1906,1027.79604 1558.06652,1037.89388 C1547.94244,1047.99172 1535.9235,1056.0017 1522.69656,1061.46711 C1509.46962,1066.93251 1495.29199,1069.7446 1480.9748,1069.7446 L1480.9748,852.259332 Z");
     			attr(path80, "fill", path80_fill_value = ctx.colors[4]);
-    			add_location(path80, file$5, 98, 8, 39608);
+    			add_location(path80, file$4, 98, 8, 39608);
     			attr(path81, "d", "M1350.14455,829.862475 C1350.14455,815.543475 1352.95632,801.364697 1358.42112,788.135635 C1363.88592,774.906572 1371.89501,762.886515 1381.99173,752.761527 C1392.08845,742.63632 1404.0749,734.604849 1417.26609,729.125069 C1430.45728,723.645507 1444.5966,720.825147 1458.87509,720.825147 C1473.15359,720.825147 1487.29291,723.645507 1500.4841,729.125069 C1513.67529,734.604849 1525.66174,742.63632 1535.75846,752.761527 C1545.85518,762.886515 1553.86427,774.906572 1559.32907,788.135635 C1564.79386,801.364697 1567.60563,815.543475 1567.60563,829.862475 L1350.14455,829.862475 Z");
     			attr(path81, "fill", path81_fill_value = ctx.colors[0]);
-    			add_location(path81, file$5, 99, 8, 40202);
+    			add_location(path81, file$4, 99, 8, 40202);
     			attr(path82, "d", "M1350.73388,960.707269 L1459.75908,960.707269 L1459.75908,1069.7446 C1445.44189,1069.7446 1431.26425,1066.92489 1418.03732,1061.44468 C1404.81038,1055.96446 1392.79144,1047.93277 1382.66736,1037.80756 C1372.54328,1027.68236 1364.51248,1015.66208 1359.03288,1002.43367 C1353.55327,989.205265 1350.73388,975.026051 1350.73388,960.707269 Z");
     			attr(path82, "fill", path82_fill_value = ctx.colors[4]);
-    			add_location(path82, file$5, 100, 8, 40826);
+    			add_location(path82, file$4, 100, 8, 40826);
     			attr(path83, "d", "M980.637509,1200 L980.637509,1090.96267 L1089.66271,1090.96267 C1089.66271,1105.28145 1086.84332,1119.46067 1081.36371,1132.68908 C1075.88411,1145.91749 1067.85331,1157.93776 1057.72923,1168.06297 C1047.60515,1178.18817 1035.58621,1186.21986 1022.35927,1191.70008 C1009.13234,1197.18029 994.954699,1200 980.637509,1200 Z");
     			attr(path83, "fill", path83_fill_value = ctx.colors[0]);
-    			add_location(path83, file$5, 101, 8, 41208);
+    			add_location(path83, file$4, 101, 8, 41208);
     			attr(path84, "d", "M1350.14455,938.899804 L1241.11935,938.899804 L1241.11935,829.862475 C1255.43654,829.862475 1269.61417,832.682181 1282.84111,838.162397 C1296.06805,843.642613 1308.08699,851.674303 1318.21107,861.799509 C1328.33515,871.924715 1336.36595,883.94499 1341.84555,897.173399 C1347.32516,910.401807 1350.14455,924.581022 1350.14455,938.899804 Z");
     			attr(path84, "fill", path84_fill_value = ctx.colors[0]);
-    			add_location(path84, file$5, 102, 8, 41574);
+    			add_location(path84, file$4, 102, 8, 41574);
     			attr(path85, "d", "M1089.66271,721.414538 L980.637509,721.414538 L980.637509,612.37721 C994.954699,612.37721 1009.13234,615.197548 1022.35927,620.677175 C1035.58621,626.156824 1047.60515,634.188383 1057.72923,644.313589 C1067.85331,654.438578 1075.88411,666.458635 1081.36371,679.687697 C1086.84332,692.91676 1089.66271,707.095538 1089.66271,721.414538 Z");
     			attr(path85, "fill", path85_fill_value = ctx.colors[5]);
-    			add_location(path85, file$5, 103, 8, 41957);
+    			add_location(path85, file$4, 103, 8, 41957);
     			attr(path86, "d", "M1535.4874,721.414538 C1505.38118,721.414538 1480.9748,697.005661 1480.9748,666.895874 L1480.9748,612.37721 L1590,612.37721 L1590,666.895874 C1590,697.005661 1565.59362,721.414538 1535.4874,721.414538 Z");
     			attr(path86, "fill", path86_fill_value = ctx.colors[4]);
-    			add_location(path86, file$5, 104, 8, 42338);
+    			add_location(path86, file$4, 104, 8, 42338);
     			attr(path87, "d", "M1219.90363,1145.48134 C1219.90363,1175.5909 1195.49725,1200 1165.39103,1200 L1110.87843,1200 L1110.87843,1090.96267 L1165.39103,1090.96267 C1195.49725,1090.96267 1219.90363,1115.37177 1219.90363,1145.48134 Z");
     			attr(path87, "fill", path87_fill_value = ctx.colors[5]);
-    			add_location(path87, file$5, 105, 8, 42586);
+    			add_location(path87, file$4, 105, 8, 42586);
     			attr(path88, "d", "M1089.66271,1015.22593 C1089.66271,1045.3355 1065.25633,1069.7446 1035.15011,1069.7446 L980.637509,1069.7446 L980.637509,960.707269 L1035.15011,960.707269 C1065.25633,960.707269 1089.66271,985.116365 1089.66271,1015.22593 Z");
     			attr(path88, "fill", path88_fill_value = ctx.colors[4]);
-    			add_location(path88, file$5, 106, 8, 42840);
+    			add_location(path88, file$4, 106, 8, 42840);
     			attr(path89, "d", "M1415.85434,938.310413 C1391.93189,938.310413 1372.53892,918.915282 1372.53892,894.990177 C1372.53892,871.065071 1391.93189,851.669941 1415.85434,851.669941 C1439.77678,851.669941 1459.16976,871.065071 1459.16976,894.990177 C1459.16976,918.915282 1439.77678,938.310413 1415.85434,938.310413 Z");
     			attr(path89, "fill", path89_fill_value = ctx.colors[3]);
-    			add_location(path89, file$5, 107, 8, 43109);
+    			add_location(path89, file$4, 107, 8, 43109);
     			attr(path90, "d", "M1023.95293,829.273084 C1000.03048,829.273084 980.637509,809.877954 980.637509,785.952849 C980.637509,762.027743 1000.03048,742.632613 1023.95293,742.632613 C1047.87537,742.632613 1067.26835,762.027743 1067.26835,785.952849 C1067.26835,809.877954 1047.87537,829.273084 1023.95293,829.273084 Z");
     			attr(path90, "fill", path90_fill_value = ctx.colors[3]);
-    			add_location(path90, file$5, 108, 8, 43447);
+    			add_location(path90, file$4, 108, 8, 43447);
     			attr(g0, "id", "Shape");
-    			add_location(g0, file$5, 13, 6, 460);
+    			add_location(g0, file$4, 13, 6, 460);
     			attr(g1, "id", "Inn");
     			attr(g1, "fill-rule", "nonzero");
-    			add_location(g1, file$5, 12, 4, 421);
+    			add_location(g1, file$4, 12, 4, 421);
     			attr(g2, "id", "Patterns");
     			attr(g2, "stroke", "none");
     			attr(g2, "stroke-width", "1");
     			attr(g2, "fill", "none");
     			attr(g2, "fill-rule", "evenodd");
-    			add_location(g2, file$5, 11, 2, 336);
+    			add_location(g2, file$4, 11, 2, 336);
     			attr(svg, "viewBox", "0 0 1590 1200");
     			attr(svg, "version", "1.1");
     			attr(svg, "xmlns", "http://www.w3.org/2000/svg");
     			attr(svg, "xmlns:xlink", "http://www.w3.org/1999/xlink");
     			attr(svg, "style", ctx.styles);
-    			add_location(svg, file$5, 10, 0, 195);
+    			add_location(svg, file$4, 10, 0, 195);
     		},
 
     		l: function claim(nodes) {
@@ -22334,7 +21393,7 @@ var app = (function () {
     	};
     }
 
-    function instance$6($$self, $$props, $$invalidate) {
+    function instance$4($$self, $$props, $$invalidate) {
 
       let { colors, styles } = $$props;
 
@@ -22354,7 +21413,7 @@ var app = (function () {
     class Inn extends SvelteComponentDev {
     	constructor(options) {
     		super(options);
-    		init(this, options, instance$6, create_fragment$6, safe_not_equal, ["colors", "styles"]);
+    		init(this, options, instance$4, create_fragment$4, safe_not_equal, ["colors", "styles"]);
 
     		const { ctx } = this.$$;
     		const props = options.props || {};
@@ -22385,9 +21444,9 @@ var app = (function () {
 
     /* src/patterns/Kander.svelte generated by Svelte v3.6.7 */
 
-    const file$6 = "src/patterns/Kander.svelte";
+    const file$5 = "src/patterns/Kander.svelte";
 
-    function create_fragment$7(ctx) {
+    function create_fragment$5(ctx) {
     	var svg, g49, g48, g47, g0, rect0, g0_fill_value, g1, rect1, rect1_fill_value, polygon0, polygon0_fill_value, g2, path0, path0_fill_value, polygon1, polygon1_fill_value, polygon2, polygon2_fill_value, path1, path1_fill_value, g3, path2, path2_fill_value, polygon3, polygon3_fill_value, polygon4, polygon4_fill_value, path3, path3_fill_value, g4, rect2, rect2_fill_value, rect3, rect3_fill_value, rect4, rect4_fill_value, g5, polygon5, polygon5_fill_value, rect5, rect5_fill_value, g6, rect6, rect6_fill_value, polygon6, polygon6_fill_value, g7, rect7, rect7_fill_value, polygon7, polygon7_fill_value, g8, rect8, rect8_fill_value, polygon8, polygon8_fill_value, g9, rect9, rect9_fill_value, rect10, rect10_fill_value, g10, rect11, g10_fill_value, g11, rect12, rect12_fill_value, polygon9, polygon9_fill_value, g12, rect13, rect13_fill_value, rect14, rect14_fill_value, g13, rect15, g13_fill_value, g14, rect16, rect16_fill_value, path4, path4_fill_value, rect17, rect17_fill_value, g15, rect18, rect18_fill_value, path5, path5_fill_value, g16, rect19, rect19_fill_value, rect20, rect20_fill_value, polygon10, polygon10_fill_value, g17, rect21, rect21_fill_value, rect22, rect22_fill_value, polygon11, polygon11_fill_value, g18, rect23, rect23_fill_value, rect24, rect24_fill_value, polygon12, polygon12_fill_value, g19, polygon13, polygon13_fill_value, polygon14, polygon14_fill_value, path6, path6_fill_value, g20, polygon15, polygon15_fill_value, polygon16, polygon16_fill_value, g21, polygon17, polygon17_fill_value, rect25, rect25_fill_value, g22, polygon18, g22_fill_value, g23, polygon19, g23_fill_value, g24, polygon20, polygon20_fill_value, rect26, rect26_fill_value, polygon21, polygon21_fill_value, g25, polygon22, polygon22_fill_value, rect27, rect27_fill_value, polygon23, polygon23_fill_value, g26, polygon24, polygon24_fill_value, rect28, rect28_fill_value, polygon25, polygon25_fill_value, g27, polygon26, polygon26_fill_value, rect29, rect29_fill_value, g28, polygon27, polygon27_fill_value, rect30, rect30_fill_value, g29, polygon28, g29_fill_value, g30, polygon29, g30_fill_value, g32, rect31, rect31_fill_value, g31, polygon30, polygon30_fill_value, polygon31, polygon31_fill_value, polygon32, polygon32_fill_value, g33, rect32, rect32_fill_value, polygon33, polygon33_fill_value, polygon34, polygon34_fill_value, polygon35, polygon35_fill_value, g35, rect33, rect33_fill_value, polygon36, polygon36_fill_value, g34, polygon37, polygon38, g34_fill_value, g36, rect34, rect34_fill_value, polygon39, polygon39_fill_value, g37, polygon40, g37_fill_value, g38, path7, path7_fill_value, path8, path8_fill_value, g39, path9, path9_fill_value, path10, path10_fill_value, g40, path11, g40_fill_value, g41, path12, path12_fill_value, rect35, rect35_fill_value, g42, path13, path13_fill_value, rect36, rect36_fill_value, g43, polygon41, polygon42, polygon43, polygon44, g43_fill_value, g44, polygon45, polygon46, polygon47, polygon48, g44_fill_value, g45, polygon49, polygon50, polygon51, polygon52, g45_fill_value, g46, polygon53, polygon53_fill_value, polygon54, polygon54_fill_value, polygon55, polygon55_fill_value, polygon56, polygon56_fill_value;
 
     	return {
@@ -22556,681 +21615,681 @@ var app = (function () {
     			attr(rect0, "y", "0");
     			attr(rect0, "width", "200");
     			attr(rect0, "height", "200");
-    			add_location(rect0, file$6, 15, 10, 620);
+    			add_location(rect0, file$5, 15, 10, 620);
     			attr(g0, "transform", "translate(0.000000, 201.000000)");
     			attr(g0, "fill", g0_fill_value = ctx.colors[0]);
-    			add_location(g0, file$6, 14, 8, 543);
+    			add_location(g0, file$5, 14, 8, 543);
     			attr(rect1, "id", "Shape");
     			attr(rect1, "fill", rect1_fill_value = ctx.colors[1]);
     			attr(rect1, "x", "0");
     			attr(rect1, "y", "0");
     			attr(rect1, "width", "200");
     			attr(rect1, "height", "200");
-    			add_location(rect1, file$6, 18, 10, 764);
+    			add_location(rect1, file$5, 18, 10, 764);
     			attr(polygon0, "id", "Shape");
     			attr(polygon0, "fill", polygon0_fill_value = ctx.colors[2]);
     			attr(polygon0, "points", "0 0 200 200 0 200");
-    			add_location(polygon0, file$6, 19, 10, 855);
+    			add_location(polygon0, file$5, 19, 10, 855);
     			attr(g1, "transform", "translate(1400.000000, 801.000000)");
-    			add_location(g1, file$6, 17, 8, 703);
+    			add_location(g1, file$5, 17, 8, 703);
     			attr(path0, "d", "M299,26 C340.421356,26 374,59.5786438 374,101 C374,142.421356 340.421356,176 299,176 C257.578644,176 224,142.421356 224,101 C224,59.5786438 257.578644,26 299,26 Z");
     			attr(path0, "id", "Shape");
     			attr(path0, "fill", path0_fill_value = ctx.colors[2]);
-    			add_location(path0, file$6, 22, 10, 1013);
+    			add_location(path0, file$5, 22, 10, 1013);
     			attr(polygon1, "id", "Shape");
     			attr(polygon1, "fill", polygon1_fill_value = ctx.colors[3]);
     			attr(polygon1, "points", "0 0 199.376947 0 400 200 0 200");
-    			add_location(polygon1, file$6, 23, 10, 1234);
+    			add_location(polygon1, file$5, 23, 10, 1234);
     			attr(polygon2, "id", "Shape");
     			attr(polygon2, "fill", polygon2_fill_value = ctx.colors[5]);
     			attr(polygon2, "transform", "translate(100.000000, 100.000000) scale(-1, 1) translate(-100.000000, -100.000000) ");
     			attr(polygon2, "points", "0 0 200 200 0 200");
-    			add_location(polygon2, file$6, 24, 10, 1334);
+    			add_location(polygon2, file$5, 24, 10, 1334);
     			attr(path1, "d", "M99,56 L100,56 C124.852814,56 145,76.1471863 145,101 C145,125.852814 124.852814,146 100,146 L99,146 C74.1471863,146 54,125.852814 54,101 C54,76.1471863 74.1471863,56 99,56 Z");
     			attr(path1, "id", "Shape");
     			attr(path1, "fill", path1_fill_value = ctx.colors[6]);
-    			add_location(path1, file$6, 25, 10, 1517);
+    			add_location(path1, file$5, 25, 10, 1517);
     			attr(g2, "transform", "translate(200.000000, 801.000000)");
-    			add_location(g2, file$6, 21, 8, 953);
+    			add_location(g2, file$5, 21, 8, 953);
     			attr(path2, "d", "M299,26 C340.421356,26 374,59.5786438 374,101 C374,142.421356 340.421356,176 299,176 C257.578644,176 224,142.421356 224,101 C224,59.5786438 257.578644,26 299,26 Z");
     			attr(path2, "id", "Shape");
     			attr(path2, "fill", path2_fill_value = ctx.colors[1]);
-    			add_location(path2, file$6, 28, 10, 1819);
+    			add_location(path2, file$5, 28, 10, 1819);
     			attr(polygon3, "id", "Shape");
     			attr(polygon3, "fill", polygon3_fill_value = ctx.colors[5]);
     			attr(polygon3, "points", "0 0 199.376947 0 400 200 0 200");
-    			add_location(polygon3, file$6, 29, 10, 2040);
+    			add_location(polygon3, file$5, 29, 10, 2040);
     			attr(polygon4, "id", "Shape");
     			attr(polygon4, "fill", polygon4_fill_value = ctx.colors[3]);
     			attr(polygon4, "transform", "translate(100.000000, 100.000000) scale(-1, 1) translate(-100.000000, -100.000000) ");
     			attr(polygon4, "points", "0 0 200 200 0 200");
-    			add_location(polygon4, file$6, 30, 10, 2140);
+    			add_location(polygon4, file$5, 30, 10, 2140);
     			attr(path3, "d", "M99,56 L100,56 C124.852814,56 145,76.1471863 145,101 C145,125.852814 124.852814,146 100,146 L99,146 C74.1471863,146 54,125.852814 54,101 C54,76.1471863 74.1471863,56 99,56 Z");
     			attr(path3, "id", "Shape");
     			attr(path3, "fill", path3_fill_value = ctx.colors[6]);
-    			add_location(path3, file$6, 31, 10, 2323);
+    			add_location(path3, file$5, 31, 10, 2323);
     			attr(g3, "transform", "translate(1000.000000, 1.000000)");
-    			add_location(g3, file$6, 27, 8, 1760);
+    			add_location(g3, file$5, 27, 8, 1760);
     			attr(rect2, "id", "Shape");
     			attr(rect2, "fill", rect2_fill_value = ctx.colors[5]);
     			attr(rect2, "x", "0");
     			attr(rect2, "y", "0");
     			attr(rect2, "width", "200");
     			attr(rect2, "height", "400");
-    			add_location(rect2, file$6, 34, 10, 2626);
+    			add_location(rect2, file$5, 34, 10, 2626);
     			attr(rect3, "id", "Shape");
     			attr(rect3, "fill", rect3_fill_value = ctx.colors[7]);
     			attr(rect3, "x", "100");
     			attr(rect3, "y", "100");
     			attr(rect3, "width", "100");
     			attr(rect3, "height", "100.250627");
-    			add_location(rect3, file$6, 35, 10, 2717);
+    			add_location(rect3, file$5, 35, 10, 2717);
     			attr(rect4, "id", "Shape");
     			attr(rect4, "fill", rect4_fill_value = ctx.colors[6]);
     			attr(rect4, "x", "0");
     			attr(rect4, "y", "200");
     			attr(rect4, "width", "100");
     			attr(rect4, "height", "100.250627");
-    			add_location(rect4, file$6, 36, 10, 2819);
+    			add_location(rect4, file$5, 36, 10, 2819);
     			attr(g4, "transform", "translate(600.000000, 801.000000)");
-    			add_location(g4, file$6, 33, 8, 2566);
+    			add_location(g4, file$5, 33, 8, 2566);
     			attr(polygon5, "id", "Shape");
     			attr(polygon5, "fill", polygon5_fill_value = ctx.colors[7]);
     			attr(polygon5, "points", "-2.4158453e-11 -1.15292436e-11 200 -1.15292436e-11 200 200 1.42108547e-12 200");
-    			add_location(polygon5, file$6, 39, 10, 3083);
+    			add_location(polygon5, file$5, 39, 10, 3083);
     			attr(rect5, "id", "Shape");
     			attr(rect5, "fill", rect5_fill_value = ctx.colors[0]);
     			attr(rect5, "x", "100");
     			attr(rect5, "y", "100");
     			attr(rect5, "width", "100");
     			attr(rect5, "height", "100");
-    			add_location(rect5, file$6, 40, 10, 3230);
+    			add_location(rect5, file$5, 40, 10, 3230);
     			attr(g5, "transform", "translate(1500.000000, 301.000000) rotate(-270.000000) translate(-1500.000000, -301.000000) translate(1400.000000, 201.000000)");
-    			add_location(g5, file$6, 38, 8, 2930);
+    			add_location(g5, file$5, 38, 8, 2930);
     			attr(rect6, "id", "Shape");
     			attr(rect6, "fill", rect6_fill_value = ctx.colors[3]);
     			attr(rect6, "x", "0");
     			attr(rect6, "y", "0");
     			attr(rect6, "width", "200");
     			attr(rect6, "height", "200");
-    			add_location(rect6, file$6, 43, 10, 3394);
+    			add_location(rect6, file$5, 43, 10, 3394);
     			attr(polygon6, "id", "Shape");
     			attr(polygon6, "fill", polygon6_fill_value = ctx.colors[2]);
     			attr(polygon6, "points", "100 33 143.06677 48.6750223 165.982119 88.3655721 158.023702 133.5 122.91535 162.959406 77.0846504 162.959406 41.9762979 133.5 34.0178805 88.3655721 56.9332302 48.6750223");
-    			add_location(polygon6, file$6, 44, 10, 3485);
+    			add_location(polygon6, file$5, 44, 10, 3485);
     			attr(g6, "transform", "translate(0.000000, 801.000000)");
-    			add_location(g6, file$6, 42, 8, 3336);
+    			add_location(g6, file$5, 42, 8, 3336);
     			attr(rect7, "id", "Shape");
     			attr(rect7, "fill", rect7_fill_value = ctx.colors[6]);
     			attr(rect7, "x", "0");
     			attr(rect7, "y", "0");
     			attr(rect7, "width", "200");
     			attr(rect7, "height", "200");
-    			add_location(rect7, file$6, 47, 10, 3798);
+    			add_location(rect7, file$5, 47, 10, 3798);
     			attr(polygon7, "id", "Shape");
     			attr(polygon7, "fill", polygon7_fill_value = ctx.colors[5]);
     			attr(polygon7, "points", "100 33 143.06677 48.6750223 165.982119 88.3655721 158.023702 133.5 122.91535 162.959406 77.0846504 162.959406 41.9762979 133.5 34.0178805 88.3655721 56.9332302 48.6750223");
-    			add_location(polygon7, file$6, 48, 10, 3889);
+    			add_location(polygon7, file$5, 48, 10, 3889);
     			attr(g7, "transform", "translate(1400.000000, 1001.000000)");
-    			add_location(g7, file$6, 46, 8, 3736);
+    			add_location(g7, file$5, 46, 8, 3736);
     			attr(rect8, "id", "Shape");
     			attr(rect8, "fill", rect8_fill_value = ctx.colors[3]);
     			attr(rect8, "x", "0");
     			attr(rect8, "y", "0");
     			attr(rect8, "width", "200");
     			attr(rect8, "height", "200");
-    			add_location(rect8, file$6, 51, 10, 4198);
+    			add_location(rect8, file$5, 51, 10, 4198);
     			attr(polygon8, "id", "Shape");
     			attr(polygon8, "fill", polygon8_fill_value = ctx.colors[6]);
     			attr(polygon8, "points", "100 33 143.06677 48.6750223 165.982119 88.3655721 158.023702 133.5 122.91535 162.959406 77.0846504 162.959406 41.9762979 133.5 34.0178805 88.3655721 56.9332302 48.6750223");
-    			add_location(polygon8, file$6, 52, 10, 4289);
+    			add_location(polygon8, file$5, 52, 10, 4289);
     			attr(g8, "transform", "translate(800.000000, 1.000000)");
-    			add_location(g8, file$6, 50, 8, 4140);
+    			add_location(g8, file$5, 50, 8, 4140);
     			attr(rect9, "id", "Shape");
     			attr(rect9, "fill", rect9_fill_value = ctx.colors[7]);
     			attr(rect9, "x", "0");
     			attr(rect9, "y", "0");
     			attr(rect9, "width", "200");
     			attr(rect9, "height", "200");
-    			add_location(rect9, file$6, 55, 10, 4689);
+    			add_location(rect9, file$5, 55, 10, 4689);
     			attr(rect10, "id", "Shape");
     			attr(rect10, "fill", rect10_fill_value = ctx.colors[0]);
     			attr(rect10, "x", "0");
     			attr(rect10, "y", "0");
     			attr(rect10, "width", "100");
     			attr(rect10, "height", "200");
-    			add_location(rect10, file$6, 56, 10, 4780);
+    			add_location(rect10, file$5, 56, 10, 4780);
     			attr(g9, "transform", "translate(900.000000, 901.000000) rotate(-90.000000) translate(-900.000000, -901.000000) translate(800.000000, 801.000000)");
-    			add_location(g9, file$6, 54, 8, 4540);
+    			add_location(g9, file$5, 54, 8, 4540);
     			attr(rect11, "id", "Shape");
     			attr(rect11, "x", "0");
     			attr(rect11, "y", "0");
     			attr(rect11, "width", "200");
     			attr(rect11, "height", "200");
-    			add_location(rect11, file$6, 59, 10, 4959);
+    			add_location(rect11, file$5, 59, 10, 4959);
     			attr(g10, "transform", "translate(600.000000, 1.000000)");
     			attr(g10, "fill", g10_fill_value = ctx.colors[2]);
-    			add_location(g10, file$6, 58, 8, 4882);
+    			add_location(g10, file$5, 58, 8, 4882);
     			attr(rect12, "id", "Shape");
     			attr(rect12, "fill", rect12_fill_value = ctx.colors[2]);
     			attr(rect12, "x", "0");
     			attr(rect12, "y", "0");
     			attr(rect12, "width", "200");
     			attr(rect12, "height", "200");
-    			add_location(rect12, file$6, 62, 10, 5103);
+    			add_location(rect12, file$5, 62, 10, 5103);
     			attr(polygon9, "id", "Shape");
     			attr(polygon9, "fill", polygon9_fill_value = ctx.colors[1]);
     			attr(polygon9, "transform", "translate(100.000000, 100.000000) scale(-1, 1) translate(-100.000000, -100.000000) ");
     			attr(polygon9, "points", "0 0 200 200 0 200");
-    			add_location(polygon9, file$6, 63, 10, 5194);
+    			add_location(polygon9, file$5, 63, 10, 5194);
     			attr(g11, "transform", "translate(1000.000000, 801.000000)");
-    			add_location(g11, file$6, 61, 8, 5042);
+    			add_location(g11, file$5, 61, 8, 5042);
     			attr(rect13, "id", "Shape");
     			attr(rect13, "fill", rect13_fill_value = ctx.colors[7]);
     			attr(rect13, "x", "0");
     			attr(rect13, "y", "0");
     			attr(rect13, "width", "200");
     			attr(rect13, "height", "200");
-    			add_location(rect13, file$6, 66, 10, 5448);
+    			add_location(rect13, file$5, 66, 10, 5448);
     			attr(rect14, "id", "Shape");
     			attr(rect14, "fill", rect14_fill_value = ctx.colors[0]);
     			attr(rect14, "x", "0");
     			attr(rect14, "y", "0");
     			attr(rect14, "width", "101");
     			attr(rect14, "height", "200");
-    			add_location(rect14, file$6, 67, 10, 5539);
+    			add_location(rect14, file$5, 67, 10, 5539);
     			attr(g12, "transform", "translate(400.000000, 401.000000)");
-    			add_location(g12, file$6, 65, 8, 5388);
+    			add_location(g12, file$5, 65, 8, 5388);
     			attr(rect15, "id", "Shape");
     			attr(rect15, "x", "0");
     			attr(rect15, "y", "0");
     			attr(rect15, "width", "200");
     			attr(rect15, "height", "200");
-    			add_location(rect15, file$6, 70, 10, 5721);
+    			add_location(rect15, file$5, 70, 10, 5721);
     			attr(g13, "transform", "translate(400.000000, 1001.000000)");
     			attr(g13, "fill", g13_fill_value = ctx.colors[2]);
-    			add_location(g13, file$6, 69, 8, 5641);
+    			add_location(g13, file$5, 69, 8, 5641);
     			attr(rect16, "id", "Shape");
     			attr(rect16, "fill", rect16_fill_value = ctx.colors[3]);
     			attr(rect16, "x", "0");
     			attr(rect16, "y", "0");
     			attr(rect16, "width", "200");
     			attr(rect16, "height", "200");
-    			add_location(rect16, file$6, 73, 10, 5865);
+    			add_location(rect16, file$5, 73, 10, 5865);
     			attr(path4, "d", "M50,100 C77.6142375,100 100,122.385763 100,150 C100,177.614237 77.6142375,200 50,200 C22.3857625,200 0,177.614237 0,150 C0,122.385763 22.3857625,100 50,100 Z");
     			attr(path4, "id", "Shape");
     			attr(path4, "fill", path4_fill_value = ctx.colors[0]);
-    			add_location(path4, file$6, 74, 10, 5956);
+    			add_location(path4, file$5, 74, 10, 5956);
     			attr(rect17, "id", "Shape");
     			attr(rect17, "fill", rect17_fill_value = ctx.colors[5]);
     			attr(rect17, "x", "100");
     			attr(rect17, "y", "0");
     			attr(rect17, "width", "100");
     			attr(rect17, "height", "100");
-    			add_location(rect17, file$6, 75, 10, 6172);
+    			add_location(rect17, file$5, 75, 10, 6172);
     			attr(g14, "transform", "translate(1000.000000, 401.000000)");
-    			add_location(g14, file$6, 72, 8, 5804);
+    			add_location(g14, file$5, 72, 8, 5804);
     			attr(rect18, "id", "Shape");
     			attr(rect18, "fill", rect18_fill_value = ctx.colors[3]);
     			attr(rect18, "x", "0");
     			attr(rect18, "y", "0");
     			attr(rect18, "width", "200");
     			attr(rect18, "height", "200");
-    			add_location(rect18, file$6, 78, 10, 6336);
+    			add_location(rect18, file$5, 78, 10, 6336);
     			attr(path5, "d", "M100,55 C124.852814,55 145,75.1471863 145,100 C145,124.852814 124.852814,145 100,145 C75.1471863,145 55,124.852814 55,100 C55,75.1471863 75.1471863,55 100,55 Z");
     			attr(path5, "id", "Shape");
     			attr(path5, "fill", path5_fill_value = ctx.colors[1]);
-    			add_location(path5, file$6, 79, 10, 6427);
+    			add_location(path5, file$5, 79, 10, 6427);
     			attr(g15, "transform", "translate(800.000000, 601.000000)");
-    			add_location(g15, file$6, 77, 8, 6276);
+    			add_location(g15, file$5, 77, 8, 6276);
     			attr(rect19, "id", "Shape");
     			attr(rect19, "fill", rect19_fill_value = ctx.colors[5]);
     			attr(rect19, "x", "0");
     			attr(rect19, "y", "0");
     			attr(rect19, "width", "200");
     			attr(rect19, "height", "200");
-    			add_location(rect19, file$6, 82, 10, 6717);
+    			add_location(rect19, file$5, 82, 10, 6717);
     			attr(rect20, "id", "Shape");
     			attr(rect20, "fill", rect20_fill_value = ctx.colors[3]);
     			attr(rect20, "x", "30");
     			attr(rect20, "y", "30");
     			attr(rect20, "width", "140");
     			attr(rect20, "height", "140");
-    			add_location(rect20, file$6, 83, 10, 6808);
+    			add_location(rect20, file$5, 83, 10, 6808);
     			attr(polygon10, "id", "Shape");
     			attr(polygon10, "fill", polygon10_fill_value = ctx.colors[6]);
     			attr(polygon10, "transform", "translate(50.000000, 50.000000) scale(-1, -1) translate(-50.000000, -50.000000) ");
     			attr(polygon10, "points", "0 0 100 100 0 100");
-    			add_location(polygon10, file$6, 84, 10, 6901);
+    			add_location(polygon10, file$5, 84, 10, 6901);
     			attr(g16, "transform", "translate(1000.000000, 601.000000)");
-    			add_location(g16, file$6, 81, 8, 6656);
+    			add_location(g16, file$5, 81, 8, 6656);
     			attr(rect21, "id", "Shape");
     			attr(rect21, "fill", rect21_fill_value = ctx.colors[5]);
     			attr(rect21, "x", "0");
     			attr(rect21, "y", "0");
     			attr(rect21, "width", "200");
     			attr(rect21, "height", "200");
-    			add_location(rect21, file$6, 87, 10, 7239);
+    			add_location(rect21, file$5, 87, 10, 7239);
     			attr(rect22, "id", "Shape");
     			attr(rect22, "fill", rect22_fill_value = ctx.colors[3]);
     			attr(rect22, "x", "30");
     			attr(rect22, "y", "30");
     			attr(rect22, "width", "140");
     			attr(rect22, "height", "140");
-    			add_location(rect22, file$6, 88, 10, 7330);
+    			add_location(rect22, file$5, 88, 10, 7330);
     			attr(polygon11, "id", "Shape");
     			attr(polygon11, "fill", polygon11_fill_value = ctx.colors[6]);
     			attr(polygon11, "transform", "translate(50.000000, 50.000000) scale(-1, -1) translate(-50.000000, -50.000000) ");
     			attr(polygon11, "points", "0 0 100 100 0 100");
-    			add_location(polygon11, file$6, 89, 10, 7423);
+    			add_location(polygon11, file$5, 89, 10, 7423);
     			attr(g17, "transform", "translate(100.000000, 501.000000) rotate(-90.000000) translate(-100.000000, -501.000000) translate(0.000000, 401.000000)");
-    			add_location(g17, file$6, 86, 8, 7092);
+    			add_location(g17, file$5, 86, 8, 7092);
     			attr(rect23, "id", "Shape");
     			attr(rect23, "fill", rect23_fill_value = ctx.colors[5]);
     			attr(rect23, "x", "0");
     			attr(rect23, "y", "0");
     			attr(rect23, "width", "200");
     			attr(rect23, "height", "200");
-    			add_location(rect23, file$6, 92, 10, 7762);
+    			add_location(rect23, file$5, 92, 10, 7762);
     			attr(rect24, "id", "Shape");
     			attr(rect24, "fill", rect24_fill_value = ctx.colors[3]);
     			attr(rect24, "x", "30");
     			attr(rect24, "y", "30");
     			attr(rect24, "width", "140");
     			attr(rect24, "height", "140");
-    			add_location(rect24, file$6, 93, 10, 7853);
+    			add_location(rect24, file$5, 93, 10, 7853);
     			attr(polygon12, "id", "Shape");
     			attr(polygon12, "fill", polygon12_fill_value = ctx.colors[6]);
     			attr(polygon12, "transform", "translate(50.000000, 50.000000) scale(-1, -1) translate(-50.000000, -50.000000) ");
     			attr(polygon12, "points", "0 0 100 100 0 100");
-    			add_location(polygon12, file$6, 94, 10, 7946);
+    			add_location(polygon12, file$5, 94, 10, 7946);
     			attr(g18, "transform", "translate(500.000000, 101.000000) rotate(-270.000000) translate(-500.000000, -101.000000) translate(400.000000, 1.000000)");
-    			add_location(g18, file$6, 91, 8, 7614);
+    			add_location(g18, file$5, 91, 8, 7614);
     			attr(polygon13, "id", "Shape");
     			attr(polygon13, "fill", polygon13_fill_value = ctx.colors[7]);
     			attr(polygon13, "points", "0 -1.73472348e-16 200 0 200 200 0 200");
-    			add_location(polygon13, file$6, 97, 10, 8290);
+    			add_location(polygon13, file$5, 97, 10, 8290);
     			attr(polygon14, "id", "Shape");
     			attr(polygon14, "fill", polygon14_fill_value = ctx.colors[0]);
     			attr(polygon14, "transform", "translate(100.000000, 100.000000) scale(-1, -1) translate(-100.000000, -100.000000) ");
     			attr(polygon14, "points", "0 0 200 200 0 200");
-    			add_location(polygon14, file$6, 98, 10, 8397);
+    			add_location(polygon14, file$5, 98, 10, 8397);
     			attr(path6, "d", "M102,25 C143.421356,25 177,58.5786438 177,100 C177,141.421356 143.421356,175 102,175 C60.5786438,175 27,141.421356 27,100 C27,58.5786438 60.5786438,25 102,25 Z");
     			attr(path6, "id", "Shape");
     			attr(path6, "fill", path6_fill_value = ctx.colors[3]);
-    			add_location(path6, file$6, 99, 10, 8581);
+    			add_location(path6, file$5, 99, 10, 8581);
     			attr(g19, "transform", "translate(1300.000000, 701.000000) rotate(-270.000000) translate(-1300.000000, -701.000000) translate(1200.000000, 601.000000)");
-    			add_location(g19, file$6, 96, 8, 8137);
+    			add_location(g19, file$5, 96, 8, 8137);
     			attr(polygon15, "id", "Shape");
     			attr(polygon15, "fill", polygon15_fill_value = ctx.colors[3]);
     			attr(polygon15, "points", "2.84217094e-12 0 200 0 200 200 2.84217094e-12 200");
-    			add_location(polygon15, file$6, 102, 10, 8868);
+    			add_location(polygon15, file$5, 102, 10, 8868);
     			attr(polygon16, "id", "Shape");
     			attr(polygon16, "fill", polygon16_fill_value = ctx.colors[1]);
     			attr(polygon16, "transform", "translate(100.000000, 100.000000) scale(-1, 1) translate(-100.000000, -100.000000) ");
     			attr(polygon16, "points", "0 0 200 200 0 200");
-    			add_location(polygon16, file$6, 103, 10, 8987);
+    			add_location(polygon16, file$5, 103, 10, 8987);
     			attr(g20, "transform", "translate(0.000000, 601.000000)");
-    			add_location(g20, file$6, 101, 8, 8810);
+    			add_location(g20, file$5, 101, 8, 8810);
     			attr(polygon17, "id", "Shape");
     			attr(polygon17, "fill", polygon17_fill_value = ctx.colors[6]);
     			attr(polygon17, "points", "0 0 200 200 0 200");
-    			add_location(polygon17, file$6, 106, 10, 9241);
+    			add_location(polygon17, file$5, 106, 10, 9241);
     			attr(rect25, "id", "Shape");
     			attr(rect25, "fill", rect25_fill_value = ctx.colors[5]);
     			attr(rect25, "x", "100");
     			attr(rect25, "y", "0");
     			attr(rect25, "width", "100");
     			attr(rect25, "height", "100");
-    			add_location(rect25, file$6, 107, 10, 9328);
+    			add_location(rect25, file$5, 107, 10, 9328);
     			attr(g21, "transform", "translate(200.000000, 401.000000)");
-    			add_location(g21, file$6, 105, 8, 9181);
+    			add_location(g21, file$5, 105, 8, 9181);
     			attr(polygon18, "id", "Shape");
     			attr(polygon18, "points", "0 0 200 200 0 200");
-    			add_location(polygon18, file$6, 110, 10, 9511);
+    			add_location(polygon18, file$5, 110, 10, 9511);
     			attr(g22, "transform", "translate(400.000000, 201.000000)");
     			attr(g22, "fill", g22_fill_value = ctx.colors[6]);
-    			add_location(g22, file$6, 109, 8, 9432);
+    			add_location(g22, file$5, 109, 8, 9432);
     			attr(polygon19, "id", "Shape");
     			attr(polygon19, "points", "0 0 200 200 0 200");
-    			add_location(polygon19, file$6, 113, 10, 9669);
+    			add_location(polygon19, file$5, 113, 10, 9669);
     			attr(g23, "transform", "translate(200.000000, 601.000000)");
     			attr(g23, "fill", g23_fill_value = ctx.colors[0]);
-    			add_location(g23, file$6, 112, 8, 9590);
+    			add_location(g23, file$5, 112, 8, 9590);
     			attr(polygon20, "id", "Shape");
     			attr(polygon20, "fill", polygon20_fill_value = ctx.colors[2]);
     			attr(polygon20, "transform", "translate(100.000000, 100.000000) scale(-1, -1) translate(-100.000000, -100.000000) ");
     			attr(polygon20, "points", "0 0 200 200 0 200");
-    			add_location(polygon20, file$6, 116, 10, 9808);
+    			add_location(polygon20, file$5, 116, 10, 9808);
     			attr(rect26, "id", "Shape");
     			attr(rect26, "fill", rect26_fill_value = ctx.colors[5]);
     			attr(rect26, "x", "0");
     			attr(rect26, "y", "100");
     			attr(rect26, "width", "100");
     			attr(rect26, "height", "100");
-    			add_location(rect26, file$6, 117, 10, 9992);
+    			add_location(rect26, file$5, 117, 10, 9992);
     			attr(polygon21, "id", "Shape");
     			attr(polygon21, "fill", polygon21_fill_value = ctx.colors[1]);
     			attr(polygon21, "transform", "translate(150.000000, 50.000000) scale(-1, -1) translate(-150.000000, -50.000000) ");
     			attr(polygon21, "points", "100 0 200 100 100 100");
-    			add_location(polygon21, file$6, 118, 10, 10085);
+    			add_location(polygon21, file$5, 118, 10, 10085);
     			attr(g24, "transform", "translate(800.000000, 401.000000)");
-    			add_location(g24, file$6, 115, 8, 9748);
+    			add_location(g24, file$5, 115, 8, 9748);
     			attr(polygon22, "id", "Shape");
     			attr(polygon22, "fill", polygon22_fill_value = ctx.colors[2]);
     			attr(polygon22, "transform", "translate(100.000000, 100.000000) scale(-1, -1) translate(-100.000000, -100.000000) ");
     			attr(polygon22, "points", "0 0 200 200 0 200");
-    			add_location(polygon22, file$6, 121, 10, 10429);
+    			add_location(polygon22, file$5, 121, 10, 10429);
     			attr(rect27, "id", "Shape");
     			attr(rect27, "fill", rect27_fill_value = ctx.colors[1]);
     			attr(rect27, "x", "0");
     			attr(rect27, "y", "100");
     			attr(rect27, "width", "100");
     			attr(rect27, "height", "100");
-    			add_location(rect27, file$6, 122, 10, 10613);
+    			add_location(rect27, file$5, 122, 10, 10613);
     			attr(polygon23, "id", "Shape");
     			attr(polygon23, "fill", polygon23_fill_value = ctx.colors[1]);
     			attr(polygon23, "transform", "translate(150.000000, 50.000000) scale(-1, -1) translate(-150.000000, -50.000000) ");
     			attr(polygon23, "points", "100 0 200 100 100 100");
-    			add_location(polygon23, file$6, 123, 10, 10706);
+    			add_location(polygon23, file$5, 123, 10, 10706);
     			attr(g25, "transform", "translate(300.000000, 101.000000) rotate(-90.000000) translate(-300.000000, -101.000000) translate(200.000000, 1.000000)");
-    			add_location(g25, file$6, 120, 8, 10282);
+    			add_location(g25, file$5, 120, 8, 10282);
     			attr(polygon24, "id", "Shape");
     			attr(polygon24, "fill", polygon24_fill_value = ctx.colors[2]);
     			attr(polygon24, "transform", "translate(100.000000, 100.000000) scale(-1, -1) translate(-100.000000, -100.000000) ");
     			attr(polygon24, "points", "0 0 200 200 0 200");
-    			add_location(polygon24, file$6, 126, 10, 11055);
+    			add_location(polygon24, file$5, 126, 10, 11055);
     			attr(rect28, "id", "Shape");
     			attr(rect28, "fill", rect28_fill_value = ctx.colors[5]);
     			attr(rect28, "x", "0");
     			attr(rect28, "y", "100");
     			attr(rect28, "width", "100");
     			attr(rect28, "height", "100");
-    			add_location(rect28, file$6, 127, 10, 11239);
+    			add_location(rect28, file$5, 127, 10, 11239);
     			attr(polygon25, "id", "Shape");
     			attr(polygon25, "fill", polygon25_fill_value = ctx.colors[1]);
     			attr(polygon25, "transform", "translate(150.000000, 50.000000) scale(-1, -1) translate(-150.000000, -50.000000) ");
     			attr(polygon25, "points", "100 0 200 100 100 100");
-    			add_location(polygon25, file$6, 128, 10, 11332);
+    			add_location(polygon25, file$5, 128, 10, 11332);
     			attr(g26, "transform", "translate(1500.000000, 701.000000) rotate(-90.000000) translate(-1500.000000, -701.000000) translate(1400.000000, 601.000000)");
-    			add_location(g26, file$6, 125, 8, 10903);
+    			add_location(g26, file$5, 125, 8, 10903);
     			attr(polygon26, "id", "Shape");
     			attr(polygon26, "fill", polygon26_fill_value = ctx.colors[1]);
     			attr(polygon26, "transform", "translate(100.000000, 100.000000) scale(-1, 1) translate(-100.000000, -100.000000) ");
     			attr(polygon26, "points", "0 0 200 200 0 200");
-    			add_location(polygon26, file$6, 131, 10, 11589);
+    			add_location(polygon26, file$5, 131, 10, 11589);
     			attr(rect29, "id", "Shape");
     			attr(rect29, "fill", rect29_fill_value = ctx.colors[2]);
     			attr(rect29, "x", "0");
     			attr(rect29, "y", "0");
     			attr(rect29, "width", "100");
     			attr(rect29, "height", "100");
-    			add_location(rect29, file$6, 132, 10, 11772);
+    			add_location(rect29, file$5, 132, 10, 11772);
     			attr(g27, "transform", "translate(600.000000, 401.000000)");
-    			add_location(g27, file$6, 130, 8, 11529);
+    			add_location(g27, file$5, 130, 8, 11529);
     			attr(polygon27, "id", "Shape");
     			attr(polygon27, "fill", polygon27_fill_value = ctx.colors[2]);
     			attr(polygon27, "transform", "translate(100.000000, 100.000000) scale(-1, 1) translate(-100.000000, -100.000000) ");
     			attr(polygon27, "points", "0 0 200 200 0 200");
-    			add_location(polygon27, file$6, 135, 10, 11936);
+    			add_location(polygon27, file$5, 135, 10, 11936);
     			attr(rect30, "id", "Shape");
     			attr(rect30, "fill", rect30_fill_value = ctx.colors[6]);
     			attr(rect30, "x", "0");
     			attr(rect30, "y", "0");
     			attr(rect30, "width", "100");
     			attr(rect30, "height", "100");
-    			add_location(rect30, file$6, 136, 10, 12119);
+    			add_location(rect30, file$5, 136, 10, 12119);
     			attr(g28, "transform", "translate(1200.000000, 1001.000000)");
-    			add_location(g28, file$6, 134, 8, 11874);
+    			add_location(g28, file$5, 134, 8, 11874);
     			attr(polygon28, "id", "Shape");
     			attr(polygon28, "transform", "translate(100.000000, 100.000000) scale(-1, -1) translate(-100.000000, -100.000000) ");
     			attr(polygon28, "points", "0 0 200 200 0 200");
-    			add_location(polygon28, file$6, 139, 10, 12301);
+    			add_location(polygon28, file$5, 139, 10, 12301);
     			attr(g29, "transform", "translate(1200.000000, 801.000000)");
     			attr(g29, "fill", g29_fill_value = ctx.colors[7]);
-    			add_location(g29, file$6, 138, 8, 12221);
+    			add_location(g29, file$5, 138, 8, 12221);
     			attr(polygon29, "id", "Shape");
     			attr(polygon29, "transform", "translate(100.000000, 100.000000) scale(-1, -1) translate(-100.000000, -100.000000) ");
     			attr(polygon29, "points", "0 0 200 200 0 200");
-    			add_location(polygon29, file$6, 142, 10, 12552);
+    			add_location(polygon29, file$5, 142, 10, 12552);
     			attr(g30, "transform", "translate(0.000000, 1.000000)");
     			attr(g30, "fill", g30_fill_value = ctx.colors[7]);
-    			add_location(g30, file$6, 141, 8, 12477);
+    			add_location(g30, file$5, 141, 8, 12477);
     			attr(rect31, "id", "Shape");
     			attr(rect31, "fill", rect31_fill_value = ctx.colors[7]);
     			attr(rect31, "x", "0");
     			attr(rect31, "y", "0");
     			attr(rect31, "width", "200");
     			attr(rect31, "height", "200");
-    			add_location(rect31, file$6, 145, 10, 12878);
+    			add_location(rect31, file$5, 145, 10, 12878);
     			attr(polygon30, "id", "Triangle");
     			attr(polygon30, "fill", polygon30_fill_value = ctx.colors[3]);
     			attr(polygon30, "points", "99.5 0.673233746 168 136 31 136");
-    			add_location(polygon30, file$6, 147, 12, 13039);
+    			add_location(polygon30, file$5, 147, 12, 13039);
     			attr(polygon31, "id", "Triangle");
     			attr(polygon31, "fill", polygon31_fill_value = ctx.colors[0]);
     			attr(polygon31, "points", "50 46.4455223 100 136 0 136");
-    			add_location(polygon31, file$6, 148, 12, 13145);
+    			add_location(polygon31, file$5, 148, 12, 13145);
     			attr(polygon32, "id", "Triangle");
     			attr(polygon32, "fill", polygon32_fill_value = ctx.colors[0]);
     			attr(polygon32, "points", "150 46.4455223 200 136 100 136");
-    			add_location(polygon32, file$6, 149, 12, 13247);
+    			add_location(polygon32, file$5, 149, 12, 13247);
     			attr(g31, "id", "Shape");
     			attr(g31, "transform", "translate(0.000000, 64.000000)");
-    			add_location(g31, file$6, 146, 10, 12969);
+    			add_location(g31, file$5, 146, 10, 12969);
     			attr(g32, "transform", "translate(700.000000, 701.000000) rotate(-180.000000) translate(-700.000000, -701.000000) translate(600.000000, 601.000000)");
-    			add_location(g32, file$6, 144, 8, 12728);
+    			add_location(g32, file$5, 144, 8, 12728);
     			attr(rect32, "id", "Shape");
     			attr(rect32, "fill", rect32_fill_value = ctx.colors[6]);
     			attr(rect32, "x", "0");
     			attr(rect32, "y", "0");
     			attr(rect32, "width", "200");
     			attr(rect32, "height", "200");
-    			add_location(rect32, file$6, 153, 10, 13527);
+    			add_location(rect32, file$5, 153, 10, 13527);
     			attr(polygon33, "id", "Shape");
     			attr(polygon33, "fill", polygon33_fill_value = ctx.colors[5]);
     			attr(polygon33, "points", "99.5 65 168 200 31 200");
-    			add_location(polygon33, file$6, 154, 10, 13618);
+    			add_location(polygon33, file$5, 154, 10, 13618);
     			attr(polygon34, "id", "Triangle");
     			attr(polygon34, "fill", polygon34_fill_value = ctx.colors[1]);
     			attr(polygon34, "points", "50 110 100 200 0 200");
-    			add_location(polygon34, file$6, 155, 10, 13710);
+    			add_location(polygon34, file$5, 155, 10, 13710);
     			attr(polygon35, "id", "Triangle");
     			attr(polygon35, "fill", polygon35_fill_value = ctx.colors[1]);
     			attr(polygon35, "points", "149 110 199 200 99 200");
-    			add_location(polygon35, file$6, 156, 10, 13803);
+    			add_location(polygon35, file$5, 156, 10, 13803);
     			attr(g33, "transform", "translate(100.000000, 1101.000000) rotate(-270.000000) translate(-100.000000, -1101.000000) translate(0.000000, 1001.000000)");
-    			add_location(g33, file$6, 152, 8, 13376);
+    			add_location(g33, file$5, 152, 8, 13376);
     			attr(rect33, "id", "Shape");
     			attr(rect33, "fill", rect33_fill_value = ctx.colors[6]);
     			attr(rect33, "x", "1");
     			attr(rect33, "y", "0");
     			attr(rect33, "width", "200");
     			attr(rect33, "height", "200.004975");
-    			add_location(rect33, file$6, 159, 10, 14059);
+    			add_location(rect33, file$5, 159, 10, 14059);
     			attr(polygon36, "id", "Shape");
     			attr(polygon36, "fill", polygon36_fill_value = ctx.colors[5]);
     			attr(polygon36, "points", "100.9983 64.4983 169.4983 200.5017 32.4983 200.5017");
-    			add_location(polygon36, file$6, 160, 10, 14157);
+    			add_location(polygon36, file$5, 160, 10, 14157);
     			attr(polygon37, "id", "Triangle");
     			attr(polygon37, "points", "50.2736318 0.273631841 100.273632 90.2758819 0.273631841 90.2758819");
-    			add_location(polygon37, file$6, 162, 12, 14368);
+    			add_location(polygon37, file$5, 162, 12, 14368);
     			attr(polygon38, "id", "Triangle");
     			attr(polygon38, "points", "150.273632 0.273631841 200.273632 90.2758819 100.273632 90.2758819");
-    			add_location(polygon38, file$6, 163, 12, 14491);
+    			add_location(polygon38, file$5, 163, 12, 14491);
     			attr(g34, "id", "Shape");
     			attr(g34, "transform", "translate(0.726368, 109.726368)");
     			attr(g34, "fill", g34_fill_value = ctx.colors[1]);
-    			add_location(g34, file$6, 161, 10, 14278);
+    			add_location(g34, file$5, 161, 10, 14278);
     			attr(g35, "transform", "translate(1500.500000, 101.000000) rotate(-90.000000) translate(-1500.500000, -101.000000) translate(1399.500000, 0.500000)");
-    			add_location(g35, file$6, 158, 8, 13909);
+    			add_location(g35, file$5, 158, 8, 13909);
     			attr(rect34, "id", "Shape");
     			attr(rect34, "fill", rect34_fill_value = ctx.colors[1]);
     			attr(rect34, "x", "0");
     			attr(rect34, "y", "0");
     			attr(rect34, "width", "200");
     			attr(rect34, "height", "200");
-    			add_location(rect34, file$6, 167, 10, 14787);
+    			add_location(rect34, file$5, 167, 10, 14787);
     			attr(polygon39, "id", "Shape");
     			attr(polygon39, "fill", polygon39_fill_value = ctx.colors[2]);
     			attr(polygon39, "points", "99.5 63.3165829 168 200 31 200");
-    			add_location(polygon39, file$6, 168, 10, 14878);
+    			add_location(polygon39, file$5, 168, 10, 14878);
     			attr(g36, "transform", "translate(300.000000, 301.000000) rotate(-180.000000) translate(-300.000000, -301.000000) translate(200.000000, 201.000000)");
-    			add_location(g36, file$6, 166, 8, 14637);
+    			add_location(g36, file$5, 166, 8, 14637);
     			attr(polygon40, "id", "Shape");
     			attr(polygon40, "points", "100 0 200 200 0 200");
-    			add_location(polygon40, file$6, 171, 10, 15069);
+    			add_location(polygon40, file$5, 171, 10, 15069);
     			attr(g37, "transform", "translate(800.000000, 1001.000000)");
     			attr(g37, "fill", g37_fill_value = ctx.colors[2]);
-    			add_location(g37, file$6, 170, 8, 14989);
+    			add_location(g37, file$5, 170, 8, 14989);
     			attr(path7, "d", "M100,0 C155.228475,0 200,44.771525 200,100 C200,155.228475 155.228475,200 100,200 C44.771525,200 0,155.228475 0,100 C0,44.771525 44.771525,0 100,0 Z");
     			attr(path7, "id", "Shape");
     			attr(path7, "fill", path7_fill_value = ctx.colors[1]);
-    			add_location(path7, file$6, 174, 10, 15211);
+    			add_location(path7, file$5, 174, 10, 15211);
     			attr(path8, "d", "M100,50 C127.614237,50 150,72.3857625 150,100 C150,127.614237 127.614237,150 100,150 C72.3857625,150 50,127.614237 50,100 C50,72.3857625 72.3857625,50 100,50 Z");
     			attr(path8, "id", "Shape");
     			attr(path8, "fill", path8_fill_value = ctx.colors[3]);
-    			add_location(path8, file$6, 175, 10, 15418);
+    			add_location(path8, file$5, 175, 10, 15418);
     			attr(g38, "transform", "translate(1200.000000, 401.000000)");
-    			add_location(g38, file$6, 173, 8, 15150);
+    			add_location(g38, file$5, 173, 8, 15150);
     			attr(path9, "d", "M100,0 C155.228475,0 200,44.771525 200,100 C200,155.228475 155.228475,200 100,200 C44.771525,200 0,155.228475 0,100 C0,44.771525 44.771525,0 100,0 Z");
     			attr(path9, "id", "Shape");
     			attr(path9, "fill", path9_fill_value = ctx.colors[0]);
-    			add_location(path9, file$6, 178, 10, 15707);
+    			add_location(path9, file$5, 178, 10, 15707);
     			attr(path10, "d", "M100,50 C127.614237,50 150,72.3857625 150,100 C150,127.614237 127.614237,150 100,150 C72.3857625,150 50,127.614237 50,100 C50,72.3857625 72.3857625,50 100,50 Z");
     			attr(path10, "id", "Shape");
     			attr(path10, "fill", path10_fill_value = ctx.colors[7]);
-    			add_location(path10, file$6, 179, 10, 15914);
+    			add_location(path10, file$5, 179, 10, 15914);
     			attr(g39, "transform", "translate(600.000000, 201.000000)");
-    			add_location(g39, file$6, 177, 8, 15647);
+    			add_location(g39, file$5, 177, 8, 15647);
     			attr(path11, "d", "M100,-1.8189894e-12 C155.228475,-1.8189894e-12 200,44.771525 200,100 C200,155.228475 155.228475,200 100,200 C44.771525,200 0,155.228475 0,100 C0,44.771525 44.771525,-1.8189894e-12 100,-1.8189894e-12 Z");
     			attr(path11, "id", "Shape");
-    			add_location(path11, file$6, 182, 10, 16224);
+    			add_location(path11, file$5, 182, 10, 16224);
     			attr(g40, "transform", "translate(1000.000000, 1001.000000)");
     			attr(g40, "fill", g40_fill_value = ctx.colors[5]);
-    			add_location(g40, file$6, 181, 8, 16143);
+    			add_location(g40, file$5, 181, 8, 16143);
     			attr(path12, "d", "M100,0 C155.228475,0 200,44.771525 200,100 C200,155.228475 155.228475,200 100,200 C44.771525,200 0,155.228475 0,100 C0,44.771525 44.771525,0 100,0 Z");
     			attr(path12, "id", "Shape");
     			attr(path12, "fill", path12_fill_value = ctx.colors[2]);
-    			add_location(path12, file$6, 185, 10, 16536);
+    			add_location(path12, file$5, 185, 10, 16536);
     			attr(rect35, "id", "Shape");
     			attr(rect35, "fill", rect35_fill_value = ctx.colors[3]);
     			attr(rect35, "x", "100");
     			attr(rect35, "y", "100");
     			attr(rect35, "width", "100");
     			attr(rect35, "height", "100");
-    			add_location(rect35, file$6, 186, 10, 16743);
+    			add_location(rect35, file$5, 186, 10, 16743);
     			attr(g41, "transform", "translate(1000.000000, 201.000000)");
-    			add_location(g41, file$6, 184, 8, 16475);
+    			add_location(g41, file$5, 184, 8, 16475);
     			attr(path13, "d", "M100,0 C155.228475,0 200,44.771525 200,100 C200,155.228475 155.228475,200 100,200 C44.771525,200 0,155.228475 0,100 C0,44.771525 44.771525,0 100,0 Z");
     			attr(path13, "id", "Shape");
     			attr(path13, "fill", path13_fill_value = ctx.colors[1]);
-    			add_location(path13, file$6, 189, 10, 16910);
+    			add_location(path13, file$5, 189, 10, 16910);
     			attr(rect36, "id", "Shape");
     			attr(rect36, "fill", rect36_fill_value = ctx.colors[7]);
     			attr(rect36, "x", "100");
     			attr(rect36, "y", "100");
     			attr(rect36, "width", "100");
     			attr(rect36, "height", "100");
-    			add_location(rect36, file$6, 190, 10, 17117);
+    			add_location(rect36, file$5, 190, 10, 17117);
     			attr(g42, "transform", "translate(200.000000, 1001.000000)");
-    			add_location(g42, file$6, 188, 8, 16849);
+    			add_location(g42, file$5, 188, 8, 16849);
     			attr(polygon41, "id", "Shape");
     			attr(polygon41, "transform", "translate(50.000000, 50.000000) scale(-1, -1) translate(-50.000000, -50.000000) ");
     			attr(polygon41, "points", "0 0 100 100 0 100");
-    			add_location(polygon41, file$6, 193, 10, 17302);
+    			add_location(polygon41, file$5, 193, 10, 17302);
     			attr(polygon42, "id", "Shape");
     			attr(polygon42, "transform", "translate(150.000000, 150.000000) scale(-1, -1) rotate(-180.000000) translate(-150.000000, -150.000000) ");
     			attr(polygon42, "points", "100 100 200 200 100 200");
-    			add_location(polygon42, file$6, 194, 10, 17463);
+    			add_location(polygon42, file$5, 194, 10, 17463);
     			attr(polygon43, "id", "Shape");
     			attr(polygon43, "transform", "translate(50.000000, 150.000000) scale(-1, -1) rotate(-90.000000) translate(-50.000000, -150.000000) ");
     			attr(polygon43, "points", "0 100 100 200 0 200");
-    			add_location(polygon43, file$6, 195, 10, 17654);
+    			add_location(polygon43, file$5, 195, 10, 17654);
     			attr(polygon44, "id", "Shape");
     			attr(polygon44, "transform", "translate(150.000000, 50.000000) scale(-1, -1) rotate(-270.000000) translate(-150.000000, -50.000000) ");
     			attr(polygon44, "points", "100 0 200 100 100 100");
-    			add_location(polygon44, file$6, 196, 10, 17838);
+    			add_location(polygon44, file$5, 196, 10, 17838);
     			attr(g43, "transform", "translate(800.000000, 201.000000)");
     			attr(g43, "fill", g43_fill_value = ctx.colors[0]);
-    			add_location(g43, file$6, 192, 8, 17223);
+    			add_location(g43, file$5, 192, 8, 17223);
     			attr(polygon45, "id", "Shape");
     			attr(polygon45, "transform", "translate(50.000000, 50.000000) scale(-1, -1) translate(-50.000000, -50.000000) ");
     			attr(polygon45, "points", "0 0 100 100 0 100");
-    			add_location(polygon45, file$6, 199, 10, 18116);
+    			add_location(polygon45, file$5, 199, 10, 18116);
     			attr(polygon46, "id", "Shape");
     			attr(polygon46, "transform", "translate(150.000000, 150.000000) scale(-1, -1) rotate(-180.000000) translate(-150.000000, -150.000000) ");
     			attr(polygon46, "points", "100 100 200 200 100 200");
-    			add_location(polygon46, file$6, 200, 10, 18277);
+    			add_location(polygon46, file$5, 200, 10, 18277);
     			attr(polygon47, "id", "Shape");
     			attr(polygon47, "transform", "translate(50.000000, 150.000000) scale(-1, -1) rotate(-90.000000) translate(-50.000000, -150.000000) ");
     			attr(polygon47, "points", "0 100 100 200 0 200");
-    			add_location(polygon47, file$6, 201, 10, 18468);
+    			add_location(polygon47, file$5, 201, 10, 18468);
     			attr(polygon48, "id", "Shape");
     			attr(polygon48, "transform", "translate(150.000000, 50.000000) scale(-1, -1) rotate(-270.000000) translate(-150.000000, -50.000000) ");
     			attr(polygon48, "points", "100 0 200 100 100 100");
-    			add_location(polygon48, file$6, 202, 10, 18652);
+    			add_location(polygon48, file$5, 202, 10, 18652);
     			attr(g44, "transform", "translate(1400.000000, 401.000000)");
     			attr(g44, "fill", g44_fill_value = ctx.colors[5]);
-    			add_location(g44, file$6, 198, 8, 18036);
+    			add_location(g44, file$5, 198, 8, 18036);
     			attr(polygon49, "id", "Shape");
     			attr(polygon49, "transform", "translate(50.000000, 50.000000) scale(-1, -1) translate(-50.000000, -50.000000) ");
     			attr(polygon49, "points", "0 0 100 100 0 100");
-    			add_location(polygon49, file$6, 205, 10, 18929);
+    			add_location(polygon49, file$5, 205, 10, 18929);
     			attr(polygon50, "id", "Shape");
     			attr(polygon50, "transform", "translate(50.000000, 50.000000) scale(-1, -1) rotate(-90.000000) translate(-50.000000, -50.000000) ");
     			attr(polygon50, "points", "0 0 100 100 0 100");
-    			add_location(polygon50, file$6, 206, 10, 19090);
+    			add_location(polygon50, file$5, 206, 10, 19090);
     			attr(polygon51, "id", "Shape");
     			attr(polygon51, "transform", "translate(150.000000, 150.000000) scale(-1, -1) rotate(-90.000000) translate(-150.000000, -150.000000) ");
     			attr(polygon51, "points", "100 100 200 200 100 200");
-    			add_location(polygon51, file$6, 207, 10, 19270);
+    			add_location(polygon51, file$5, 207, 10, 19270);
     			attr(polygon52, "id", "Shape");
     			attr(polygon52, "transform", "translate(150.000000, 150.000000) scale(-1, -1) translate(-150.000000, -150.000000) ");
     			attr(polygon52, "points", "100 100 200 200 100 200");
-    			add_location(polygon52, file$6, 208, 10, 19460);
+    			add_location(polygon52, file$5, 208, 10, 19460);
     			attr(g45, "transform", "translate(400.000000, 601.000000)");
     			attr(g45, "fill", g45_fill_value = ctx.colors[2]);
-    			add_location(g45, file$6, 204, 8, 18850);
+    			add_location(g45, file$5, 204, 8, 18850);
     			attr(polygon53, "id", "Shape");
     			attr(polygon53, "fill", polygon53_fill_value = ctx.colors[2]);
     			attr(polygon53, "transform", "translate(50.000000, 50.000000) scale(-1, -1) translate(-50.000000, -50.000000) ");
     			attr(polygon53, "points", "0 0 100 100 0 100");
-    			add_location(polygon53, file$6, 211, 10, 19703);
+    			add_location(polygon53, file$5, 211, 10, 19703);
     			attr(polygon54, "id", "Shape");
     			attr(polygon54, "fill", polygon54_fill_value = ctx.colors[2]);
     			attr(polygon54, "transform", "translate(50.000000, 50.000000) scale(-1, -1) rotate(-90.000000) translate(-50.000000, -50.000000) ");
     			attr(polygon54, "points", "0 0 100 100 0 100");
-    			add_location(polygon54, file$6, 212, 10, 19883);
+    			add_location(polygon54, file$5, 212, 10, 19883);
     			attr(polygon55, "id", "Shape");
     			attr(polygon55, "fill", polygon55_fill_value = ctx.colors[5]);
     			attr(polygon55, "transform", "translate(150.000000, 150.000000) scale(-1, -1) rotate(-90.000000) translate(-150.000000, -150.000000) ");
     			attr(polygon55, "points", "100 100 200 200 100 200");
-    			add_location(polygon55, file$6, 213, 10, 20082);
+    			add_location(polygon55, file$5, 213, 10, 20082);
     			attr(polygon56, "id", "Shape");
     			attr(polygon56, "fill", polygon56_fill_value = ctx.colors[5]);
     			attr(polygon56, "transform", "translate(150.000000, 150.000000) scale(-1, -1) translate(-150.000000, -150.000000) ");
     			attr(polygon56, "points", "100 100 200 200 100 200");
-    			add_location(polygon56, file$6, 214, 10, 20291);
+    			add_location(polygon56, file$5, 214, 10, 20291);
     			attr(g46, "transform", "translate(1200.000000, 201.000000)");
-    			add_location(g46, file$6, 210, 8, 19642);
+    			add_location(g46, file$5, 210, 8, 19642);
     			attr(g47, "transform", "translate(0.000000, -1.000000)");
     			attr(g47, "id", "Module");
-    			add_location(g47, file$6, 13, 6, 476);
+    			add_location(g47, file$5, 13, 6, 476);
     			attr(g48, "id", "Kander");
-    			add_location(g48, file$6, 12, 4, 454);
+    			add_location(g48, file$5, 12, 4, 454);
     			attr(g49, "id", "Patterns");
     			attr(g49, "stroke", "none");
     			attr(g49, "stroke-width", "1");
     			attr(g49, "fill", "none");
     			attr(g49, "fill-rule", "evenodd");
-    			add_location(g49, file$6, 11, 2, 369);
+    			add_location(g49, file$5, 11, 2, 369);
     			attr(svg, "viewBox", "0 0 1600 1200");
     			attr(svg, "version", "1.1");
     			attr(svg, "xmlns", "http://www.w3.org/2000/svg");
     			attr(svg, "xmlns:xlink", "http://www.w3.org/1999/xlink");
     			attr(svg, "style", ctx.styles);
-    			add_location(svg, file$6, 10, 0, 228);
+    			add_location(svg, file$5, 10, 0, 228);
     		},
 
     		l: function claim(nodes) {
@@ -23808,7 +22867,7 @@ var app = (function () {
     	};
     }
 
-    function instance$7($$self, $$props, $$invalidate) {
+    function instance$5($$self, $$props, $$invalidate) {
 
       let { colors, styles } = $$props;
 
@@ -23828,7 +22887,7 @@ var app = (function () {
     class Kander extends SvelteComponentDev {
     	constructor(options) {
     		super(options);
-    		init(this, options, instance$7, create_fragment$7, safe_not_equal, ["colors", "styles"]);
+    		init(this, options, instance$5, create_fragment$5, safe_not_equal, ["colors", "styles"]);
 
     		const { ctx } = this.$$;
     		const props = options.props || {};
@@ -23859,9 +22918,9 @@ var app = (function () {
 
     /* src/patterns/Linth.svelte generated by Svelte v3.6.7 */
 
-    const file$7 = "src/patterns/Linth.svelte";
+    const file$6 = "src/patterns/Linth.svelte";
 
-    function create_fragment$8(ctx) {
+    function create_fragment$6(ctx) {
     	var svg, defs, linearGradient, stop0, stop0_stop_color_value, stop1, stop1_stop_color_value, g49, g48, g47, g0, circle0, circle0_fill_value, circle1, circle1_fill_value, circle2, circle2_fill_value, g1, circle3, circle3_fill_value, circle4, circle4_fill_value, circle5, circle5_fill_value, g2, circle6, circle6_fill_value, circle7, circle7_fill_value, circle8, circle8_fill_value, g3, path0, path0_fill_value, path1, path1_fill_value, path2, path2_fill_value, path3, path3_fill_value, g4, rect0, rect0_fill_value, polygon0, polygon0_fill_value, path4, path4_fill_value, path5, path5_fill_value, path6, path6_fill_value, path7, path7_fill_value, g6, g5, polygon1, polygon1_fill_value, polygon2, polygon2_fill_value, g8, g7, path8, path8_fill_value, path9, path9_fill_value, path10, path10_fill_value, path11, path11_fill_value, g10, g9, path12, path12_fill_value, path13, path13_fill_value, path14, path14_fill_value, g12, g11, path15, path15_fill_value, path16, path16_fill_value, path17, path17_fill_value, g14, g13, path18, path18_fill_value, path19, path19_fill_value, path20, path20_fill_value, path21, path21_fill_value, g15, ellipse0, ellipse0_fill_value, path22, path22_fill_value, path23, path23_fill_value, path24, path24_fill_value, path25, path25_fill_value, g16, circle9, circle9_fill_value, path26, path26_fill_value, path27, path27_fill_value, path28, path28_fill_value, path29, path29_fill_value, g17, circle10, circle10_fill_value, path30, path30_fill_value, path31, path31_fill_value, path32, path32_fill_value, path33, path33_fill_value, g18, path34, path34_fill_value, path35, path35_fill_value, path36, path36_fill_value, g19, path37, path37_fill_value, path38, path38_fill_value, path39, path39_fill_value, g20, path40, path40_fill_value, path41, path41_fill_value, path42, path42_fill_value, g21, path43, path43_fill_value, path44, path44_fill_value, path45, path45_fill_value, g22, path46, path46_fill_value, path47, path47_fill_value, path48, path48_fill_value, path49, path49_fill_value, g23, path50, path50_fill_value, path51, path51_fill_value, path52, path52_fill_value, path53, path53_fill_value, g24, path54, path54_fill_value, path55, path55_fill_value, path56, path56_fill_value, path57, path57_fill_value, g25, path58, path58_fill_value, path59, path59_fill_value, path60, path60_fill_value, path61, path61_fill_value, g26, path62, path62_fill_value, path63, path63_fill_value, path64, path64_fill_value, path65, path65_fill_value, g27, rect1, rect1_fill_value, polygon3, polygon3_fill_value, path66, path66_fill_value, path67, path67_fill_value, path68, path68_fill_value, path69, path69_fill_value, g29, g28, polygon4, polygon4_fill_value, polygon5, polygon5_fill_value, g31, g30, rect2, rect2_fill_value, rect3, rect3_fill_value, rect4, rect4_fill_value, rect5, rect5_fill_value, rect6, rect6_fill_value, rect7, rect7_fill_value, rect8, rect8_fill_value, rect9, rect9_fill_value, g33, g32, polygon6, polygon6_fill_value, polygon7, polygon7_fill_value, g35, g34, path70, path70_fill_value, path71, path71_fill_value, path72, path72_fill_value, path73, path73_fill_value, g37, g36, path74, path74_fill_value, path75, path75_fill_value, path76, path76_fill_value, g39, g38, path77, path77_fill_value, path78, path78_fill_value, path79, path79_fill_value, g41, g40, path80, path80_fill_value, path81, path81_fill_value, path82, path82_fill_value, path83, path83_fill_value, g42, ellipse1, ellipse1_fill_value, path84, path84_fill_value, path85, path85_fill_value, path86, path86_fill_value, path87, path87_fill_value, g43, polygon8, polygon8_fill_value, polygon9, polygon9_fill_value, polygon10, polygon10_fill_value, g44, polygon11, polygon11_fill_value, polygon12, polygon12_fill_value, polygon13, polygon13_fill_value, g45, polygon14, polygon14_fill_value, polygon15, polygon15_fill_value, polygon16, polygon16_fill_value, g46, polygon17, polygon17_fill_value, polygon18, polygon18_fill_value, polygon19, polygon19_fill_value;
 
     	return {
@@ -24054,688 +23113,688 @@ var app = (function () {
     			polygon19 = svg_element("polygon");
     			attr(stop0, "stop-color", stop0_stop_color_value = ctx.colors[0]);
     			attr(stop0, "offset", "0%");
-    			add_location(stop0, file$7, 13, 6, 474);
+    			add_location(stop0, file$6, 13, 6, 474);
     			attr(stop1, "stop-color", stop1_stop_color_value = ctx.colors[1]);
     			attr(stop1, "offset", "100%");
-    			add_location(stop1, file$7, 14, 6, 531);
+    			add_location(stop1, file$6, 14, 6, 531);
     			attr(linearGradient, "x1", "50%");
     			attr(linearGradient, "y1", "100%");
     			attr(linearGradient, "x2", "50%");
     			attr(linearGradient, "y2", "1.14423775e-15%");
     			attr(linearGradient, "id", "linearGradient-1");
-    			add_location(linearGradient, file$7, 12, 4, 380);
-    			add_location(defs, file$7, 11, 2, 369);
+    			add_location(linearGradient, file$6, 12, 4, 380);
+    			add_location(defs, file$6, 11, 2, 369);
     			attr(circle0, "id", "Shape");
     			attr(circle0, "fill", circle0_fill_value = ctx.colors[2]);
     			attr(circle0, "cx", "120");
     			attr(circle0, "cy", "120");
     			attr(circle0, "r", "120");
-    			add_location(circle0, file$7, 21, 10, 871);
+    			add_location(circle0, file$6, 21, 10, 871);
     			attr(circle1, "id", "Shape");
     			attr(circle1, "fill", circle1_fill_value = ctx.colors[3]);
     			attr(circle1, "cx", "120.597015");
     			attr(circle1, "cy", "120.597015");
     			attr(circle1, "r", "70.4477612");
-    			add_location(circle1, file$7, 22, 10, 955);
+    			add_location(circle1, file$6, 22, 10, 955);
     			attr(circle2, "id", "Shape");
     			attr(circle2, "fill", circle2_fill_value = ctx.colors[4]);
     			attr(circle2, "cx", "120.597015");
     			attr(circle2, "cy", "120.597015");
     			attr(circle2, "r", "37.0149254");
-    			add_location(circle2, file$7, 23, 10, 1060);
+    			add_location(circle2, file$6, 23, 10, 1060);
     			attr(g0, "transform", "translate(240.600000, 241.000000)");
-    			add_location(g0, file$7, 20, 8, 811);
+    			add_location(g0, file$6, 20, 8, 811);
     			attr(circle3, "id", "Shape");
     			attr(circle3, "fill", circle3_fill_value = ctx.colors[5]);
     			attr(circle3, "cx", "120");
     			attr(circle3, "cy", "120");
     			attr(circle3, "r", "120");
-    			add_location(circle3, file$7, 26, 10, 1236);
+    			add_location(circle3, file$6, 26, 10, 1236);
     			attr(circle4, "id", "Shape");
     			attr(circle4, "fill", circle4_fill_value = ctx.colors[3]);
     			attr(circle4, "cx", "120.597015");
     			attr(circle4, "cy", "120.597015");
     			attr(circle4, "r", "70.4477612");
-    			add_location(circle4, file$7, 27, 10, 1320);
+    			add_location(circle4, file$6, 27, 10, 1320);
     			attr(circle5, "id", "Shape");
     			attr(circle5, "fill", circle5_fill_value = ctx.colors[6]);
     			attr(circle5, "cx", "120.597015");
     			attr(circle5, "cy", "120.597015");
     			attr(circle5, "r", "37.0149254");
-    			add_location(circle5, file$7, 28, 10, 1425);
+    			add_location(circle5, file$6, 28, 10, 1425);
     			attr(g1, "transform", "translate(720.000000, 241.000000)");
-    			add_location(g1, file$7, 25, 8, 1176);
+    			add_location(g1, file$6, 25, 8, 1176);
     			attr(circle6, "id", "Shape");
     			attr(circle6, "fill", circle6_fill_value = ctx.colors[5]);
     			attr(circle6, "cx", "120");
     			attr(circle6, "cy", "120");
     			attr(circle6, "r", "120");
-    			add_location(circle6, file$7, 31, 10, 1707);
+    			add_location(circle6, file$6, 31, 10, 1707);
     			attr(circle7, "id", "Shape");
     			attr(circle7, "fill", circle7_fill_value = ctx.colors[3]);
     			attr(circle7, "cx", "120.597015");
     			attr(circle7, "cy", "120.597015");
     			attr(circle7, "r", "70.4477612");
-    			add_location(circle7, file$7, 32, 10, 1791);
+    			add_location(circle7, file$6, 32, 10, 1791);
     			attr(circle8, "id", "Shape");
     			attr(circle8, "fill", circle8_fill_value = ctx.colors[6]);
     			attr(circle8, "cx", "120.597015");
     			attr(circle8, "cy", "120.597015");
     			attr(circle8, "r", "37.0149254");
-    			add_location(circle8, file$7, 33, 10, 1896);
+    			add_location(circle8, file$6, 33, 10, 1896);
     			attr(g2, "transform", "translate(1320.000000, 841.000000) scale(-1, 1) rotate(-180.000000) translate(-1320.000000, -841.000000) translate(1200.000000, 721.000000)");
-    			add_location(g2, file$7, 30, 8, 1541);
+    			add_location(g2, file$6, 30, 8, 1541);
     			attr(path0, "d", "M180.737101,121.769042 C213.30426,121.769042 239.70516,148.169941 239.70516,180.737101 C239.70516,213.30426 213.30426,239.70516 180.737101,239.70516 C148.169941,239.70516 121.769042,213.30426 121.769042,180.737101 C121.769042,148.169941 148.169941,121.769042 180.737101,121.769042 Z");
     			attr(path0, "id", "Shape");
     			attr(path0, "fill", path0_fill_value = ctx.colors[2]);
-    			add_location(path0, file$7, 36, 10, 2177);
+    			add_location(path0, file$6, 36, 10, 2177);
     			attr(path1, "d", "M180.737101,0.294840295 C213.30426,0.294840295 239.70516,26.6957396 239.70516,59.2628993 C239.70516,91.830059 213.30426,118.230958 180.737101,118.230958 C148.169941,118.230958 121.769042,91.830059 121.769042,59.2628993 C121.769042,26.6957396 148.169941,0.294840295 180.737101,0.294840295 Z");
     			attr(path1, "id", "Shape");
     			attr(path1, "fill", path1_fill_value = ctx.colors[5]);
-    			add_location(path1, file$7, 37, 10, 2518);
+    			add_location(path1, file$6, 37, 10, 2518);
     			attr(path2, "d", "M61.6216216,121.769042 C94.1887813,121.769042 120.589681,148.169941 120.589681,180.737101 C120.589681,213.30426 94.1887813,239.70516 61.6216216,239.70516 C29.0544619,239.70516 2.65356265,213.30426 2.65356265,180.737101 C2.65356265,148.169941 29.0544619,121.769042 61.6216216,121.769042 Z");
     			attr(path2, "id", "Shape");
     			attr(path2, "fill", path2_fill_value = ctx.colors[5]);
-    			add_location(path2, file$7, 38, 10, 2866);
+    			add_location(path2, file$6, 38, 10, 2866);
     			attr(path3, "d", "M0,0 L60.1474201,0 C93.365923,0 120.29484,27.0609218 120.29484,60.4422604 C120.29484,93.8235991 93.365923,120.884521 60.1474201,120.884521 C26.9289173,120.884521 0,93.8235991 0,60.4422604 L0,0 Z");
     			attr(path3, "id", "Shape");
     			attr(path3, "fill", path3_fill_value = ctx.colors[4]);
-    			add_location(path3, file$7, 39, 10, 3212);
+    			add_location(path3, file$6, 39, 10, 3212);
     			attr(g3, "transform", "translate(1080.000000, 361.000000) scale(-1, 1) rotate(-270.000000) translate(-1080.000000, -361.000000) translate(960.000000, 241.000000)");
-    			add_location(g3, file$7, 35, 8, 2012);
+    			add_location(g3, file$6, 35, 8, 2012);
     			attr(rect0, "id", "Shape");
     			attr(rect0, "fill", rect0_fill_value = ctx.colors[6]);
     			attr(rect0, "x", "35.5783784");
     			attr(rect0, "y", "36.168059");
     			attr(rect0, "width", "122.653563");
     			attr(rect0, "height", "122.653563");
-    			add_location(rect0, file$7, 42, 10, 3622);
+    			add_location(rect0, file$6, 42, 10, 3622);
     			attr(polygon0, "id", "Shape");
     			attr(polygon0, "fill", polygon0_fill_value = ctx.colors[4]);
     			attr(polygon0, "transform", "translate(97.803015, 97.803015) rotate(-315.000000) translate(-97.803015, -97.803015) ");
     			attr(polygon0, "points", "60.4160804 60.4160804 135.18995 60.4160804 135.18995 135.18995 60.4160804 135.18995");
-    			add_location(polygon0, file$7, 43, 10, 3744);
+    			add_location(polygon0, file$6, 43, 10, 3744);
     			attr(path4, "d", "M0.197542998,0.197542998 L72.7282555,0.197542998 C72.7282555,40.2551494 40.2551494,72.7282555 0.197542998,72.7282555 L0.197542998,0.197542998 Z");
     			attr(path4, "id", "Shape");
     			attr(path4, "fill", path4_fill_value = ctx.colors[2]);
-    			add_location(path4, file$7, 44, 10, 3996);
+    			add_location(path4, file$6, 44, 10, 3996);
     			attr(path5, "d", "M0.197542998,194.202457 L0.197542998,121.671744 C40.2551494,121.671744 72.7282555,154.144851 72.7282555,194.202457 L0.197542998,194.202457 Z");
     			attr(path5, "id", "Shape");
     			attr(path5, "fill", path5_fill_value = ctx.colors[2]);
-    			add_location(path5, file$7, 45, 10, 4198);
+    			add_location(path5, file$6, 45, 10, 4198);
     			attr(path6, "d", "M192.433415,194.202457 L119.902703,194.202457 C119.902703,154.144851 152.375809,121.671744 192.433415,121.671744 L192.433415,194.202457 Z");
     			attr(path6, "id", "Shape");
     			attr(path6, "fill", path6_fill_value = ctx.colors[2]);
-    			add_location(path6, file$7, 46, 10, 4397);
+    			add_location(path6, file$6, 46, 10, 4397);
     			attr(path7, "d", "M192.433415,0.197542998 L192.433415,72.7282555 C152.375809,72.7282555 119.902703,40.2551494 119.902703,0.197542998 L192.433415,0.197542998 Z");
     			attr(path7, "id", "Shape");
     			attr(path7, "fill", path7_fill_value = ctx.colors[2]);
-    			add_location(path7, file$7, 47, 10, 4593);
+    			add_location(path7, file$6, 47, 10, 4593);
     			attr(g4, "transform", "translate(1320.900000, 361.000000) scale(-1, 1) translate(-1320.900000, -361.000000) translate(1224.600000, 263.800000)");
-    			add_location(g4, file$7, 41, 8, 3476);
+    			add_location(g4, file$6, 41, 8, 3476);
     			attr(polygon1, "fill", polygon1_fill_value = ctx.colors[3]);
     			attr(polygon1, "transform", "translate(85.583922, 85.673323) rotate(45.000000) translate(-85.583922, -85.673323) ");
     			attr(polygon1, "points", "25.3460718 25.435472 145.777823 25.4794224 145.821773 145.911173 25.3900222 145.867223");
-    			add_location(polygon1, file$7, 51, 12, 5021);
+    			add_location(polygon1, file$6, 51, 12, 5021);
     			attr(polygon2, "fill", polygon2_fill_value = ctx.colors[4]);
     			attr(polygon2, "points", "55.2741547 55.3414243 115.89369 55.3414243 115.89369 116.005221 55.2741547 116.005221");
-    			add_location(polygon2, file$7, 52, 12, 5265);
+    			add_location(polygon2, file$6, 52, 12, 5265);
     			attr(g5, "id", "Shape");
     			attr(g5, "transform", "translate(0.000000, -0.000000)");
-    			add_location(g5, file$7, 50, 10, 4951);
+    			add_location(g5, file$6, 50, 10, 4951);
     			attr(g6, "transform", "translate(1560.900000, 1080.700000) scale(-1, 1) translate(-1560.900000, -1080.700000) translate(1475.400000, 995.200000)");
-    			add_location(g6, file$7, 49, 8, 4803);
+    			add_location(g6, file$6, 49, 8, 4803);
     			attr(path8, "d", "M120,1.03250741e-14 C186.27417,1.03250741e-14 240,53.72583 240,120 C240,186.27417 186.27417,240 120,240 L-2.84217094e-14,240 L-2.84217094e-14,120 C-2.84217094e-14,53.72583 53.72583,1.03250741e-14 120,1.03250741e-14 Z");
     			attr(path8, "fill", path8_fill_value = ctx.colors[6]);
-    			add_location(path8, file$7, 57, 12, 5667);
+    			add_location(path8, file$6, 57, 12, 5667);
     			attr(path9, "d", "M71.758794,96.4824121 C111.390082,96.4824121 143.517588,128.609918 143.517588,168.241206 C143.517588,207.872494 111.390082,240 71.758794,240 L0,240 L0,168.241206 C0,128.609918 32.1275064,96.4824121 71.758794,96.4824121 Z");
     			attr(path9, "fill", path9_fill_value = ctx.colors[3]);
-    			add_location(path9, file$7, 58, 12, 5933);
+    			add_location(path9, file$6, 58, 12, 5933);
     			attr(path10, "d", "M120,45.5276382 C160.463878,45.5276382 193.266332,78.3300922 193.266332,118.79397 C193.266332,159.257848 160.463878,192.060302 120,192.060302 C79.5361223,192.060302 46.7336683,159.257848 46.7336683,118.79397 C46.7336683,78.3300922 79.5361223,45.5276382 120,45.5276382 Z");
     			attr(path10, "fill", path10_fill_value = ctx.colors[4]);
-    			add_location(path10, file$7, 59, 12, 6203);
+    			add_location(path10, file$6, 59, 12, 6203);
     			attr(path11, "d", "M120,75.9045226 C143.687188,75.9045226 162.889447,95.1067822 162.889447,118.79397 C162.889447,142.481157 143.687188,161.683417 120,161.683417 C96.3128124,161.683417 77.1105528,142.481157 77.1105528,118.79397 C77.1105528,95.1067822 96.3128124,75.9045226 120,75.9045226 Z");
     			attr(path11, "fill", path11_fill_value = ctx.colors[3]);
-    			add_location(path11, file$7, 60, 12, 6522);
+    			add_location(path11, file$6, 60, 12, 6522);
     			attr(g7, "id", "Shape");
     			attr(g7, "transform", "translate(0.000000, 0.000000)");
-    			add_location(g7, file$7, 56, 10, 5598);
+    			add_location(g7, file$6, 56, 10, 5598);
     			attr(g8, "transform", "translate(1080.000000, 121.000000) scale(-1, 1) rotate(-180.000000) translate(-1080.000000, -121.000000) translate(960.000000, 1.000000)");
-    			add_location(g8, file$7, 55, 8, 5435);
+    			add_location(g8, file$6, 55, 8, 5435);
     			attr(path12, "d", "M120.603015,1.03250741e-14 L240,1.03250741e-14 L240,119.396985 C240,186.004191 186.004191,240 119.396985,240 L-2.84217094e-14,240 L-2.84217094e-14,120.603015 C-2.84217094e-14,53.9958091 53.9958091,1.03250741e-14 120.603015,1.03250741e-14 Z");
     			attr(path12, "fill", path12_fill_value = ctx.colors[4]);
-    			add_location(path12, file$7, 65, 12, 7056);
+    			add_location(path12, file$6, 65, 12, 7056);
     			attr(path13, "d", "M120,51.8592965 C158.965216,51.8592965 190.552764,83.4468448 190.552764,122.41206 C190.552764,161.377276 158.965216,192.964824 120,192.964824 L49.4472362,192.964824 L49.4472362,122.41206 C49.4472362,83.4468448 81.0347845,51.8592965 120,51.8592965 Z");
     			attr(path13, "fill", path13_fill_value = ctx.colors[3]);
-    			add_location(path13, file$7, 66, 12, 7345);
+    			add_location(path13, file$6, 66, 12, 7345);
     			attr(path14, "d", "M192.603015,0 L240.603015,0 L240.603015,48 C240.603015,87.764502 208.367517,120 168.603015,120 L120.603015,120 L120.603015,72 C120.603015,32.235498 152.838513,0 192.603015,0 Z");
     			attr(path14, "fill", path14_fill_value = ctx.colors[5]);
-    			add_location(path14, file$7, 67, 12, 7643);
+    			add_location(path14, file$6, 67, 12, 7643);
     			attr(g9, "id", "Shape");
-    			add_location(g9, file$7, 64, 10, 7029);
+    			add_location(g9, file$6, 64, 10, 7029);
     			attr(g10, "transform", "translate(1320.000000, 121.600000) scale(-1, 1) rotate(-270.000000) translate(-1320.000000, -121.600000) translate(1199.400000, 1.600000)");
-    			add_location(g10, file$7, 63, 8, 6865);
+    			add_location(g10, file$6, 63, 8, 6865);
     			attr(path15, "d", "M120.603015,1.03250741e-14 L240,1.03250741e-14 L240,119.396985 C240,186.004191 186.004191,240 119.396985,240 L-2.84217094e-14,240 L-2.84217094e-14,120.603015 C-2.84217094e-14,53.9958091 53.9958091,1.03250741e-14 120.603015,1.03250741e-14 Z");
     			attr(path15, "fill", path15_fill_value = ctx.colors[2]);
-    			add_location(path15, file$7, 72, 12, 8070);
+    			add_location(path15, file$6, 72, 12, 8070);
     			attr(path16, "d", "M120,51.8592965 C158.965216,51.8592965 190.552764,83.4468448 190.552764,122.41206 C190.552764,161.377276 158.965216,192.964824 120,192.964824 L49.4472362,192.964824 L49.4472362,122.41206 C49.4472362,83.4468448 81.0347845,51.8592965 120,51.8592965 Z");
     			attr(path16, "fill", path16_fill_value = ctx.colors[3]);
-    			add_location(path16, file$7, 73, 12, 8359);
+    			add_location(path16, file$6, 73, 12, 8359);
     			attr(path17, "d", "M192.603015,0 L240.603015,0 L240.603015,48 C240.603015,87.764502 208.367517,120 168.603015,120 L120.603015,120 L120.603015,72 C120.603015,32.235498 152.838513,0 192.603015,0 Z");
     			attr(path17, "fill", path17_fill_value = ctx.colors[5]);
-    			add_location(path17, file$7, 74, 12, 8657);
+    			add_location(path17, file$6, 74, 12, 8657);
     			attr(g11, "id", "Shape");
-    			add_location(g11, file$7, 71, 10, 8043);
+    			add_location(g11, file$6, 71, 10, 8043);
     			attr(g12, "transform", "translate(1560.000000, 121.600000) rotate(-270.000000) translate(-1560.000000, -121.600000) translate(1439.400000, 1.600000)");
-    			add_location(g12, file$7, 70, 8, 7892);
+    			add_location(g12, file$6, 70, 8, 7892);
     			attr(path18, "d", "M120,1.03250741e-14 C186.27417,1.03250741e-14 240,53.72583 240,120 C240,186.27417 186.27417,240 120,240 L-2.84217094e-14,240 L-2.84217094e-14,120 C-2.84217094e-14,53.72583 53.72583,1.03250741e-14 120,1.03250741e-14 Z");
     			attr(path18, "fill", path18_fill_value = ctx.colors[6]);
-    			add_location(path18, file$7, 79, 12, 9079);
+    			add_location(path18, file$6, 79, 12, 9079);
     			attr(path19, "d", "M71.758794,96.4824121 C111.390082,96.4824121 143.517588,128.609918 143.517588,168.241206 C143.517588,207.872494 111.390082,240 71.758794,240 L0,240 L0,168.241206 C-4.85343295e-15,128.609918 32.1275064,96.4824121 71.758794,96.4824121 Z");
     			attr(path19, "fill", path19_fill_value = ctx.colors[2]);
     			attr(path19, "transform", "translate(71.758794, 168.241206) rotate(-360.000000) translate(-71.758794, -168.241206) ");
-    			add_location(path19, file$7, 80, 12, 9345);
+    			add_location(path19, file$6, 80, 12, 9345);
     			attr(path20, "d", "M120,45.5276382 C160.463878,45.5276382 193.266332,78.3300922 193.266332,118.79397 C193.266332,159.257848 160.463878,192.060302 120,192.060302 C79.5361223,192.060302 46.7336683,159.257848 46.7336683,118.79397 C46.7336683,78.3300922 79.5361223,45.5276382 120,45.5276382 Z");
     			attr(path20, "fill", path20_fill_value = ctx.colors[4]);
-    			add_location(path20, file$7, 81, 12, 9730);
+    			add_location(path20, file$6, 81, 12, 9730);
     			attr(path21, "d", "M120,75.9045226 C143.687188,75.9045226 162.889447,95.1067822 162.889447,118.79397 C162.889447,142.481157 143.687188,161.683417 120,161.683417 C96.3128124,161.683417 77.1105528,142.481157 77.1105528,118.79397 C77.1105528,95.1067822 96.3128124,75.9045226 120,75.9045226 Z");
     			attr(path21, "fill", path21_fill_value = ctx.colors[3]);
-    			add_location(path21, file$7, 82, 12, 10049);
+    			add_location(path21, file$6, 82, 12, 10049);
     			attr(g13, "id", "Shape");
-    			add_location(g13, file$7, 78, 10, 9052);
+    			add_location(g13, file$6, 78, 10, 9052);
     			attr(g14, "transform", "translate(1560.000000, 841.000000) scale(-1, 1) translate(-1560.000000, -841.000000) translate(1440.000000, 721.000000)");
-    			add_location(g14, file$7, 77, 8, 8906);
+    			add_location(g14, file$6, 77, 8, 8906);
     			attr(ellipse0, "id", "Shape");
     			attr(ellipse0, "fill", ellipse0_fill_value = ctx.colors[6]);
     			attr(ellipse0, "cx", "120.29484");
     			attr(ellipse0, "cy", "119.704433");
     			attr(ellipse0, "rx", "100.835381");
     			attr(ellipse0, "ry", "100.788177");
-    			add_location(ellipse0, file$7, 86, 10, 10452);
+    			add_location(ellipse0, file$6, 86, 10, 10452);
     			attr(path22, "d", "M240,0 C240,65.9476962 186.670183,119.408867 120.884521,119.408867 C120.884521,53.4611708 174.214337,0 240,0 Z");
     			attr(path22, "id", "Shape");
     			attr(path22, "fill", path22_fill_value = ctx.colors[2]);
-    			add_location(path22, file$7, 87, 10, 10575);
+    			add_location(path22, file$6, 87, 10, 10575);
     			attr(path23, "d", "M115.784245,0.14669394 L119.262173,0.14669394 L119.262173,3.61607683 C119.262173,67.4856522 67.3581238,119.262173 3.33123423,119.262173 L-0.14669394,119.262173 L-0.14669394,115.79279 C-0.14669394,51.9232148 51.7573553,0.14669394 115.784245,0.14669394 Z");
     			attr(path23, "id", "Shape");
     			attr(path23, "fill", path23_fill_value = ctx.colors[4]);
     			attr(path23, "transform", "translate(59.557740, 59.704433) rotate(-270.000000) translate(-59.557740, -59.704433) ");
-    			add_location(path23, file$7, 88, 10, 10744);
+    			add_location(path23, file$6, 88, 10, 10744);
     			attr(path24, "d", "M115.646096,120.591133 L119.115479,120.591133 L119.115479,124.069061 C119.115479,188.095951 67.3389582,240 3.46938289,240 L0,240 L0,236.522072 C0,172.495182 51.7765209,120.591133 115.646096,120.591133 Z");
     			attr(path24, "id", "Shape");
     			attr(path24, "fill", path24_fill_value = ctx.colors[2]);
-    			add_location(path24, file$7, 89, 10, 11154);
+    			add_location(path24, file$6, 89, 10, 11154);
     			attr(path25, "d", "M236.668766,120.737827 L240.146694,120.737827 L240.146694,124.20721 C240.146694,188.076785 188.242645,239.853306 124.215755,239.853306 L120.737827,239.853306 L120.737827,236.383923 C120.737827,172.514348 172.641876,120.737827 236.668766,120.737827 Z");
     			attr(path25, "id", "Shape");
     			attr(path25, "fill", path25_fill_value = ctx.colors[4]);
     			attr(path25, "transform", "translate(180.442260, 180.295567) rotate(-270.000000) translate(-180.442260, -180.295567) ");
-    			add_location(path25, file$7, 90, 10, 11415);
+    			add_location(path25, file$6, 90, 10, 11415);
     			attr(g15, "transform", "translate(240.000000, 481.000000)");
-    			add_location(g15, file$7, 85, 8, 10392);
+    			add_location(g15, file$6, 85, 8, 10392);
     			attr(circle9, "id", "Shape");
     			attr(circle9, "fill", circle9_fill_value = ctx.colors[6]);
     			attr(circle9, "cx", "120.035381");
     			attr(circle9, "cy", "119.435381");
     			attr(circle9, "r", "100.835381");
-    			add_location(circle9, file$7, 93, 10, 11897);
+    			add_location(circle9, file$6, 93, 10, 11897);
     			attr(path26, "d", "M116.504854,240 C52.161,240 0,187.839 0,123.495146 L0,120 L3.49514563,120 C67.839,120 120,172.161 120,236.504854 L120,240 L116.504854,240 Z");
     			attr(path26, "id", "Shape");
     			attr(path26, "fill", path26_fill_value = ctx.colors[2]);
-    			add_location(path26, file$7, 94, 10, 12002);
+    			add_location(path26, file$6, 94, 10, 12002);
     			attr(path27, "d", "M236.504854,120 L240,120 L240,123.495146 C240,187.839 187.839,240 123.495146,240 L120,240 L120,236.504854 C120,172.161 172.161,120 236.504854,120 Z");
     			attr(path27, "id", "Shape");
     			attr(path27, "fill", path27_fill_value = ctx.colors[4]);
-    			add_location(path27, file$7, 95, 10, 12200);
+    			add_location(path27, file$6, 95, 10, 12200);
     			attr(path28, "d", "M123.495146,120 L120,120 L120,116.504854 C120,52.161 172.161,0 236.504854,0 L240,0 L240,3.49514563 C240,67.839 187.839,120 123.495146,120 Z");
     			attr(path28, "id", "Shape");
     			attr(path28, "fill", path28_fill_value = ctx.colors[2]);
-    			add_location(path28, file$7, 96, 10, 12406);
+    			add_location(path28, file$6, 96, 10, 12406);
     			attr(path29, "d", "M3.49514563,0 C67.839,0 120,52.161 120,116.504854 L120,120 L116.504854,120 C52.161,120 0,67.839 0,3.49514563 L0,0 L3.49514563,0 Z");
     			attr(path29, "id", "Shape");
     			attr(path29, "fill", path29_fill_value = ctx.colors[4]);
-    			add_location(path29, file$7, 97, 10, 12604);
+    			add_location(path29, file$6, 97, 10, 12604);
     			attr(g16, "transform", "translate(960.000000, 481.000000)");
-    			add_location(g16, file$7, 92, 8, 11837);
+    			add_location(g16, file$6, 92, 8, 11837);
     			attr(circle10, "id", "Shape");
     			attr(circle10, "fill", circle10_fill_value = ctx.colors[6]);
     			attr(circle10, "cx", "120.035381");
     			attr(circle10, "cy", "119.435381");
     			attr(circle10, "r", "100.835381");
-    			add_location(circle10, file$7, 100, 10, 12951);
+    			add_location(circle10, file$6, 100, 10, 12951);
     			attr(path30, "d", "M116.504854,240 C52.161,240 0,187.839 0,123.495146 L0,120 L3.49514563,120 C67.839,120 120,172.161 120,236.504854 L120,240 L116.504854,240 Z");
     			attr(path30, "id", "Shape");
     			attr(path30, "fill", path30_fill_value = ctx.colors[2]);
-    			add_location(path30, file$7, 101, 10, 13056);
+    			add_location(path30, file$6, 101, 10, 13056);
     			attr(path31, "d", "M236.504854,120 L240,120 L240,123.495146 C240,187.839 187.839,240 123.495146,240 L120,240 L120,236.504854 C120,172.161 172.161,120 236.504854,120 Z");
     			attr(path31, "id", "Shape");
     			attr(path31, "fill", path31_fill_value = ctx.colors[4]);
-    			add_location(path31, file$7, 102, 10, 13254);
+    			add_location(path31, file$6, 102, 10, 13254);
     			attr(path32, "d", "M123.495146,120 L120,120 L120,116.504854 C120,52.161 172.161,0 236.504854,0 L240,0 L240,3.49514563 C240,67.839 187.839,120 123.495146,120 Z");
     			attr(path32, "id", "Shape");
     			attr(path32, "fill", path32_fill_value = ctx.colors[2]);
-    			add_location(path32, file$7, 103, 10, 13460);
+    			add_location(path32, file$6, 103, 10, 13460);
     			attr(path33, "d", "M3.49514563,0 C67.839,0 120,52.161 120,116.504854 L120,120 L116.504854,120 C52.161,120 0,67.839 0,3.49514563 L0,0 L3.49514563,0 Z");
     			attr(path33, "id", "Shape");
     			attr(path33, "fill", path33_fill_value = ctx.colors[4]);
-    			add_location(path33, file$7, 104, 10, 13658);
+    			add_location(path33, file$6, 104, 10, 13658);
     			attr(g17, "transform", "translate(120.000000, 841.000000) rotate(-270.000000) translate(-120.000000, -841.000000) translate(0.000000, 721.000000)");
-    			add_location(g17, file$7, 99, 8, 12803);
+    			add_location(g17, file$6, 99, 8, 12803);
     			attr(path34, "d", "M240,0 L240,240 L0,240 C0,107.45166 107.45166,0 240,0 Z");
     			attr(path34, "id", "Shape");
     			attr(path34, "fill", path34_fill_value = ctx.colors[2]);
-    			add_location(path34, file$7, 107, 10, 13915);
+    			add_location(path34, file$6, 107, 10, 13915);
     			attr(path35, "d", "M240,103.783784 L240,240 L103.448276,240 C103.448276,164.769861 164.584565,103.783784 240,103.783784 Z");
     			attr(path35, "id", "Shape");
     			attr(path35, "fill", path35_fill_value = ctx.colors[6]);
-    			add_location(path35, file$7, 108, 10, 14029);
+    			add_location(path35, file$6, 108, 10, 14029);
     			attr(path36, "d", "M240,177.493857 L240,240 L177.339901,240 C177.339901,205.478811 205.393783,177.493857 240,177.493857 Z");
     			attr(path36, "id", "Shape");
     			attr(path36, "fill", path36_fill_value = ctx.colors[3]);
-    			add_location(path36, file$7, 109, 10, 14190);
+    			add_location(path36, file$6, 109, 10, 14190);
     			attr(g18, "transform", "translate(480.000000, 1.000000)");
-    			add_location(g18, file$7, 106, 8, 13857);
+    			add_location(g18, file$6, 106, 8, 13857);
     			attr(path37, "d", "M240,0 L240,240 L0,240 C0,107.45166 107.45166,0 240,0 Z");
     			attr(path37, "id", "Shape");
     			attr(path37, "fill", path37_fill_value = ctx.colors[2]);
-    			add_location(path37, file$7, 112, 10, 14515);
+    			add_location(path37, file$6, 112, 10, 14515);
     			attr(path38, "d", "M240,103.783784 L240,240 L103.448276,240 C103.448276,164.769861 164.584565,103.783784 240,103.783784 Z");
     			attr(path38, "id", "Shape");
     			attr(path38, "fill", path38_fill_value = ctx.colors[6]);
-    			add_location(path38, file$7, 113, 10, 14629);
+    			add_location(path38, file$6, 113, 10, 14629);
     			attr(path39, "d", "M240,177.493857 L240,240 L177.339901,240 C177.339901,205.478811 205.393783,177.493857 240,177.493857 Z");
     			attr(path39, "id", "Shape");
     			attr(path39, "fill", path39_fill_value = ctx.colors[3]);
-    			add_location(path39, file$7, 114, 10, 14790);
+    			add_location(path39, file$6, 114, 10, 14790);
     			attr(g19, "transform", "translate(1560.000000, 601.000000) rotate(-270.000000) translate(-1560.000000, -601.000000) translate(1440.000000, 481.000000)");
-    			add_location(g19, file$7, 111, 8, 14362);
+    			add_location(g19, file$6, 111, 8, 14362);
     			attr(path40, "d", "M240,0 L240,240 L0,240 C0,107.45166 107.45166,0 240,0 Z");
     			attr(path40, "id", "Shape");
     			attr(path40, "fill", path40_fill_value = ctx.colors[4]);
-    			add_location(path40, file$7, 117, 10, 15110);
+    			add_location(path40, file$6, 117, 10, 15110);
     			attr(path41, "d", "M240,103.448276 L240,240 L103.783784,240 C103.783784,164.584565 164.769861,103.448276 240,103.448276 Z");
     			attr(path41, "id", "Shape");
     			attr(path41, "fill", path41_fill_value = ctx.colors[6]);
-    			add_location(path41, file$7, 118, 10, 15224);
+    			add_location(path41, file$6, 118, 10, 15224);
     			attr(path42, "d", "M240,177.339901 L240,240 L177.493857,240 C177.493857,205.393783 205.478811,177.339901 240,177.339901 Z");
     			attr(path42, "id", "Shape");
     			attr(path42, "fill", path42_fill_value = ctx.colors[3]);
-    			add_location(path42, file$7, 119, 10, 15385);
+    			add_location(path42, file$6, 119, 10, 15385);
     			attr(g20, "transform", "translate(120.000000, 601.000000) rotate(-180.000000) translate(-120.000000, -601.000000) translate(0.000000, 481.000000)");
-    			add_location(g20, file$7, 116, 8, 14962);
+    			add_location(g20, file$6, 116, 8, 14962);
     			attr(path43, "d", "M240,0 L240,240 L0,240 C0,107.45166 107.45166,0 240,0 Z");
     			attr(path43, "id", "Shape");
     			attr(path43, "fill", path43_fill_value = ctx.colors[4]);
-    			add_location(path43, file$7, 122, 10, 15710);
+    			add_location(path43, file$6, 122, 10, 15710);
     			attr(path44, "d", "M240,103.448276 L240,240 L103.783784,240 C103.783784,164.584565 164.769861,103.448276 240,103.448276 Z");
     			attr(path44, "id", "Shape");
     			attr(path44, "fill", path44_fill_value = ctx.colors[6]);
-    			add_location(path44, file$7, 123, 10, 15824);
+    			add_location(path44, file$6, 123, 10, 15824);
     			attr(path45, "d", "M240,177.339901 L240,240 L177.493857,240 C177.493857,205.393783 205.478811,177.339901 240,177.339901 Z");
     			attr(path45, "id", "Shape");
     			attr(path45, "fill", path45_fill_value = ctx.colors[3]);
-    			add_location(path45, file$7, 124, 10, 15985);
+    			add_location(path45, file$6, 124, 10, 15985);
     			attr(g21, "transform", "translate(1320.000000, 601.000000) rotate(-360.000000) translate(-1320.000000, -601.000000) translate(1200.000000, 481.000000)");
-    			add_location(g21, file$7, 121, 8, 15557);
+    			add_location(g21, file$6, 121, 8, 15557);
     			attr(path46, "d", "M120,0 C186.27417,0 240,53.72583 240,120 C240,186.27417 186.27417,240 120,240 C53.72583,240 0,186.27417 0,120 C0,53.72583 53.72583,0 120,0 Z");
     			attr(path46, "id", "Shape");
     			attr(path46, "fill", path46_fill_value = ctx.colors[4]);
-    			add_location(path46, file$7, 127, 10, 16303);
+    			add_location(path46, file$6, 127, 10, 16303);
     			attr(path47, "d", "M120.589681,48.3538084 C160.484451,48.3538084 192.825553,80.69491 192.825553,120.589681 C192.825553,160.484451 160.484451,192.825553 120.589681,192.825553 C80.69491,192.825553 48.3538084,160.484451 48.3538084,120.589681 C48.3538084,80.69491 80.69491,48.3538084 120.589681,48.3538084 Z");
     			attr(path47, "id", "Shape");
     			attr(path47, "fill", path47_fill_value = ctx.colors[6]);
-    			add_location(path47, file$7, 128, 10, 16502);
+    			add_location(path47, file$6, 128, 10, 16502);
     			attr(path48, "d", "M121.769042,83.1449631 C143.100531,83.1449631 160.39312,100.437552 160.39312,121.769042 C160.39312,143.100531 143.100531,160.39312 121.769042,160.39312 C100.437552,160.39312 83.1449631,143.100531 83.1449631,121.769042 C83.1449631,100.437552 100.437552,83.1449631 121.769042,83.1449631 Z");
     			attr(path48, "id", "Shape");
     			attr(path48, "fill", path48_fill_value = ctx.colors[3]);
-    			add_location(path48, file$7, 129, 10, 16845);
+    			add_location(path48, file$6, 129, 10, 16845);
     			attr(path49, "d", "M240,94.3488943 L240,240 L94.3488943,240 C94.3488943,159.559116 159.559116,94.3488943 240,94.3488943 Z");
     			attr(path49, "id", "Shape");
     			attr(path49, "fill", path49_fill_value = ctx.colors[2]);
-    			add_location(path49, file$7, 130, 10, 17190);
+    			add_location(path49, file$6, 130, 10, 17190);
     			attr(g22, "transform", "translate(120.600000, 121.000000) rotate(-360.000000) translate(-120.600000, -121.000000) translate(0.600000, 1.000000)");
-    			add_location(g22, file$7, 126, 8, 16157);
+    			add_location(g22, file$6, 126, 8, 16157);
     			attr(path50, "d", "M120,0 C186.27417,0 240,53.72583 240,120 C240,186.27417 186.27417,240 120,240 C53.72583,240 0,186.27417 0,120 C0,53.72583 53.72583,0 120,0 Z");
     			attr(path50, "id", "Shape");
     			attr(path50, "fill", path50_fill_value = ctx.colors[4]);
-    			add_location(path50, file$7, 133, 10, 17517);
+    			add_location(path50, file$6, 133, 10, 17517);
     			attr(path51, "d", "M120.589681,48.3538084 C160.484451,48.3538084 192.825553,80.69491 192.825553,120.589681 C192.825553,160.484451 160.484451,192.825553 120.589681,192.825553 C80.69491,192.825553 48.3538084,160.484451 48.3538084,120.589681 C48.3538084,80.69491 80.69491,48.3538084 120.589681,48.3538084 Z");
     			attr(path51, "id", "Shape");
     			attr(path51, "fill", path51_fill_value = ctx.colors[6]);
-    			add_location(path51, file$7, 134, 10, 17716);
+    			add_location(path51, file$6, 134, 10, 17716);
     			attr(path52, "d", "M121.769042,83.1449631 C143.100531,83.1449631 160.39312,100.437552 160.39312,121.769042 C160.39312,143.100531 143.100531,160.39312 121.769042,160.39312 C100.437552,160.39312 83.1449631,143.100531 83.1449631,121.769042 C83.1449631,100.437552 100.437552,83.1449631 121.769042,83.1449631 Z");
     			attr(path52, "id", "Shape");
     			attr(path52, "fill", path52_fill_value = ctx.colors[3]);
-    			add_location(path52, file$7, 135, 10, 18059);
+    			add_location(path52, file$6, 135, 10, 18059);
     			attr(path53, "d", "M240,94.3488943 L240,240 L94.3488943,240 C94.3488943,159.559116 159.559116,94.3488943 240,94.3488943 Z");
     			attr(path53, "id", "Shape");
     			attr(path53, "fill", path53_fill_value = ctx.colors[2]);
-    			add_location(path53, file$7, 136, 10, 18404);
+    			add_location(path53, file$6, 136, 10, 18404);
     			attr(g23, "transform", "translate(1320.000000, 1081.000000) rotate(-360.000000) translate(-1320.000000, -1081.000000) translate(1200.000000, 961.000000)");
-    			add_location(g23, file$7, 132, 8, 17362);
+    			add_location(g23, file$6, 132, 8, 17362);
     			attr(path54, "d", "M181.031941,122.063882 C213.599101,122.063882 240,148.464781 240,181.031941 C240,213.599101 213.599101,240 181.031941,240 C148.464781,240 122.063882,213.599101 122.063882,181.031941 C122.063882,148.464781 148.464781,122.063882 181.031941,122.063882 Z");
     			attr(path54, "id", "Shape");
     			attr(path54, "fill", path54_fill_value = ctx.colors[5]);
-    			add_location(path54, file$7, 139, 10, 18724);
+    			add_location(path54, file$6, 139, 10, 18724);
     			attr(path55, "d", "M181.031941,0 C213.599101,0 240,26.4008993 240,58.968059 C240,91.5352187 213.599101,117.936118 181.031941,117.936118 C148.464781,117.936118 122.063882,91.5352187 122.063882,58.968059 C122.063882,26.4008993 148.464781,0 181.031941,0 Z");
     			attr(path55, "id", "Shape");
     			attr(path55, "fill", path55_fill_value = ctx.colors[2]);
-    			add_location(path55, file$7, 140, 10, 19033);
+    			add_location(path55, file$6, 140, 10, 19033);
     			attr(path56, "d", "M61.3267813,122.063882 C93.893941,122.063882 120.29484,148.464781 120.29484,181.031941 C120.29484,213.599101 93.893941,240 61.3267813,240 C28.7596216,240 2.35872236,213.599101 2.35872236,181.031941 C2.35872236,148.464781 28.7596216,122.063882 61.3267813,122.063882 Z");
     			attr(path56, "id", "Shape");
     			attr(path56, "fill", path56_fill_value = ctx.colors[2]);
-    			add_location(path56, file$7, 141, 10, 19325);
+    			add_location(path56, file$6, 141, 10, 19325);
     			attr(path57, "d", "M0,0 L60.4422604,0 C93.8235991,0 120.884521,27.0609218 120.884521,60.4422604 C120.884521,93.8235991 93.8235991,120.884521 60.4422604,120.884521 C27.0609218,120.884521 0,93.8235991 0,60.4422604 L0,0 Z");
     			attr(path57, "id", "Shape");
     			attr(path57, "fill", path57_fill_value = ctx.colors[4]);
-    			add_location(path57, file$7, 142, 10, 19650);
+    			add_location(path57, file$6, 142, 10, 19650);
     			attr(g24, "transform", "translate(360.600000, 120.400000) rotate(-180.000000) translate(-360.600000, -120.400000) translate(240.600000, 0.400000)");
-    			add_location(g24, file$7, 138, 8, 18576);
+    			add_location(g24, file$6, 138, 8, 18576);
     			attr(path58, "d", "M180.737101,121.769042 C213.30426,121.769042 239.70516,148.169941 239.70516,180.737101 C239.70516,213.30426 213.30426,239.70516 180.737101,239.70516 C148.169941,239.70516 121.769042,213.30426 121.769042,180.737101 C121.769042,148.169941 148.169941,121.769042 180.737101,121.769042 Z");
     			attr(path58, "id", "Shape");
     			attr(path58, "fill", path58_fill_value = ctx.colors[2]);
-    			add_location(path58, file$7, 145, 10, 20068);
+    			add_location(path58, file$6, 145, 10, 20068);
     			attr(path59, "d", "M180.737101,0.294840295 C213.30426,0.294840295 239.70516,26.6957396 239.70516,59.2628993 C239.70516,91.830059 213.30426,118.230958 180.737101,118.230958 C148.169941,118.230958 121.769042,91.830059 121.769042,59.2628993 C121.769042,26.6957396 148.169941,0.294840295 180.737101,0.294840295 Z");
     			attr(path59, "id", "Shape");
     			attr(path59, "fill", path59_fill_value = ctx.colors[5]);
-    			add_location(path59, file$7, 146, 10, 20409);
+    			add_location(path59, file$6, 146, 10, 20409);
     			attr(path60, "d", "M61.6216216,121.769042 C94.1887813,121.769042 120.589681,148.169941 120.589681,180.737101 C120.589681,213.30426 94.1887813,239.70516 61.6216216,239.70516 C29.0544619,239.70516 2.65356265,213.30426 2.65356265,180.737101 C2.65356265,148.169941 29.0544619,121.769042 61.6216216,121.769042 Z");
     			attr(path60, "id", "Shape");
     			attr(path60, "fill", path60_fill_value = ctx.colors[5]);
-    			add_location(path60, file$7, 147, 10, 20757);
+    			add_location(path60, file$6, 147, 10, 20757);
     			attr(path61, "d", "M0,0 L60.1474201,0 C93.365923,0 120.29484,27.0609218 120.29484,60.4422604 C120.29484,93.8235991 93.365923,120.884521 60.1474201,120.884521 C26.9289173,120.884521 0,93.8235991 0,60.4422604 L0,0 Z");
     			attr(path61, "id", "Shape");
     			attr(path61, "fill", path61_fill_value = ctx.colors[4]);
-    			add_location(path61, file$7, 148, 10, 21103);
+    			add_location(path61, file$6, 148, 10, 21103);
     			attr(g25, "transform", "translate(600.000000, 841.000000) rotate(-90.000000) translate(-600.000000, -841.000000) translate(480.000000, 721.000000)");
-    			add_location(g25, file$7, 144, 8, 19919);
+    			add_location(g25, file$6, 144, 8, 19919);
     			attr(path62, "d", "M181.031941,122.063882 C213.599101,122.063882 240,148.464781 240,181.031941 C240,213.599101 213.599101,240 181.031941,240 C148.464781,240 122.063882,213.599101 122.063882,181.031941 C122.063882,148.464781 148.464781,122.063882 181.031941,122.063882 Z");
     			attr(path62, "id", "Shape");
     			attr(path62, "fill", path62_fill_value = ctx.colors[2]);
-    			add_location(path62, file$7, 151, 10, 21517);
+    			add_location(path62, file$6, 151, 10, 21517);
     			attr(path63, "d", "M181.031941,0 C213.599101,0 240,26.4008993 240,58.968059 C240,91.5352187 213.599101,117.936118 181.031941,117.936118 C148.464781,117.936118 122.063882,91.5352187 122.063882,58.968059 C122.063882,26.4008993 148.464781,0 181.031941,0 Z");
     			attr(path63, "id", "Shape");
     			attr(path63, "fill", path63_fill_value = ctx.colors[5]);
-    			add_location(path63, file$7, 152, 10, 21826);
+    			add_location(path63, file$6, 152, 10, 21826);
     			attr(path64, "d", "M61.3267813,122.063882 C93.893941,122.063882 120.29484,148.464781 120.29484,181.031941 C120.29484,213.599101 93.893941,240 61.3267813,240 C28.7596216,240 2.35872236,213.599101 2.35872236,181.031941 C2.35872236,148.464781 28.7596216,122.063882 61.3267813,122.063882 Z");
     			attr(path64, "id", "Shape");
     			attr(path64, "fill", path64_fill_value = ctx.colors[5]);
-    			add_location(path64, file$7, 153, 10, 22118);
+    			add_location(path64, file$6, 153, 10, 22118);
     			attr(path65, "d", "M0,0 L60.4422604,0 C93.8235991,0 120.884521,27.0609218 120.884521,60.4422604 C120.884521,93.8235991 93.8235991,120.884521 60.4422604,120.884521 C27.0609218,120.884521 0,93.8235991 0,60.4422604 L0,0 Z");
     			attr(path65, "id", "Shape");
     			attr(path65, "fill", path65_fill_value = ctx.colors[4]);
-    			add_location(path65, file$7, 154, 10, 22443);
+    			add_location(path65, file$6, 154, 10, 22443);
     			attr(g26, "transform", "translate(120.000000, 1081.000000) rotate(-180.000000) translate(-120.000000, -1081.000000) translate(0.000000, 961.000000)");
-    			add_location(g26, file$7, 150, 8, 21367);
+    			add_location(g26, file$6, 150, 8, 21367);
     			attr(rect1, "id", "Shape");
     			attr(rect1, "fill", rect1_fill_value = ctx.colors[6]);
     			attr(rect1, "x", "35.5783784");
     			attr(rect1, "y", "36.168059");
     			attr(rect1, "width", "122.653563");
     			attr(rect1, "height", "122.653563");
-    			add_location(rect1, file$7, 157, 10, 22862);
+    			add_location(rect1, file$6, 157, 10, 22862);
     			attr(polygon3, "id", "Shape");
     			attr(polygon3, "fill", polygon3_fill_value = ctx.colors[4]);
     			attr(polygon3, "transform", "translate(97.803015, 97.803015) rotate(-315.000000) translate(-97.803015, -97.803015) ");
     			attr(polygon3, "points", "60.4160804 60.4160804 135.18995 60.4160804 135.18995 135.18995 60.4160804 135.18995");
-    			add_location(polygon3, file$7, 158, 10, 22984);
+    			add_location(polygon3, file$6, 158, 10, 22984);
     			attr(path66, "d", "M0.197542998,0.197542998 L72.7282555,0.197542998 C72.7282555,40.2551494 40.2551494,72.7282555 0.197542998,72.7282555 L0.197542998,0.197542998 Z");
     			attr(path66, "id", "Shape");
     			attr(path66, "fill", path66_fill_value = ctx.colors[2]);
-    			add_location(path66, file$7, 159, 10, 23236);
+    			add_location(path66, file$6, 159, 10, 23236);
     			attr(path67, "d", "M0.197542998,194.202457 L0.197542998,121.671744 C40.2551494,121.671744 72.7282555,154.144851 72.7282555,194.202457 L0.197542998,194.202457 Z");
     			attr(path67, "id", "Shape");
     			attr(path67, "fill", path67_fill_value = ctx.colors[2]);
-    			add_location(path67, file$7, 160, 10, 23438);
+    			add_location(path67, file$6, 160, 10, 23438);
     			attr(path68, "d", "M192.433415,194.202457 L119.902703,194.202457 C119.902703,154.144851 152.375809,121.671744 192.433415,121.671744 L192.433415,194.202457 Z");
     			attr(path68, "id", "Shape");
     			attr(path68, "fill", path68_fill_value = ctx.colors[2]);
-    			add_location(path68, file$7, 161, 10, 23637);
+    			add_location(path68, file$6, 161, 10, 23637);
     			attr(path69, "d", "M192.433415,0.197542998 L192.433415,72.7282555 C152.375809,72.7282555 119.902703,40.2551494 119.902703,0.197542998 L192.433415,0.197542998 Z");
     			attr(path69, "id", "Shape");
     			attr(path69, "fill", path69_fill_value = ctx.colors[2]);
-    			add_location(path69, file$7, 162, 10, 23833);
+    			add_location(path69, file$6, 162, 10, 23833);
     			attr(g27, "transform", "translate(840.900000, 841.000000) rotate(-180.000000) translate(-840.900000, -841.000000) translate(744.600000, 743.800000)");
-    			add_location(g27, file$7, 156, 8, 22712);
+    			add_location(g27, file$6, 156, 8, 22712);
     			attr(polygon4, "fill", polygon4_fill_value = ctx.colors[5]);
     			attr(polygon4, "transform", "translate(85.583192, 85.672588) rotate(45.000000) translate(-85.583192, -85.672588) ");
     			attr(polygon4, "points", "25.3457107 25.4351067 145.776724 25.4790568 145.820674 145.91007 25.3896608 145.86612");
-    			add_location(polygon4, file$7, 166, 12, 24219);
+    			add_location(polygon4, file$6, 166, 12, 24219);
     			attr(polygon5, "fill", polygon5_fill_value = ctx.colors[6]);
     			attr(polygon5, "transform", "translate(85.583192, 85.672588) rotate(45.000000) translate(-85.583192, -85.672588) ");
     			attr(polygon5, "points", "55.2514797 55.3408757 115.892774 55.3630062 115.914905 116.004301 55.2736102 115.98217");
-    			add_location(polygon5, file$7, 167, 12, 24462);
+    			add_location(polygon5, file$6, 167, 12, 24462);
     			attr(g28, "id", "Shape");
-    			add_location(g28, file$7, 165, 10, 24192);
+    			add_location(g28, file$6, 165, 10, 24192);
     			attr(g29, "transform", "translate(120.900000, 361.300000) rotate(-180.000000) translate(-120.900000, -361.300000) translate(35.400000, 275.800000)");
-    			add_location(g29, file$7, 164, 8, 24043);
+    			add_location(g29, file$6, 164, 8, 24043);
     			attr(rect2, "fill", rect2_fill_value = ctx.colors[6]);
     			attr(rect2, "x", "96.6572864");
     			attr(rect2, "y", "94.2512563");
     			attr(rect2, "width", "74.7738693");
     			attr(rect2, "height", "74.7738693");
-    			add_location(rect2, file$7, 172, 12, 24906);
+    			add_location(rect2, file$6, 172, 12, 24906);
     			attr(rect3, "fill", rect3_fill_value = ctx.colors[6]);
     			attr(rect3, "x", "96.6572864");
     			attr(rect3, "y", "0.180904523");
     			attr(rect3, "width", "74.7738693");
     			attr(rect3, "height", "74.7738693");
-    			add_location(rect3, file$7, 173, 12, 25020);
+    			add_location(rect3, file$6, 173, 12, 25020);
     			attr(rect4, "fill", rect4_fill_value = ctx.colors[6]);
     			attr(rect4, "x", "0.174874372");
     			attr(rect4, "y", "94.2512563");
     			attr(rect4, "width", "74.7738693");
     			attr(rect4, "height", "74.7738693");
-    			add_location(rect4, file$7, 174, 12, 25135);
+    			add_location(rect4, file$6, 174, 12, 25135);
     			attr(rect5, "fill", rect5_fill_value = ctx.colors[6]);
     			attr(rect5, "x", "0.174874372");
     			attr(rect5, "y", "0.180904523");
     			attr(rect5, "width", "74.7738693");
     			attr(rect5, "height", "74.7738693");
-    			add_location(rect5, file$7, 175, 12, 25250);
+    			add_location(rect5, file$6, 175, 12, 25250);
     			attr(rect6, "fill", rect6_fill_value = ctx.colors[3]);
     			attr(rect6, "x", "117.159799");
     			attr(rect6, "y", "114.753769");
     			attr(rect6, "width", "34.9748744");
     			attr(rect6, "height", "34.9748744");
-    			add_location(rect6, file$7, 176, 12, 25366);
+    			add_location(rect6, file$6, 176, 12, 25366);
     			attr(rect7, "fill", rect7_fill_value = ctx.colors[3]);
     			attr(rect7, "x", "117.159799");
     			attr(rect7, "y", "20.6834171");
     			attr(rect7, "width", "34.9748744");
     			attr(rect7, "height", "34.9748744");
-    			add_location(rect7, file$7, 177, 12, 25480);
+    			add_location(rect7, file$6, 177, 12, 25480);
     			attr(rect8, "fill", rect8_fill_value = ctx.colors[3]);
     			attr(rect8, "x", "20.6773869");
     			attr(rect8, "y", "114.753769");
     			attr(rect8, "width", "34.9748744");
     			attr(rect8, "height", "34.9748744");
-    			add_location(rect8, file$7, 178, 12, 25594);
+    			add_location(rect8, file$6, 178, 12, 25594);
     			attr(rect9, "fill", rect9_fill_value = ctx.colors[3]);
     			attr(rect9, "x", "20.6773869");
     			attr(rect9, "y", "20.6834171");
     			attr(rect9, "width", "34.9748744");
     			attr(rect9, "height", "34.9748744");
-    			add_location(rect9, file$7, 179, 12, 25708);
+    			add_location(rect9, file$6, 179, 12, 25708);
     			attr(g30, "id", "Shape");
-    			add_location(g30, file$7, 171, 10, 24879);
+    			add_location(g30, file$6, 171, 10, 24879);
     			attr(g31, "transform", "translate(839.400000, 120.400000) rotate(-180.000000) translate(-839.400000, -120.400000) translate(753.600000, 35.800000)");
-    			add_location(g31, file$7, 170, 8, 24730);
+    			add_location(g31, file$6, 170, 8, 24730);
     			attr(polygon6, "fill", polygon6_fill_value = ctx.colors[3]);
     			attr(polygon6, "transform", "translate(85.583922, 85.673323) rotate(45.000000) translate(-85.583922, -85.673323) ");
     			attr(polygon6, "points", "25.3460718 25.435472 145.777823 25.4794224 145.821773 145.911173 25.3900222 145.867223");
-    			add_location(polygon6, file$7, 184, 12, 26066);
+    			add_location(polygon6, file$6, 184, 12, 26066);
     			attr(polygon7, "fill", polygon7_fill_value = ctx.colors[4]);
     			attr(polygon7, "points", "55.2741547 55.3414243 115.89369 55.3414243 115.89369 116.005221 55.2741547 116.005221");
-    			add_location(polygon7, file$7, 185, 12, 26310);
+    			add_location(polygon7, file$6, 185, 12, 26310);
     			attr(g32, "id", "Shape");
     			attr(g32, "transform", "translate(0.000000, -0.000000)");
-    			add_location(g32, file$7, 183, 10, 25996);
+    			add_location(g32, file$6, 183, 10, 25996);
     			attr(g33, "transform", "translate(601.500000, 601.300000) rotate(-180.000000) translate(-601.500000, -601.300000) translate(516.000000, 515.800000)");
-    			add_location(g33, file$7, 182, 8, 25846);
+    			add_location(g33, file$6, 182, 8, 25846);
     			attr(path70, "d", "M120,1.03250741e-14 C186.27417,1.03250741e-14 240,53.72583 240,120 C240,186.27417 186.27417,240 120,240 L-2.84217094e-14,240 L-2.84217094e-14,120 C-2.84217094e-14,53.72583 53.72583,1.03250741e-14 120,1.03250741e-14 Z");
     			attr(path70, "fill", path70_fill_value = ctx.colors[6]);
-    			add_location(path70, file$7, 190, 12, 26701);
+    			add_location(path70, file$6, 190, 12, 26701);
     			attr(path71, "d", "M71.758794,96.4824121 C111.390082,96.4824121 143.517588,128.609918 143.517588,168.241206 C143.517588,207.872494 111.390082,240 71.758794,240 L0,240 L0,168.241206 C0,128.609918 32.1275064,96.4824121 71.758794,96.4824121 Z");
     			attr(path71, "fill", path71_fill_value = ctx.colors[3]);
-    			add_location(path71, file$7, 191, 12, 26967);
+    			add_location(path71, file$6, 191, 12, 26967);
     			attr(path72, "d", "M120,45.5276382 C160.463878,45.5276382 193.266332,78.3300922 193.266332,118.79397 C193.266332,159.257848 160.463878,192.060302 120,192.060302 C79.5361223,192.060302 46.7336683,159.257848 46.7336683,118.79397 C46.7336683,78.3300922 79.5361223,45.5276382 120,45.5276382 Z");
     			attr(path72, "fill", path72_fill_value = ctx.colors[4]);
-    			add_location(path72, file$7, 192, 12, 27237);
+    			add_location(path72, file$6, 192, 12, 27237);
     			attr(path73, "d", "M120,75.9045226 C143.687188,75.9045226 162.889447,95.1067822 162.889447,118.79397 C162.889447,142.481157 143.687188,161.683417 120,161.683417 C96.3128124,161.683417 77.1105528,142.481157 77.1105528,118.79397 C77.1105528,95.1067822 96.3128124,75.9045226 120,75.9045226 Z");
     			attr(path73, "fill", path73_fill_value = ctx.colors[3]);
-    			add_location(path73, file$7, 193, 12, 27556);
+    			add_location(path73, file$6, 193, 12, 27556);
     			attr(g34, "id", "Shape");
     			attr(g34, "transform", "translate(0.000000, 0.000000)");
-    			add_location(g34, file$7, 189, 10, 26632);
+    			add_location(g34, file$6, 189, 10, 26632);
     			attr(g35, "transform", "translate(600.000000, 1081.000000) rotate(-360.000000) translate(-600.000000, -1081.000000) translate(480.000000, 961.000000)");
-    			add_location(g35, file$7, 188, 8, 26480);
+    			add_location(g35, file$6, 188, 8, 26480);
     			attr(path74, "d", "M120,1.03250741e-14 L240,1.03250741e-14 L240,120 C240,186.27417 186.27417,240 120,240 L-2.84217094e-14,240 L-2.84217094e-14,120 C-2.84217094e-14,53.72583 53.72583,1.03250741e-14 120,1.03250741e-14 Z");
     			attr(path74, "fill", path74_fill_value = ctx.colors[4]);
-    			add_location(path74, file$7, 198, 12, 28076);
+    			add_location(path74, file$6, 198, 12, 28076);
     			attr(path75, "d", "M120,51.8592965 C158.965216,51.8592965 190.552764,83.4468448 190.552764,122.41206 C190.552764,161.377276 158.965216,192.964824 120,192.964824 L49.4472362,192.964824 L49.4472362,122.41206 C49.4472362,83.4468448 81.0347845,51.8592965 120,51.8592965 Z");
     			attr(path75, "fill", path75_fill_value = ctx.colors[3]);
-    			add_location(path75, file$7, 199, 12, 28324);
+    			add_location(path75, file$6, 199, 12, 28324);
     			attr(path76, "d", "M192.603015,0 L240.603015,0 L240.603015,48 C240.603015,87.764502 208.367517,120 168.603015,120 L120.603015,120 L120.603015,72 C120.603015,32.235498 152.838513,0 192.603015,0 Z");
     			attr(path76, "fill", path76_fill_value = ctx.colors[6]);
-    			add_location(path76, file$7, 200, 12, 28622);
+    			add_location(path76, file$6, 200, 12, 28622);
     			attr(g36, "id", "Shape");
-    			add_location(g36, file$7, 197, 10, 28049);
+    			add_location(g36, file$6, 197, 10, 28049);
     			attr(g37, "transform", "translate(360.600000, 841.000000) rotate(-360.000000) translate(-360.600000, -841.000000) translate(240.000000, 721.000000)");
-    			add_location(g37, file$7, 196, 8, 27899);
+    			add_location(g37, file$6, 196, 8, 27899);
     			attr(path77, "d", "M120.603015,1.03250741e-14 L240,1.03250741e-14 L240,119.396985 C240,186.004191 186.004191,240 119.396985,240 L-2.84217094e-14,240 L-2.84217094e-14,120.603015 C-2.84217094e-14,53.9958091 53.9958091,1.03250741e-14 120.603015,1.03250741e-14 Z");
     			attr(path77, "fill", path77_fill_value = ctx.colors[4]);
-    			add_location(path77, file$7, 205, 12, 29049);
+    			add_location(path77, file$6, 205, 12, 29049);
     			attr(path78, "d", "M120,51.8592965 C158.965216,51.8592965 190.552764,83.4468448 190.552764,122.41206 C190.552764,161.377276 158.965216,192.964824 120,192.964824 L49.4472362,192.964824 L49.4472362,122.41206 C49.4472362,83.4468448 81.0347845,51.8592965 120,51.8592965 Z");
     			attr(path78, "fill", path78_fill_value = ctx.colors[3]);
-    			add_location(path78, file$7, 206, 12, 29338);
+    			add_location(path78, file$6, 206, 12, 29338);
     			attr(path79, "d", "M192.603015,0 L240.603015,0 L240.603015,48 C240.603015,87.764502 208.367517,120 168.603015,120 L120.603015,120 L120.603015,72 C120.603015,32.235498 152.838513,0 192.603015,0 Z");
     			attr(path79, "fill", path79_fill_value = ctx.colors[5]);
-    			add_location(path79, file$7, 207, 12, 29636);
+    			add_location(path79, file$6, 207, 12, 29636);
     			attr(g38, "id", "Shape");
-    			add_location(g38, file$7, 204, 10, 29022);
+    			add_location(g38, file$6, 204, 10, 29022);
     			attr(g39, "transform", "translate(840.000000, 1080.400000) rotate(-90.000000) translate(-840.000000, -1080.400000) translate(719.400000, 960.400000)");
-    			add_location(g39, file$7, 203, 8, 28871);
+    			add_location(g39, file$6, 203, 8, 28871);
     			attr(path80, "d", "M120,1.03250741e-14 C186.27417,1.03250741e-14 240,53.72583 240,120 C240,186.27417 186.27417,240 120,240 L-2.84217094e-14,240 L-2.84217094e-14,120 C-2.84217094e-14,53.72583 53.72583,1.03250741e-14 120,1.03250741e-14 Z");
     			attr(path80, "fill", path80_fill_value = ctx.colors[6]);
-    			add_location(path80, file$7, 212, 12, 30062);
+    			add_location(path80, file$6, 212, 12, 30062);
     			attr(path81, "d", "M71.758794,96.4824121 C111.390082,96.4824121 143.517588,128.609918 143.517588,168.241206 C143.517588,207.872494 111.390082,240 71.758794,240 L0,240 L0,168.241206 C-4.85343295e-15,128.609918 32.1275064,96.4824121 71.758794,96.4824121 Z");
     			attr(path81, "fill", path81_fill_value = ctx.colors[2]);
     			attr(path81, "transform", "translate(71.758794, 168.241206) rotate(-360.000000) translate(-71.758794, -168.241206) ");
-    			add_location(path81, file$7, 213, 12, 30328);
+    			add_location(path81, file$6, 213, 12, 30328);
     			attr(path82, "d", "M120,45.5276382 C160.463878,45.5276382 193.266332,78.3300922 193.266332,118.79397 C193.266332,159.257848 160.463878,192.060302 120,192.060302 C79.5361223,192.060302 46.7336683,159.257848 46.7336683,118.79397 C46.7336683,78.3300922 79.5361223,45.5276382 120,45.5276382 Z");
     			attr(path82, "fill", path82_fill_value = ctx.colors[4]);
-    			add_location(path82, file$7, 214, 12, 30713);
+    			add_location(path82, file$6, 214, 12, 30713);
     			attr(path83, "d", "M120,75.9045226 C143.687188,75.9045226 162.889447,95.1067822 162.889447,118.79397 C162.889447,142.481157 143.687188,161.683417 120,161.683417 C96.3128124,161.683417 77.1105528,142.481157 77.1105528,118.79397 C77.1105528,95.1067822 96.3128124,75.9045226 120,75.9045226 Z");
     			attr(path83, "fill", path83_fill_value = ctx.colors[3]);
-    			add_location(path83, file$7, 215, 12, 31032);
+    			add_location(path83, file$6, 215, 12, 31032);
     			attr(g40, "id", "Shape");
-    			add_location(g40, file$7, 211, 10, 30035);
+    			add_location(g40, file$6, 211, 10, 30035);
     			attr(g41, "transform", "translate(840.000000, 601.000000) rotate(-180.000000) translate(-840.000000, -601.000000) translate(720.000000, 481.000000)");
-    			add_location(g41, file$7, 210, 8, 29885);
+    			add_location(g41, file$6, 210, 8, 29885);
     			attr(ellipse1, "id", "Shape");
     			attr(ellipse1, "fill", ellipse1_fill_value = ctx.colors[6]);
     			attr(ellipse1, "cx", "120.29484");
     			attr(ellipse1, "cy", "119.704433");
     			attr(ellipse1, "rx", "100.835381");
     			attr(ellipse1, "ry", "100.788177");
-    			add_location(ellipse1, file$7, 219, 10, 31436);
+    			add_location(ellipse1, file$6, 219, 10, 31436);
     			attr(path84, "d", "M240,0 C240,65.9476962 186.670183,119.408867 120.884521,119.408867 C120.884521,53.4611708 174.214337,0 240,0 Z");
     			attr(path84, "id", "Shape");
     			attr(path84, "fill", path84_fill_value = ctx.colors[2]);
-    			add_location(path84, file$7, 220, 10, 31559);
+    			add_location(path84, file$6, 220, 10, 31559);
     			attr(path85, "d", "M115.784245,0.14669394 L119.262173,0.14669394 L119.262173,3.61607683 C119.262173,67.4856522 67.3581238,119.262173 3.33123423,119.262173 L-0.14669394,119.262173 L-0.14669394,115.79279 C-0.14669394,51.9232148 51.7573553,0.14669394 115.784245,0.14669394 Z");
     			attr(path85, "id", "Shape");
     			attr(path85, "fill", path85_fill_value = ctx.colors[4]);
     			attr(path85, "transform", "translate(59.557740, 59.704433) rotate(-270.000000) translate(-59.557740, -59.704433) ");
-    			add_location(path85, file$7, 221, 10, 31728);
+    			add_location(path85, file$6, 221, 10, 31728);
     			attr(path86, "d", "M115.646096,120.591133 L119.115479,120.591133 L119.115479,124.069061 C119.115479,188.095951 67.3389582,240 3.46938289,240 L0,240 L0,236.522072 C0,172.495182 51.7765209,120.591133 115.646096,120.591133 Z");
     			attr(path86, "id", "Shape");
     			attr(path86, "fill", path86_fill_value = ctx.colors[2]);
-    			add_location(path86, file$7, 222, 10, 32138);
+    			add_location(path86, file$6, 222, 10, 32138);
     			attr(path87, "d", "M236.668766,120.737827 L240.146694,120.737827 L240.146694,124.20721 C240.146694,188.076785 188.242645,239.853306 124.215755,239.853306 L120.737827,239.853306 L120.737827,236.383923 C120.737827,172.514348 172.641876,120.737827 236.668766,120.737827 Z");
     			attr(path87, "id", "Shape");
     			attr(path87, "fill", path87_fill_value = ctx.colors[4]);
     			attr(path87, "transform", "translate(180.442260, 180.295567) rotate(-270.000000) translate(-180.442260, -180.295567) ");
-    			add_location(path87, file$7, 223, 10, 32399);
+    			add_location(path87, file$6, 223, 10, 32399);
     			attr(g42, "transform", "translate(1440.000000, 241.000000)");
-    			add_location(g42, file$7, 218, 8, 31375);
+    			add_location(g42, file$6, 218, 8, 31375);
     			attr(polygon8, "id", "Shape");
     			attr(polygon8, "fill", polygon8_fill_value = ctx.colors[5]);
     			attr(polygon8, "points", "59.4 5.38236122e-14 180.6 5.38236122e-14 120 60.6");
-    			add_location(polygon8, file$7, 226, 10, 32881);
+    			add_location(polygon8, file$6, 226, 10, 32881);
     			attr(polygon9, "id", "Shape");
     			attr(polygon9, "fill", polygon9_fill_value = ctx.colors[4]);
     			attr(polygon9, "points", "240 6.82121026e-13 240 240 0 240");
-    			add_location(polygon9, file$7, 227, 10, 33000);
+    			add_location(polygon9, file$6, 227, 10, 33000);
     			attr(polygon10, "id", "Shape");
     			attr(polygon10, "fill", polygon10_fill_value = ctx.colors[6]);
     			attr(polygon10, "points", "0 5.61328761e-13 240 240 0 240");
-    			add_location(polygon10, file$7, 228, 10, 33102);
+    			add_location(polygon10, file$6, 228, 10, 33102);
     			attr(g43, "transform", "translate(480.000000, 241.000000)");
-    			add_location(g43, file$7, 225, 8, 32821);
+    			add_location(g43, file$6, 225, 8, 32821);
     			attr(polygon11, "id", "Shape");
     			attr(polygon11, "fill", polygon11_fill_value = ctx.colors[4]);
     			attr(polygon11, "points", "180.6 240 59.4 240 120 179.4");
-    			add_location(polygon11, file$7, 231, 10, 33273);
+    			add_location(polygon11, file$6, 231, 10, 33273);
     			attr(polygon12, "id", "Shape");
     			attr(polygon12, "fill", polygon12_fill_value = ctx.colors[6]);
     			attr(polygon12, "points", "0 240 3.41060513e-14 0 240 0");
-    			add_location(polygon12, file$7, 232, 10, 33371);
+    			add_location(polygon12, file$6, 232, 10, 33371);
     			attr(polygon13, "id", "Shape");
     			attr(polygon13, "fill", polygon13_fill_value = ctx.colors[2]);
     			attr(polygon13, "points", "240 240 3.41060513e-14 2.27373675e-13 240 2.27373675e-13");
-    			add_location(polygon13, file$7, 233, 10, 33469);
+    			add_location(polygon13, file$6, 233, 10, 33469);
     			attr(g44, "transform", "translate(240.000000, 961.000000)");
-    			add_location(g44, file$7, 230, 8, 33213);
+    			add_location(g44, file$6, 230, 8, 33213);
     			attr(polygon14, "id", "Shape");
     			attr(polygon14, "fill", polygon14_fill_value = ctx.colors[5]);
     			attr(polygon14, "transform", "translate(120.000000, 209.700000) rotate(-180.000000) translate(-120.000000, -209.700000) ");
     			attr(polygon14, "points", "59.4 179.4 180.6 179.4 120 240");
-    			add_location(polygon14, file$7, 236, 10, 33666);
+    			add_location(polygon14, file$6, 236, 10, 33666);
     			attr(polygon15, "id", "Shape");
     			attr(polygon15, "fill", polygon15_fill_value = ctx.colors[4]);
     			attr(polygon15, "transform", "translate(120.000000, 120.000000) rotate(-180.000000) translate(-120.000000, -120.000000) ");
     			attr(polygon15, "points", "240 0 240 240 0 240");
-    			add_location(polygon15, file$7, 237, 10, 33869);
+    			add_location(polygon15, file$6, 237, 10, 33869);
     			attr(polygon16, "id", "Shape");
     			attr(polygon16, "fill", polygon16_fill_value = ctx.colors[6]);
     			attr(polygon16, "transform", "translate(120.000000, 120.000000) rotate(-180.000000) translate(-120.000000, -120.000000) ");
     			attr(polygon16, "points", "0 3.33955086e-13 240 240 0 240");
-    			add_location(polygon16, file$7, 238, 10, 34061);
+    			add_location(polygon16, file$6, 238, 10, 34061);
     			attr(g45, "transform", "translate(960.600000, 721.000000)");
-    			add_location(g45, file$7, 235, 8, 33606);
+    			add_location(g45, file$6, 235, 8, 33606);
     			attr(polygon17, "id", "Shape");
     			attr(polygon17, "fill", polygon17_fill_value = ctx.colors[5]);
     			attr(polygon17, "points", "59.4 0 180.6 0 120 60.6");
-    			add_location(polygon17, file$7, 241, 10, 34335);
+    			add_location(polygon17, file$6, 241, 10, 34335);
     			attr(polygon18, "id", "Shape");
     			attr(polygon18, "fill", polygon18_fill_value = ctx.colors[4]);
     			attr(polygon18, "points", "240 6.82121026e-13 240 240 0 240");
-    			add_location(polygon18, file$7, 242, 10, 34428);
+    			add_location(polygon18, file$6, 242, 10, 34428);
     			attr(polygon19, "id", "Shape");
     			attr(polygon19, "fill", polygon19_fill_value = ctx.colors[6]);
     			attr(polygon19, "points", "0 4.54747351e-13 240 240 0 240");
-    			add_location(polygon19, file$7, 243, 10, 34530);
+    			add_location(polygon19, file$6, 243, 10, 34530);
     			attr(g46, "transform", "translate(960.600000, 961.000000)");
-    			add_location(g46, file$7, 240, 8, 34275);
+    			add_location(g46, file$6, 240, 8, 34275);
     			attr(g47, "transform", "translate(0.000000, -1.000000)");
     			attr(g47, "id", "Module");
-    			add_location(g47, file$7, 19, 6, 744);
+    			add_location(g47, file$6, 19, 6, 744);
     			attr(g48, "id", "Linth");
     			attr(g48, "fill-rule", "nonzero");
-    			add_location(g48, file$7, 18, 4, 703);
+    			add_location(g48, file$6, 18, 4, 703);
     			attr(g49, "id", "Patterns");
     			attr(g49, "stroke", "none");
     			attr(g49, "stroke-width", "1");
     			attr(g49, "fill", "none");
     			attr(g49, "fill-rule", "evenodd");
-    			add_location(g49, file$7, 17, 2, 618);
+    			add_location(g49, file$6, 17, 2, 618);
     			attr(svg, "viewBox", "0 0 1600 1200");
     			attr(svg, "version", "1.1");
     			attr(svg, "xmlns", "http://www.w3.org/2000/svg");
     			attr(svg, "xmlns:xlink", "http://www.w3.org/1999/xlink");
     			attr(svg, "style", ctx.styles);
-    			add_location(svg, file$7, 10, 0, 228);
+    			add_location(svg, file$6, 10, 0, 228);
     		},
 
     		l: function claim(nodes) {
@@ -25480,7 +24539,7 @@ var app = (function () {
     	};
     }
 
-    function instance$8($$self, $$props, $$invalidate) {
+    function instance$6($$self, $$props, $$invalidate) {
 
       let { colors, styles } = $$props;
 
@@ -25500,7 +24559,7 @@ var app = (function () {
     class Linth extends SvelteComponentDev {
     	constructor(options) {
     		super(options);
-    		init(this, options, instance$8, create_fragment$8, safe_not_equal, ["colors", "styles"]);
+    		init(this, options, instance$6, create_fragment$6, safe_not_equal, ["colors", "styles"]);
 
     		const { ctx } = this.$$;
     		const props = options.props || {};
@@ -35396,30 +34455,6 @@ var app = (function () {
         return DefaultClient;
     }(ApolloClient));
     //# sourceMappingURL=bundle.esm.js.map
-
-    const client = new DefaultClient({
-      uri: 'http://localhost:4040/graphql'
-    });
-
-    const Levels = src`
-  query {
-    levels {
-      title
-      colors
-      solution
-    }
-  }
-`;
-
-    const AddLevel = src`
-  mutation addLevel($level: LevelInput!) {
-    addLevel(level: $level) {
-      title
-      colors
-      solution
-    }
-  }
-`;
 
     const DEFAULT_CONFIG = {
       // minimum relative difference between two compared values,
@@ -49704,11 +48739,35 @@ var app = (function () {
     };
     //# sourceMappingURL=utils.js.map
 
+    const client = new DefaultClient({
+      uri: 'http://localhost:4040/graphql'
+    });
+
+    const Levels = src`
+  query {
+    levels {
+      title
+      colors
+      solution
+    }
+  }
+`;
+
+    const AddLevel = src`
+  mutation addLevel($level: LevelInput!) {
+    addLevel(level: $level) {
+      title
+      colors
+      solution
+    }
+  }
+`;
+
     /* src/Block.svelte generated by Svelte v3.6.7 */
 
-    const file$8 = "src/Block.svelte";
+    const file$7 = "src/Block.svelte";
 
-    function create_fragment$9(ctx) {
+    function create_fragment$7(ctx) {
     	var div, div_style_value, current, dispose;
 
     	const default_slot_1 = ctx.$$slots.default;
@@ -49722,7 +48781,7 @@ var app = (function () {
 
     			attr(div, "style", div_style_value = "" + ctx._styles + ctx.styles);
     			attr(div, "class", "svelte-1pm8ck7");
-    			add_location(div, file$8, 34, 0, 766);
+    			add_location(div, file$7, 34, 0, 766);
 
     			dispose = [
     				listen(div, "click", ctx.click_handler),
@@ -49783,7 +48842,7 @@ var app = (function () {
 
     const red = '#d22';
 
-    function instance$9($$self, $$props, $$invalidate) {
+    function instance$7($$self, $$props, $$invalidate) {
     	let { row, col, state = -1, color, onClick, onRightClick, transitionTime = 0.2, styles } = $$props;
 
     	const writable_props = ['row', 'col', 'state', 'color', 'onClick', 'onRightClick', 'transitionTime', 'styles'];
@@ -49846,7 +48905,7 @@ var app = (function () {
     class Block extends SvelteComponentDev {
     	constructor(options) {
     		super(options);
-    		init(this, options, instance$9, create_fragment$9, safe_not_equal, ["row", "col", "state", "color", "onClick", "onRightClick", "transitionTime", "styles"]);
+    		init(this, options, instance$7, create_fragment$7, safe_not_equal, ["row", "col", "state", "color", "onClick", "onRightClick", "transitionTime", "styles"]);
 
     		const { ctx } = this.$$;
     		const props = options.props || {};
@@ -49936,9 +48995,8 @@ var app = (function () {
     }
 
     /* src/Griddler.svelte generated by Svelte v3.6.7 */
-    const { console: console_1 } = globals;
 
-    const file$9 = "src/Griddler.svelte";
+    const file$8 = "src/Griddler.svelte";
 
     function get_each_context(ctx, list, i) {
     	const child_ctx = Object.create(ctx);
@@ -49985,7 +49043,92 @@ var app = (function () {
     	return child_ctx;
     }
 
-    // (111:6) <Block         state={1}         color={color}         onClick={() => { setLayerIndex(index); }}         styles="border-radius: 4px; margin: 0 4px;"       >
+    // (118:2) {#if colors && !!colors.length}
+    function create_if_block_5(ctx) {
+    	var div, current;
+
+    	var each_value_6 = ctx.colors;
+
+    	var each_blocks = [];
+
+    	for (var i = 0; i < each_value_6.length; i += 1) {
+    		each_blocks[i] = create_each_block_6(get_each_context_6(ctx, each_value_6, i));
+    	}
+
+    	const out = i => transition_out(each_blocks[i], 1, 1, () => {
+    		each_blocks[i] = null;
+    	});
+
+    	return {
+    		c: function create() {
+    			div = element("div");
+
+    			for (var i = 0; i < each_blocks.length; i += 1) {
+    				each_blocks[i].c();
+    			}
+    			attr(div, "class", "flex-row justify-center margin-bottom svelte-opa93d");
+    			add_location(div, file$8, 118, 4, 2412);
+    		},
+
+    		m: function mount(target, anchor) {
+    			insert(target, div, anchor);
+
+    			for (var i = 0; i < each_blocks.length; i += 1) {
+    				each_blocks[i].m(div, null);
+    			}
+
+    			current = true;
+    		},
+
+    		p: function update(changed, ctx) {
+    			if (changed.colors || changed.setLayerIndex) {
+    				each_value_6 = ctx.colors;
+
+    				for (var i = 0; i < each_value_6.length; i += 1) {
+    					const child_ctx = get_each_context_6(ctx, each_value_6, i);
+
+    					if (each_blocks[i]) {
+    						each_blocks[i].p(changed, child_ctx);
+    						transition_in(each_blocks[i], 1);
+    					} else {
+    						each_blocks[i] = create_each_block_6(child_ctx);
+    						each_blocks[i].c();
+    						transition_in(each_blocks[i], 1);
+    						each_blocks[i].m(div, null);
+    					}
+    				}
+
+    				group_outros();
+    				for (i = each_value_6.length; i < each_blocks.length; i += 1) out(i);
+    				check_outros();
+    			}
+    		},
+
+    		i: function intro(local) {
+    			if (current) return;
+    			for (var i = 0; i < each_value_6.length; i += 1) transition_in(each_blocks[i]);
+
+    			current = true;
+    		},
+
+    		o: function outro(local) {
+    			each_blocks = each_blocks.filter(Boolean);
+    			for (let i = 0; i < each_blocks.length; i += 1) transition_out(each_blocks[i]);
+
+    			current = false;
+    		},
+
+    		d: function destroy(detaching) {
+    			if (detaching) {
+    				detach(div);
+    			}
+
+    			destroy_each(each_blocks, detaching);
+    		}
+    	};
+    }
+
+    // (121:8) <Block           state={1}           color={color}           onClick={() => { setLayerIndex(index); }}           styles="border-radius: 4px; margin: 0 4px;"         >
     function create_default_slot_4(ctx) {
     	var t0_value = ctx.color, t0, t1;
 
@@ -50015,7 +49158,7 @@ var app = (function () {
     	};
     }
 
-    // (110:4) {#each colors as color, index}
+    // (120:6) {#each colors as color, index}
     function create_each_block_6(ctx) {
     	var current;
 
@@ -50072,7 +49215,138 @@ var app = (function () {
     	};
     }
 
-    // (128:6) <Block         color={color}         state={1}       >
+    // (133:4) {#if colTotals && !!colTotals.length}
+    function create_if_block_4(ctx) {
+    	var t0, t1, current;
+
+    	var block0 = new Block({
+    		props: {
+    		color: ctx.color,
+    		state: 1,
+    		styles: "border-top-left-radius: 24px;"
+    	},
+    		$$inline: true
+    	});
+
+    	var each_value_5 = ctx.colTotals;
+
+    	var each_blocks = [];
+
+    	for (var i = 0; i < each_value_5.length; i += 1) {
+    		each_blocks[i] = create_each_block_5(get_each_context_5(ctx, each_value_5, i));
+    	}
+
+    	const out = i => transition_out(each_blocks[i], 1, 1, () => {
+    		each_blocks[i] = null;
+    	});
+
+    	var block1 = new Block({
+    		props: {
+    		color: ctx.color,
+    		state: 1,
+    		styles: "border-top-right-radius: 24px;"
+    	},
+    		$$inline: true
+    	});
+
+    	return {
+    		c: function create() {
+    			block0.$$.fragment.c();
+    			t0 = space();
+
+    			for (var i = 0; i < each_blocks.length; i += 1) {
+    				each_blocks[i].c();
+    			}
+
+    			t1 = space();
+    			block1.$$.fragment.c();
+    		},
+
+    		m: function mount(target, anchor) {
+    			mount_component(block0, target, anchor);
+    			insert(target, t0, anchor);
+
+    			for (var i = 0; i < each_blocks.length; i += 1) {
+    				each_blocks[i].m(target, anchor);
+    			}
+
+    			insert(target, t1, anchor);
+    			mount_component(block1, target, anchor);
+    			current = true;
+    		},
+
+    		p: function update(changed, ctx) {
+    			var block0_changes = {};
+    			if (changed.color) block0_changes.color = ctx.color;
+    			block0.$set(block0_changes);
+
+    			if (changed.color || changed.colTotals) {
+    				each_value_5 = ctx.colTotals;
+
+    				for (var i = 0; i < each_value_5.length; i += 1) {
+    					const child_ctx = get_each_context_5(ctx, each_value_5, i);
+
+    					if (each_blocks[i]) {
+    						each_blocks[i].p(changed, child_ctx);
+    						transition_in(each_blocks[i], 1);
+    					} else {
+    						each_blocks[i] = create_each_block_5(child_ctx);
+    						each_blocks[i].c();
+    						transition_in(each_blocks[i], 1);
+    						each_blocks[i].m(t1.parentNode, t1);
+    					}
+    				}
+
+    				group_outros();
+    				for (i = each_value_5.length; i < each_blocks.length; i += 1) out(i);
+    				check_outros();
+    			}
+
+    			var block1_changes = {};
+    			if (changed.color) block1_changes.color = ctx.color;
+    			block1.$set(block1_changes);
+    		},
+
+    		i: function intro(local) {
+    			if (current) return;
+    			transition_in(block0.$$.fragment, local);
+
+    			for (var i = 0; i < each_value_5.length; i += 1) transition_in(each_blocks[i]);
+
+    			transition_in(block1.$$.fragment, local);
+
+    			current = true;
+    		},
+
+    		o: function outro(local) {
+    			transition_out(block0.$$.fragment, local);
+
+    			each_blocks = each_blocks.filter(Boolean);
+    			for (let i = 0; i < each_blocks.length; i += 1) transition_out(each_blocks[i]);
+
+    			transition_out(block1.$$.fragment, local);
+    			current = false;
+    		},
+
+    		d: function destroy(detaching) {
+    			destroy_component(block0, detaching);
+
+    			if (detaching) {
+    				detach(t0);
+    			}
+
+    			destroy_each(each_blocks, detaching);
+
+    			if (detaching) {
+    				detach(t1);
+    			}
+
+    			destroy_component(block1, detaching);
+    		}
+    	};
+    }
+
+    // (140:8) <Block           color={color}           state={1}         >
     function create_default_slot_3(ctx) {
     	var t_value = ctx.total, t;
 
@@ -50099,7 +49373,7 @@ var app = (function () {
     	};
     }
 
-    // (127:4) {#each colTotals as total}
+    // (139:6) {#each colTotals as total}
     function create_each_block_5(ctx) {
     	var current;
 
@@ -50148,7 +49422,92 @@ var app = (function () {
     	};
     }
 
-    // (144:8) <Block           color={color}           state={1}         >
+    // (155:4) {#if rowTotals && !!rowTotals.length}
+    function create_if_block_3(ctx) {
+    	var div, current;
+
+    	var each_value_4 = ctx.rowTotals;
+
+    	var each_blocks = [];
+
+    	for (var i = 0; i < each_value_4.length; i += 1) {
+    		each_blocks[i] = create_each_block_4(get_each_context_4(ctx, each_value_4, i));
+    	}
+
+    	const out = i => transition_out(each_blocks[i], 1, 1, () => {
+    		each_blocks[i] = null;
+    	});
+
+    	return {
+    		c: function create() {
+    			div = element("div");
+
+    			for (var i = 0; i < each_blocks.length; i += 1) {
+    				each_blocks[i].c();
+    			}
+    			attr(div, "class", "flex-col svelte-opa93d");
+    			add_location(div, file$8, 155, 6, 3303);
+    		},
+
+    		m: function mount(target, anchor) {
+    			insert(target, div, anchor);
+
+    			for (var i = 0; i < each_blocks.length; i += 1) {
+    				each_blocks[i].m(div, null);
+    			}
+
+    			current = true;
+    		},
+
+    		p: function update(changed, ctx) {
+    			if (changed.color || changed.rowTotals) {
+    				each_value_4 = ctx.rowTotals;
+
+    				for (var i = 0; i < each_value_4.length; i += 1) {
+    					const child_ctx = get_each_context_4(ctx, each_value_4, i);
+
+    					if (each_blocks[i]) {
+    						each_blocks[i].p(changed, child_ctx);
+    						transition_in(each_blocks[i], 1);
+    					} else {
+    						each_blocks[i] = create_each_block_4(child_ctx);
+    						each_blocks[i].c();
+    						transition_in(each_blocks[i], 1);
+    						each_blocks[i].m(div, null);
+    					}
+    				}
+
+    				group_outros();
+    				for (i = each_value_4.length; i < each_blocks.length; i += 1) out(i);
+    				check_outros();
+    			}
+    		},
+
+    		i: function intro(local) {
+    			if (current) return;
+    			for (var i = 0; i < each_value_4.length; i += 1) transition_in(each_blocks[i]);
+
+    			current = true;
+    		},
+
+    		o: function outro(local) {
+    			each_blocks = each_blocks.filter(Boolean);
+    			for (let i = 0; i < each_blocks.length; i += 1) transition_out(each_blocks[i]);
+
+    			current = false;
+    		},
+
+    		d: function destroy(detaching) {
+    			if (detaching) {
+    				detach(div);
+    			}
+
+    			destroy_each(each_blocks, detaching);
+    		}
+    	};
+    }
+
+    // (158:10) <Block             color={color}             state={1}           >
     function create_default_slot_2(ctx) {
     	var t0_value = ctx.total, t0, t1;
 
@@ -50178,7 +49537,7 @@ var app = (function () {
     	};
     }
 
-    // (143:6) {#each rowTotals as total}
+    // (157:8) {#each rowTotals as total}
     function create_each_block_4(ctx) {
     	var current;
 
@@ -50227,7 +49586,96 @@ var app = (function () {
     	};
     }
 
-    // (155:10) {#each row as item, colIndex}
+    // (167:4) {#if boards && !!boards.length}
+    function create_if_block_2(ctx) {
+    	var div, section, current;
+
+    	var each_value_2 = ctx.boards[ctx.levelIndex];
+
+    	var each_blocks = [];
+
+    	for (var i = 0; i < each_value_2.length; i += 1) {
+    		each_blocks[i] = create_each_block_2(get_each_context_2(ctx, each_value_2, i));
+    	}
+
+    	const out = i => transition_out(each_blocks[i], 1, 1, () => {
+    		each_blocks[i] = null;
+    	});
+
+    	return {
+    		c: function create() {
+    			div = element("div");
+    			section = element("section");
+
+    			for (var i = 0; i < each_blocks.length; i += 1) {
+    				each_blocks[i].c();
+    			}
+    			attr(section, "class", "board svelte-opa93d");
+    			add_location(section, file$8, 168, 8, 3589);
+    			attr(div, "class", "flex-row svelte-opa93d");
+    			add_location(div, file$8, 167, 6, 3558);
+    		},
+
+    		m: function mount(target, anchor) {
+    			insert(target, div, anchor);
+    			append(div, section);
+
+    			for (var i = 0; i < each_blocks.length; i += 1) {
+    				each_blocks[i].m(section, null);
+    			}
+
+    			current = true;
+    		},
+
+    		p: function update(changed, ctx) {
+    			if (changed.boards || changed.levelIndex || changed.toggleEnabled || changed.toggleDisabled || changed.colors) {
+    				each_value_2 = ctx.boards[ctx.levelIndex];
+
+    				for (var i = 0; i < each_value_2.length; i += 1) {
+    					const child_ctx = get_each_context_2(ctx, each_value_2, i);
+
+    					if (each_blocks[i]) {
+    						each_blocks[i].p(changed, child_ctx);
+    						transition_in(each_blocks[i], 1);
+    					} else {
+    						each_blocks[i] = create_each_block_2(child_ctx);
+    						each_blocks[i].c();
+    						transition_in(each_blocks[i], 1);
+    						each_blocks[i].m(section, null);
+    					}
+    				}
+
+    				group_outros();
+    				for (i = each_value_2.length; i < each_blocks.length; i += 1) out(i);
+    				check_outros();
+    			}
+    		},
+
+    		i: function intro(local) {
+    			if (current) return;
+    			for (var i = 0; i < each_value_2.length; i += 1) transition_in(each_blocks[i]);
+
+    			current = true;
+    		},
+
+    		o: function outro(local) {
+    			each_blocks = each_blocks.filter(Boolean);
+    			for (let i = 0; i < each_blocks.length; i += 1) transition_out(each_blocks[i]);
+
+    			current = false;
+    		},
+
+    		d: function destroy(detaching) {
+    			if (detaching) {
+    				detach(div);
+    			}
+
+    			destroy_each(each_blocks, detaching);
+    		}
+    	};
+    }
+
+    // (171:12) {#each row as item, colIndex}
     function create_each_block_3(ctx) {
     	var current;
 
@@ -50255,10 +49703,10 @@ var app = (function () {
 
     		p: function update(changed, ctx) {
     			var block_changes = {};
-    			if (changed.board) block_changes.state = ctx.item;
+    			if (changed.boards || changed.levelIndex) block_changes.state = ctx.item;
     			if (changed.toggleEnabled) block_changes.onClick = ctx.toggleEnabled;
     			if (changed.toggleDisabled) block_changes.onRightClick = ctx.toggleDisabled;
-    			if (changed.colors || changed.board) block_changes.color = ctx.colors[ctx.item];
+    			if (changed.colors || changed.boards || changed.levelIndex) block_changes.color = ctx.colors[ctx.item];
     			block.$set(block_changes);
     		},
 
@@ -50280,7 +49728,7 @@ var app = (function () {
     	};
     }
 
-    // (154:8) {#each board as row, rowIndex}
+    // (170:10) {#each boards[levelIndex] as row, rowIndex}
     function create_each_block_2(ctx) {
     	var each_1_anchor, current;
 
@@ -50315,7 +49763,7 @@ var app = (function () {
     		},
 
     		p: function update(changed, ctx) {
-    			if (changed.board || changed.toggleEnabled || changed.toggleDisabled || changed.colors) {
+    			if (changed.boards || changed.levelIndex || changed.toggleEnabled || changed.toggleDisabled || changed.colors) {
     				each_value_3 = ctx.row;
 
     				for (var i = 0; i < each_value_3.length; i += 1) {
@@ -50362,7 +49810,92 @@ var app = (function () {
     	};
     }
 
-    // (170:8) <Block           color={color}           state={1}         >
+    // (185:4) {#if rowTotals && !!rowTotals.length}
+    function create_if_block_1(ctx) {
+    	var div, current;
+
+    	var each_value_1 = ctx.rowTotals;
+
+    	var each_blocks = [];
+
+    	for (var i = 0; i < each_value_1.length; i += 1) {
+    		each_blocks[i] = create_each_block_1(get_each_context_1(ctx, each_value_1, i));
+    	}
+
+    	const out = i => transition_out(each_blocks[i], 1, 1, () => {
+    		each_blocks[i] = null;
+    	});
+
+    	return {
+    		c: function create() {
+    			div = element("div");
+
+    			for (var i = 0; i < each_blocks.length; i += 1) {
+    				each_blocks[i].c();
+    			}
+    			attr(div, "class", "flex-col svelte-opa93d");
+    			add_location(div, file$8, 185, 6, 4089);
+    		},
+
+    		m: function mount(target, anchor) {
+    			insert(target, div, anchor);
+
+    			for (var i = 0; i < each_blocks.length; i += 1) {
+    				each_blocks[i].m(div, null);
+    			}
+
+    			current = true;
+    		},
+
+    		p: function update(changed, ctx) {
+    			if (changed.color || changed.rowTotals) {
+    				each_value_1 = ctx.rowTotals;
+
+    				for (var i = 0; i < each_value_1.length; i += 1) {
+    					const child_ctx = get_each_context_1(ctx, each_value_1, i);
+
+    					if (each_blocks[i]) {
+    						each_blocks[i].p(changed, child_ctx);
+    						transition_in(each_blocks[i], 1);
+    					} else {
+    						each_blocks[i] = create_each_block_1(child_ctx);
+    						each_blocks[i].c();
+    						transition_in(each_blocks[i], 1);
+    						each_blocks[i].m(div, null);
+    					}
+    				}
+
+    				group_outros();
+    				for (i = each_value_1.length; i < each_blocks.length; i += 1) out(i);
+    				check_outros();
+    			}
+    		},
+
+    		i: function intro(local) {
+    			if (current) return;
+    			for (var i = 0; i < each_value_1.length; i += 1) transition_in(each_blocks[i]);
+
+    			current = true;
+    		},
+
+    		o: function outro(local) {
+    			each_blocks = each_blocks.filter(Boolean);
+    			for (let i = 0; i < each_blocks.length; i += 1) transition_out(each_blocks[i]);
+
+    			current = false;
+    		},
+
+    		d: function destroy(detaching) {
+    			if (detaching) {
+    				detach(div);
+    			}
+
+    			destroy_each(each_blocks, detaching);
+    		}
+    	};
+    }
+
+    // (188:10) <Block             color={color}             state={1}           >
     function create_default_slot_1(ctx) {
     	var t0_value = ctx.total, t0, t1;
 
@@ -50392,7 +49925,7 @@ var app = (function () {
     	};
     }
 
-    // (169:6) {#each rowTotals as total}
+    // (187:8) {#each rowTotals as total}
     function create_each_block_1(ctx) {
     	var current;
 
@@ -50441,7 +49974,138 @@ var app = (function () {
     	};
     }
 
-    // (186:6) <Block         color={color}         state={1}       >
+    // (198:2) {#if colTotals && !!colTotals.length}
+    function create_if_block(ctx) {
+    	var div, t0, t1, current;
+
+    	var block0 = new Block({
+    		props: {
+    		color: ctx.color,
+    		state: 1,
+    		styles: "border-bottom-left-radius: 24px;"
+    	},
+    		$$inline: true
+    	});
+
+    	var each_value = ctx.colTotals;
+
+    	var each_blocks = [];
+
+    	for (var i = 0; i < each_value.length; i += 1) {
+    		each_blocks[i] = create_each_block(get_each_context(ctx, each_value, i));
+    	}
+
+    	const out = i => transition_out(each_blocks[i], 1, 1, () => {
+    		each_blocks[i] = null;
+    	});
+
+    	var block1 = new Block({
+    		props: {
+    		color: ctx.color,
+    		state: 1,
+    		styles: "border-bottom-right-radius: 24px;"
+    	},
+    		$$inline: true
+    	});
+
+    	return {
+    		c: function create() {
+    			div = element("div");
+    			block0.$$.fragment.c();
+    			t0 = space();
+
+    			for (var i = 0; i < each_blocks.length; i += 1) {
+    				each_blocks[i].c();
+    			}
+
+    			t1 = space();
+    			block1.$$.fragment.c();
+    			attr(div, "class", "flex-row justify-center svelte-opa93d");
+    			add_location(div, file$8, 198, 4, 4355);
+    		},
+
+    		m: function mount(target, anchor) {
+    			insert(target, div, anchor);
+    			mount_component(block0, div, null);
+    			append(div, t0);
+
+    			for (var i = 0; i < each_blocks.length; i += 1) {
+    				each_blocks[i].m(div, null);
+    			}
+
+    			append(div, t1);
+    			mount_component(block1, div, null);
+    			current = true;
+    		},
+
+    		p: function update(changed, ctx) {
+    			var block0_changes = {};
+    			if (changed.color) block0_changes.color = ctx.color;
+    			block0.$set(block0_changes);
+
+    			if (changed.color || changed.colTotals) {
+    				each_value = ctx.colTotals;
+
+    				for (var i = 0; i < each_value.length; i += 1) {
+    					const child_ctx = get_each_context(ctx, each_value, i);
+
+    					if (each_blocks[i]) {
+    						each_blocks[i].p(changed, child_ctx);
+    						transition_in(each_blocks[i], 1);
+    					} else {
+    						each_blocks[i] = create_each_block(child_ctx);
+    						each_blocks[i].c();
+    						transition_in(each_blocks[i], 1);
+    						each_blocks[i].m(div, t1);
+    					}
+    				}
+
+    				group_outros();
+    				for (i = each_value.length; i < each_blocks.length; i += 1) out(i);
+    				check_outros();
+    			}
+
+    			var block1_changes = {};
+    			if (changed.color) block1_changes.color = ctx.color;
+    			block1.$set(block1_changes);
+    		},
+
+    		i: function intro(local) {
+    			if (current) return;
+    			transition_in(block0.$$.fragment, local);
+
+    			for (var i = 0; i < each_value.length; i += 1) transition_in(each_blocks[i]);
+
+    			transition_in(block1.$$.fragment, local);
+
+    			current = true;
+    		},
+
+    		o: function outro(local) {
+    			transition_out(block0.$$.fragment, local);
+
+    			each_blocks = each_blocks.filter(Boolean);
+    			for (let i = 0; i < each_blocks.length; i += 1) transition_out(each_blocks[i]);
+
+    			transition_out(block1.$$.fragment, local);
+    			current = false;
+    		},
+
+    		d: function destroy(detaching) {
+    			if (detaching) {
+    				detach(div);
+    			}
+
+    			destroy_component(block0, );
+
+    			destroy_each(each_blocks, detaching);
+
+    			destroy_component(block1, );
+    		}
+    	};
+    }
+
+    // (206:8) <Block           color={color}           state={1}         >
     function create_default_slot(ctx) {
     	var t_value = ctx.total, t;
 
@@ -50468,7 +50132,7 @@ var app = (function () {
     	};
     }
 
-    // (185:4) {#each colTotals as total}
+    // (205:6) {#each colTotals as total}
     function create_each_block(ctx) {
     	var current;
 
@@ -50517,203 +50181,57 @@ var app = (function () {
     	};
     }
 
-    function create_fragment$a(ctx) {
-    	var div9, h1, t0, t1, div0, t2_value = lodash.isEmpty(ctx.props).toString(), t2, t3, div1, t4, div2, t5, t6, t7, div6, div3, t8, div4, section, t9, div5, t10, div7, t11, t12, t13, div8, t14_value = ctx.same.toString(), t14, current;
+    function create_fragment$8(ctx) {
+    	var div3, h1, t0, t1, h2, t3, t4, div0, t5, div1, t6, t7, t8, t9, div2, t10_value = ctx.same.toString(), t10, current;
 
-    	var each_value_6 = ctx.colors;
+    	var if_block0 = (ctx.colors && !!ctx.colors.length) && create_if_block_5(ctx);
 
-    	var each_blocks_5 = [];
+    	var if_block1 = (ctx.colTotals && !!ctx.colTotals.length) && create_if_block_4(ctx);
 
-    	for (var i = 0; i < each_value_6.length; i += 1) {
-    		each_blocks_5[i] = create_each_block_6(get_each_context_6(ctx, each_value_6, i));
-    	}
+    	var if_block2 = (ctx.rowTotals && !!ctx.rowTotals.length) && create_if_block_3(ctx);
 
-    	const out = i => transition_out(each_blocks_5[i], 1, 1, () => {
-    		each_blocks_5[i] = null;
-    	});
+    	var if_block3 = (ctx.boards && !!ctx.boards.length) && create_if_block_2(ctx);
 
-    	var block0 = new Block({
-    		props: {
-    		color: ctx.color,
-    		state: 1,
-    		styles: "border-top-left-radius: 24px;"
-    	},
-    		$$inline: true
-    	});
+    	var if_block4 = (ctx.rowTotals && !!ctx.rowTotals.length) && create_if_block_1(ctx);
 
-    	var each_value_5 = ctx.colTotals;
-
-    	var each_blocks_4 = [];
-
-    	for (var i = 0; i < each_value_5.length; i += 1) {
-    		each_blocks_4[i] = create_each_block_5(get_each_context_5(ctx, each_value_5, i));
-    	}
-
-    	const out_1 = i => transition_out(each_blocks_4[i], 1, 1, () => {
-    		each_blocks_4[i] = null;
-    	});
-
-    	var block1 = new Block({
-    		props: {
-    		color: ctx.color,
-    		state: 1,
-    		styles: "border-top-right-radius: 24px;"
-    	},
-    		$$inline: true
-    	});
-
-    	var each_value_4 = ctx.rowTotals;
-
-    	var each_blocks_3 = [];
-
-    	for (var i = 0; i < each_value_4.length; i += 1) {
-    		each_blocks_3[i] = create_each_block_4(get_each_context_4(ctx, each_value_4, i));
-    	}
-
-    	const out_2 = i => transition_out(each_blocks_3[i], 1, 1, () => {
-    		each_blocks_3[i] = null;
-    	});
-
-    	var each_value_2 = ctx.board;
-
-    	var each_blocks_2 = [];
-
-    	for (var i = 0; i < each_value_2.length; i += 1) {
-    		each_blocks_2[i] = create_each_block_2(get_each_context_2(ctx, each_value_2, i));
-    	}
-
-    	const out_3 = i => transition_out(each_blocks_2[i], 1, 1, () => {
-    		each_blocks_2[i] = null;
-    	});
-
-    	var each_value_1 = ctx.rowTotals;
-
-    	var each_blocks_1 = [];
-
-    	for (var i = 0; i < each_value_1.length; i += 1) {
-    		each_blocks_1[i] = create_each_block_1(get_each_context_1(ctx, each_value_1, i));
-    	}
-
-    	const out_4 = i => transition_out(each_blocks_1[i], 1, 1, () => {
-    		each_blocks_1[i] = null;
-    	});
-
-    	var block2 = new Block({
-    		props: {
-    		color: ctx.color,
-    		state: 1,
-    		styles: "border-bottom-left-radius: 24px;"
-    	},
-    		$$inline: true
-    	});
-
-    	var each_value = ctx.colTotals;
-
-    	var each_blocks = [];
-
-    	for (var i = 0; i < each_value.length; i += 1) {
-    		each_blocks[i] = create_each_block(get_each_context(ctx, each_value, i));
-    	}
-
-    	const out_5 = i => transition_out(each_blocks[i], 1, 1, () => {
-    		each_blocks[i] = null;
-    	});
-
-    	var block3 = new Block({
-    		props: {
-    		color: ctx.color,
-    		state: 1,
-    		styles: "border-bottom-right-radius: 24px;"
-    	},
-    		$$inline: true
-    	});
+    	var if_block5 = (ctx.colTotals && !!ctx.colTotals.length) && create_if_block(ctx);
 
     	return {
     		c: function create() {
-    			div9 = element("div");
+    			div3 = element("div");
     			h1 = element("h1");
     			t0 = text(ctx.title);
     			t1 = space();
-    			div0 = element("div");
-    			t2 = text(t2_value);
+    			h2 = element("h2");
+    			h2.textContent = "Butts";
     			t3 = space();
-    			div1 = element("div");
-
-    			for (var i = 0; i < each_blocks_5.length; i += 1) {
-    				each_blocks_5[i].c();
-    			}
-
+    			if (if_block0) if_block0.c();
     			t4 = space();
-    			div2 = element("div");
-    			block0.$$.fragment.c();
+    			div0 = element("div");
+    			if (if_block1) if_block1.c();
     			t5 = space();
-
-    			for (var i = 0; i < each_blocks_4.length; i += 1) {
-    				each_blocks_4[i].c();
-    			}
-
+    			div1 = element("div");
+    			if (if_block2) if_block2.c();
     			t6 = space();
-    			block1.$$.fragment.c();
+    			if (if_block3) if_block3.c();
     			t7 = space();
-    			div6 = element("div");
-    			div3 = element("div");
-
-    			for (var i = 0; i < each_blocks_3.length; i += 1) {
-    				each_blocks_3[i].c();
-    			}
-
+    			if (if_block4) if_block4.c();
     			t8 = space();
-    			div4 = element("div");
-    			section = element("section");
-
-    			for (var i = 0; i < each_blocks_2.length; i += 1) {
-    				each_blocks_2[i].c();
-    			}
-
+    			if (if_block5) if_block5.c();
     			t9 = space();
-    			div5 = element("div");
-
-    			for (var i = 0; i < each_blocks_1.length; i += 1) {
-    				each_blocks_1[i].c();
-    			}
-
-    			t10 = space();
-    			div7 = element("div");
-    			block2.$$.fragment.c();
-    			t11 = space();
-
-    			for (var i = 0; i < each_blocks.length; i += 1) {
-    				each_blocks[i].c();
-    			}
-
-    			t12 = space();
-    			block3.$$.fragment.c();
-    			t13 = space();
-    			div8 = element("div");
-    			t14 = text(t14_value);
+    			div2 = element("div");
+    			t10 = text(t10_value);
     			attr(h1, "class", "svelte-opa93d");
-    			add_location(h1, file$9, 104, 2, 2078);
-    			add_location(div0, file$9, 105, 2, 2097);
-    			attr(div1, "class", "flex-row justify-center margin-bottom svelte-opa93d");
-    			add_location(div1, file$9, 108, 2, 2148);
+    			add_location(h1, file$8, 115, 2, 2340);
+    			add_location(h2, file$8, 116, 2, 2359);
+    			attr(div0, "class", "flex-row justify-center svelte-opa93d");
+    			add_location(div0, file$8, 131, 2, 2746);
+    			attr(div1, "class", "flex-row justify-center svelte-opa93d");
+    			add_location(div1, file$8, 153, 2, 3217);
     			attr(div2, "class", "flex-row justify-center svelte-opa93d");
-    			add_location(div2, file$9, 120, 2, 2452);
-    			attr(div3, "class", "flex-col svelte-opa93d");
-    			add_location(div3, file$9, 141, 4, 2877);
-    			attr(section, "class", "board svelte-opa93d");
-    			add_location(section, file$9, 152, 6, 3095);
-    			attr(div4, "class", "flex-row svelte-opa93d");
-    			add_location(div4, file$9, 151, 4, 3066);
-    			attr(div5, "class", "flex-col svelte-opa93d");
-    			add_location(div5, file$9, 167, 4, 3500);
-    			attr(div6, "class", "flex-row justify-center svelte-opa93d");
-    			add_location(div6, file$9, 140, 2, 2835);
-    			attr(div7, "class", "flex-row justify-center svelte-opa93d");
-    			add_location(div7, file$9, 178, 2, 3696);
-    			attr(div8, "class", "flex-row justify-center svelte-opa93d");
-    			add_location(div8, file$9, 198, 2, 4085);
-    			attr(div9, "class", "main svelte-opa93d");
-    			add_location(div9, file$9, 103, 0, 2057);
+    			add_location(div2, file$8, 219, 2, 4790);
+    			attr(div3, "class", "main svelte-opa93d");
+    			add_location(div3, file$8, 114, 0, 2319);
     		},
 
     		l: function claim(nodes) {
@@ -50721,67 +50239,28 @@ var app = (function () {
     		},
 
     		m: function mount(target, anchor) {
-    			insert(target, div9, anchor);
-    			append(div9, h1);
+    			insert(target, div3, anchor);
+    			append(div3, h1);
     			append(h1, t0);
-    			append(div9, t1);
-    			append(div9, div0);
-    			append(div0, t2);
-    			append(div9, t3);
-    			append(div9, div1);
-
-    			for (var i = 0; i < each_blocks_5.length; i += 1) {
-    				each_blocks_5[i].m(div1, null);
-    			}
-
-    			append(div9, t4);
-    			append(div9, div2);
-    			mount_component(block0, div2, null);
-    			append(div2, t5);
-
-    			for (var i = 0; i < each_blocks_4.length; i += 1) {
-    				each_blocks_4[i].m(div2, null);
-    			}
-
-    			append(div2, t6);
-    			mount_component(block1, div2, null);
-    			append(div9, t7);
-    			append(div9, div6);
-    			append(div6, div3);
-
-    			for (var i = 0; i < each_blocks_3.length; i += 1) {
-    				each_blocks_3[i].m(div3, null);
-    			}
-
-    			append(div6, t8);
-    			append(div6, div4);
-    			append(div4, section);
-
-    			for (var i = 0; i < each_blocks_2.length; i += 1) {
-    				each_blocks_2[i].m(section, null);
-    			}
-
-    			append(div6, t9);
-    			append(div6, div5);
-
-    			for (var i = 0; i < each_blocks_1.length; i += 1) {
-    				each_blocks_1[i].m(div5, null);
-    			}
-
-    			append(div9, t10);
-    			append(div9, div7);
-    			mount_component(block2, div7, null);
-    			append(div7, t11);
-
-    			for (var i = 0; i < each_blocks.length; i += 1) {
-    				each_blocks[i].m(div7, null);
-    			}
-
-    			append(div7, t12);
-    			mount_component(block3, div7, null);
-    			append(div9, t13);
-    			append(div9, div8);
-    			append(div8, t14);
+    			append(div3, t1);
+    			append(div3, h2);
+    			append(div3, t3);
+    			if (if_block0) if_block0.m(div3, null);
+    			append(div3, t4);
+    			append(div3, div0);
+    			if (if_block1) if_block1.m(div0, null);
+    			append(div3, t5);
+    			append(div3, div1);
+    			if (if_block2) if_block2.m(div1, null);
+    			append(div1, t6);
+    			if (if_block3) if_block3.m(div1, null);
+    			append(div1, t7);
+    			if (if_block4) if_block4.m(div1, null);
+    			append(div3, t8);
+    			if (if_block5) if_block5.m(div3, null);
+    			append(div3, t9);
+    			append(div3, div2);
+    			append(div2, t10);
     			current = true;
     		},
 
@@ -50790,312 +50269,229 @@ var app = (function () {
     				set_data(t0, ctx.title);
     			}
 
-    			if ((!current || changed.props) && t2_value !== (t2_value = lodash.isEmpty(ctx.props).toString())) {
-    				set_data(t2, t2_value);
-    			}
-
-    			if (changed.colors || changed.setLayerIndex) {
-    				each_value_6 = ctx.colors;
-
-    				for (var i = 0; i < each_value_6.length; i += 1) {
-    					const child_ctx = get_each_context_6(ctx, each_value_6, i);
-
-    					if (each_blocks_5[i]) {
-    						each_blocks_5[i].p(changed, child_ctx);
-    						transition_in(each_blocks_5[i], 1);
-    					} else {
-    						each_blocks_5[i] = create_each_block_6(child_ctx);
-    						each_blocks_5[i].c();
-    						transition_in(each_blocks_5[i], 1);
-    						each_blocks_5[i].m(div1, null);
-    					}
+    			if (ctx.colors && !!ctx.colors.length) {
+    				if (if_block0) {
+    					if_block0.p(changed, ctx);
+    					transition_in(if_block0, 1);
+    				} else {
+    					if_block0 = create_if_block_5(ctx);
+    					if_block0.c();
+    					transition_in(if_block0, 1);
+    					if_block0.m(div3, t4);
     				}
-
+    			} else if (if_block0) {
     				group_outros();
-    				for (i = each_value_6.length; i < each_blocks_5.length; i += 1) out(i);
+    				transition_out(if_block0, 1, 1, () => {
+    					if_block0 = null;
+    				});
     				check_outros();
     			}
 
-    			var block0_changes = {};
-    			if (changed.color) block0_changes.color = ctx.color;
-    			block0.$set(block0_changes);
-
-    			if (changed.color || changed.colTotals) {
-    				each_value_5 = ctx.colTotals;
-
-    				for (var i = 0; i < each_value_5.length; i += 1) {
-    					const child_ctx = get_each_context_5(ctx, each_value_5, i);
-
-    					if (each_blocks_4[i]) {
-    						each_blocks_4[i].p(changed, child_ctx);
-    						transition_in(each_blocks_4[i], 1);
-    					} else {
-    						each_blocks_4[i] = create_each_block_5(child_ctx);
-    						each_blocks_4[i].c();
-    						transition_in(each_blocks_4[i], 1);
-    						each_blocks_4[i].m(div2, t6);
-    					}
+    			if (ctx.colTotals && !!ctx.colTotals.length) {
+    				if (if_block1) {
+    					if_block1.p(changed, ctx);
+    					transition_in(if_block1, 1);
+    				} else {
+    					if_block1 = create_if_block_4(ctx);
+    					if_block1.c();
+    					transition_in(if_block1, 1);
+    					if_block1.m(div0, null);
     				}
-
+    			} else if (if_block1) {
     				group_outros();
-    				for (i = each_value_5.length; i < each_blocks_4.length; i += 1) out_1(i);
+    				transition_out(if_block1, 1, 1, () => {
+    					if_block1 = null;
+    				});
     				check_outros();
     			}
 
-    			var block1_changes = {};
-    			if (changed.color) block1_changes.color = ctx.color;
-    			block1.$set(block1_changes);
-
-    			if (changed.color || changed.rowTotals) {
-    				each_value_4 = ctx.rowTotals;
-
-    				for (var i = 0; i < each_value_4.length; i += 1) {
-    					const child_ctx = get_each_context_4(ctx, each_value_4, i);
-
-    					if (each_blocks_3[i]) {
-    						each_blocks_3[i].p(changed, child_ctx);
-    						transition_in(each_blocks_3[i], 1);
-    					} else {
-    						each_blocks_3[i] = create_each_block_4(child_ctx);
-    						each_blocks_3[i].c();
-    						transition_in(each_blocks_3[i], 1);
-    						each_blocks_3[i].m(div3, null);
-    					}
+    			if (ctx.rowTotals && !!ctx.rowTotals.length) {
+    				if (if_block2) {
+    					if_block2.p(changed, ctx);
+    					transition_in(if_block2, 1);
+    				} else {
+    					if_block2 = create_if_block_3(ctx);
+    					if_block2.c();
+    					transition_in(if_block2, 1);
+    					if_block2.m(div1, t6);
     				}
-
+    			} else if (if_block2) {
     				group_outros();
-    				for (i = each_value_4.length; i < each_blocks_3.length; i += 1) out_2(i);
+    				transition_out(if_block2, 1, 1, () => {
+    					if_block2 = null;
+    				});
     				check_outros();
     			}
 
-    			if (changed.board || changed.toggleEnabled || changed.toggleDisabled || changed.colors) {
-    				each_value_2 = ctx.board;
-
-    				for (var i = 0; i < each_value_2.length; i += 1) {
-    					const child_ctx = get_each_context_2(ctx, each_value_2, i);
-
-    					if (each_blocks_2[i]) {
-    						each_blocks_2[i].p(changed, child_ctx);
-    						transition_in(each_blocks_2[i], 1);
-    					} else {
-    						each_blocks_2[i] = create_each_block_2(child_ctx);
-    						each_blocks_2[i].c();
-    						transition_in(each_blocks_2[i], 1);
-    						each_blocks_2[i].m(section, null);
-    					}
+    			if (ctx.boards && !!ctx.boards.length) {
+    				if (if_block3) {
+    					if_block3.p(changed, ctx);
+    					transition_in(if_block3, 1);
+    				} else {
+    					if_block3 = create_if_block_2(ctx);
+    					if_block3.c();
+    					transition_in(if_block3, 1);
+    					if_block3.m(div1, t7);
     				}
-
+    			} else if (if_block3) {
     				group_outros();
-    				for (i = each_value_2.length; i < each_blocks_2.length; i += 1) out_3(i);
+    				transition_out(if_block3, 1, 1, () => {
+    					if_block3 = null;
+    				});
     				check_outros();
     			}
 
-    			if (changed.color || changed.rowTotals) {
-    				each_value_1 = ctx.rowTotals;
-
-    				for (var i = 0; i < each_value_1.length; i += 1) {
-    					const child_ctx = get_each_context_1(ctx, each_value_1, i);
-
-    					if (each_blocks_1[i]) {
-    						each_blocks_1[i].p(changed, child_ctx);
-    						transition_in(each_blocks_1[i], 1);
-    					} else {
-    						each_blocks_1[i] = create_each_block_1(child_ctx);
-    						each_blocks_1[i].c();
-    						transition_in(each_blocks_1[i], 1);
-    						each_blocks_1[i].m(div5, null);
-    					}
+    			if (ctx.rowTotals && !!ctx.rowTotals.length) {
+    				if (if_block4) {
+    					if_block4.p(changed, ctx);
+    					transition_in(if_block4, 1);
+    				} else {
+    					if_block4 = create_if_block_1(ctx);
+    					if_block4.c();
+    					transition_in(if_block4, 1);
+    					if_block4.m(div1, null);
     				}
-
+    			} else if (if_block4) {
     				group_outros();
-    				for (i = each_value_1.length; i < each_blocks_1.length; i += 1) out_4(i);
+    				transition_out(if_block4, 1, 1, () => {
+    					if_block4 = null;
+    				});
     				check_outros();
     			}
 
-    			var block2_changes = {};
-    			if (changed.color) block2_changes.color = ctx.color;
-    			block2.$set(block2_changes);
-
-    			if (changed.color || changed.colTotals) {
-    				each_value = ctx.colTotals;
-
-    				for (var i = 0; i < each_value.length; i += 1) {
-    					const child_ctx = get_each_context(ctx, each_value, i);
-
-    					if (each_blocks[i]) {
-    						each_blocks[i].p(changed, child_ctx);
-    						transition_in(each_blocks[i], 1);
-    					} else {
-    						each_blocks[i] = create_each_block(child_ctx);
-    						each_blocks[i].c();
-    						transition_in(each_blocks[i], 1);
-    						each_blocks[i].m(div7, t12);
-    					}
+    			if (ctx.colTotals && !!ctx.colTotals.length) {
+    				if (if_block5) {
+    					if_block5.p(changed, ctx);
+    					transition_in(if_block5, 1);
+    				} else {
+    					if_block5 = create_if_block(ctx);
+    					if_block5.c();
+    					transition_in(if_block5, 1);
+    					if_block5.m(div3, t9);
     				}
-
+    			} else if (if_block5) {
     				group_outros();
-    				for (i = each_value.length; i < each_blocks.length; i += 1) out_5(i);
+    				transition_out(if_block5, 1, 1, () => {
+    					if_block5 = null;
+    				});
     				check_outros();
     			}
 
-    			var block3_changes = {};
-    			if (changed.color) block3_changes.color = ctx.color;
-    			block3.$set(block3_changes);
-
-    			if ((!current || changed.same) && t14_value !== (t14_value = ctx.same.toString())) {
-    				set_data(t14, t14_value);
+    			if ((!current || changed.same) && t10_value !== (t10_value = ctx.same.toString())) {
+    				set_data(t10, t10_value);
     			}
     		},
 
     		i: function intro(local) {
     			if (current) return;
-    			for (var i = 0; i < each_value_6.length; i += 1) transition_in(each_blocks_5[i]);
-
-    			transition_in(block0.$$.fragment, local);
-
-    			for (var i = 0; i < each_value_5.length; i += 1) transition_in(each_blocks_4[i]);
-
-    			transition_in(block1.$$.fragment, local);
-
-    			for (var i = 0; i < each_value_4.length; i += 1) transition_in(each_blocks_3[i]);
-
-    			for (var i = 0; i < each_value_2.length; i += 1) transition_in(each_blocks_2[i]);
-
-    			for (var i = 0; i < each_value_1.length; i += 1) transition_in(each_blocks_1[i]);
-
-    			transition_in(block2.$$.fragment, local);
-
-    			for (var i = 0; i < each_value.length; i += 1) transition_in(each_blocks[i]);
-
-    			transition_in(block3.$$.fragment, local);
-
+    			transition_in(if_block0);
+    			transition_in(if_block1);
+    			transition_in(if_block2);
+    			transition_in(if_block3);
+    			transition_in(if_block4);
+    			transition_in(if_block5);
     			current = true;
     		},
 
     		o: function outro(local) {
-    			each_blocks_5 = each_blocks_5.filter(Boolean);
-    			for (let i = 0; i < each_blocks_5.length; i += 1) transition_out(each_blocks_5[i]);
-
-    			transition_out(block0.$$.fragment, local);
-
-    			each_blocks_4 = each_blocks_4.filter(Boolean);
-    			for (let i = 0; i < each_blocks_4.length; i += 1) transition_out(each_blocks_4[i]);
-
-    			transition_out(block1.$$.fragment, local);
-
-    			each_blocks_3 = each_blocks_3.filter(Boolean);
-    			for (let i = 0; i < each_blocks_3.length; i += 1) transition_out(each_blocks_3[i]);
-
-    			each_blocks_2 = each_blocks_2.filter(Boolean);
-    			for (let i = 0; i < each_blocks_2.length; i += 1) transition_out(each_blocks_2[i]);
-
-    			each_blocks_1 = each_blocks_1.filter(Boolean);
-    			for (let i = 0; i < each_blocks_1.length; i += 1) transition_out(each_blocks_1[i]);
-
-    			transition_out(block2.$$.fragment, local);
-
-    			each_blocks = each_blocks.filter(Boolean);
-    			for (let i = 0; i < each_blocks.length; i += 1) transition_out(each_blocks[i]);
-
-    			transition_out(block3.$$.fragment, local);
+    			transition_out(if_block0);
+    			transition_out(if_block1);
+    			transition_out(if_block2);
+    			transition_out(if_block3);
+    			transition_out(if_block4);
+    			transition_out(if_block5);
     			current = false;
     		},
 
     		d: function destroy(detaching) {
     			if (detaching) {
-    				detach(div9);
+    				detach(div3);
     			}
 
-    			destroy_each(each_blocks_5, detaching);
-
-    			destroy_component(block0, );
-
-    			destroy_each(each_blocks_4, detaching);
-
-    			destroy_component(block1, );
-
-    			destroy_each(each_blocks_3, detaching);
-
-    			destroy_each(each_blocks_2, detaching);
-
-    			destroy_each(each_blocks_1, detaching);
-
-    			destroy_component(block2, );
-
-    			destroy_each(each_blocks, detaching);
-
-    			destroy_component(block3, );
+    			if (if_block0) if_block0.d();
+    			if (if_block1) if_block1.d();
+    			if (if_block2) if_block2.d();
+    			if (if_block3) if_block3.d();
+    			if (if_block4) if_block4.d();
+    			if (if_block5) if_block5.d();
     		}
     	};
     }
 
-    function instance$a($$self, $$props, $$invalidate) {
+    function instance$8($$self, $$props, $$invalidate) {
     	
 
-      let { props = {}, levels, boards } = $$props;
+      let { props = {} } = $$props;
 
-      console.log(`${lodash.isEmpty(props)}`);
+      let levels;
+      let boards;
+      let level;
+      let title;
+      let colors;
+      let solution;
+      let board;
+      let color;
+      let rowTotals, colTotals;
 
       let levelIndex = 0;
       let layerIndex = 0;
       let same = false;
 
-      const setLayerIndex = index => { $$invalidate('layerIndex', layerIndex = index); };
+      const setLayerIndex = index => { layerIndex = index; };
 
       const toggleDisabled = (row, col) => { const $$result = (
         board[row][col] = board[row][col] === -2
           ? -1
           : -2
-      ); $$invalidate('board', board), $$invalidate('boards', boards), $$invalidate('levelIndex', levelIndex); return $$result; };
+      ); return $$result; };
 
       const toggleEnabled = (row, col) => {
         board[row][col] = board[row][col] === -1
           ? layerIndex
-          : -1; $$invalidate('board', board), $$invalidate('boards', boards), $$invalidate('levelIndex', levelIndex);
-        $$invalidate('same', same = deepEqual(matrix(solution), matrix(board)));
+          : -1;    $$invalidate('same', same = deepEqual(matrix(solution), matrix(board)));
 
         if (same && levelIndex < levels.length) ;
       };
 
-    	const writable_props = ['props', 'levels', 'boards'];
+      onMount(async () => {
+        const resp = await client.query({ query: Levels });
+        debugger;
+        levels = resp.data.levels;
+        $$invalidate('boards', boards = levels.map(l => l.solution.map(r => r.map(c => -1))));
+        level = levels[levelIndex];
+        $$invalidate('title', title = level.title);
+        $$invalidate('colors', colors = level.colors);
+        solution = level.solution;
+        board = boards[levelIndex];
+        $$invalidate('color', color = colors[layerIndex]);
+        [rowTotals, colTotals] = generateTotals(colors, solution)[layerIndex]; $$invalidate('rowTotals', rowTotals); $$invalidate('colTotals', colTotals);
+
+      });
+
+    	const writable_props = ['props'];
     	Object.keys($$props).forEach(key => {
-    		if (!writable_props.includes(key) && !key.startsWith('$$')) console_1.warn(`<Griddler> was created with unknown prop '${key}'`);
+    		if (!writable_props.includes(key) && !key.startsWith('$$')) console.warn(`<Griddler> was created with unknown prop '${key}'`);
     	});
 
     	function func({ index }) { setLayerIndex(index); }
 
     	$$self.$set = $$props => {
     		if ('props' in $$props) $$invalidate('props', props = $$props.props);
-    		if ('levels' in $$props) $$invalidate('levels', levels = $$props.levels);
-    		if ('boards' in $$props) $$invalidate('boards', boards = $$props.boards);
-    	};
-
-    	let level, title, colors, solution, board, color, rowTotals, colTotals;
-
-    	$$self.$$.update = ($$dirty = { levels: 1, levelIndex: 1, level: 1, boards: 1, colors: 1, layerIndex: 1, solution: 1 }) => {
-    		if ($$dirty.levels || $$dirty.levelIndex) { $$invalidate('level', level = levels[levelIndex]); }
-    		if ($$dirty.level) { $$invalidate('title', title = level.title); }
-    		if ($$dirty.level) { $$invalidate('colors', colors = level.colors); }
-    		if ($$dirty.level) { $$invalidate('solution', solution = level.solution); }
-    		if ($$dirty.boards || $$dirty.levelIndex) { $$invalidate('board', board = boards[levelIndex]); }
-    		if ($$dirty.colors || $$dirty.layerIndex) { $$invalidate('color', color = colors[layerIndex]); }
-    		if ($$dirty.colors || $$dirty.solution || $$dirty.layerIndex) { [rowTotals, colTotals] = generateTotals(colors, solution)[layerIndex]; $$invalidate('rowTotals', rowTotals), $$invalidate('colors', colors), $$invalidate('solution', solution), $$invalidate('layerIndex', layerIndex), $$invalidate('level', level), $$invalidate('levels', levels), $$invalidate('levelIndex', levelIndex); $$invalidate('colTotals', colTotals), $$invalidate('colors', colors), $$invalidate('solution', solution), $$invalidate('layerIndex', layerIndex), $$invalidate('level', level), $$invalidate('levels', levels), $$invalidate('levelIndex', levelIndex); }
     	};
 
     	return {
     		props,
-    		levels,
     		boards,
+    		title,
+    		colors,
+    		color,
+    		rowTotals,
+    		colTotals,
+    		levelIndex,
     		same,
     		setLayerIndex,
     		toggleDisabled,
     		toggleEnabled,
-    		title,
-    		colors,
-    		board,
-    		color,
-    		rowTotals,
-    		colTotals,
     		func
     	};
     }
@@ -51103,16 +50499,7 @@ var app = (function () {
     class Griddler extends SvelteComponentDev {
     	constructor(options) {
     		super(options);
-    		init(this, options, instance$a, create_fragment$a, safe_not_equal, ["props", "levels", "boards"]);
-
-    		const { ctx } = this.$$;
-    		const props = options.props || {};
-    		if (ctx.levels === undefined && !('levels' in props)) {
-    			console_1.warn("<Griddler> was created without expected prop 'levels'");
-    		}
-    		if (ctx.boards === undefined && !('boards' in props)) {
-    			console_1.warn("<Griddler> was created without expected prop 'boards'");
-    		}
+    		init(this, options, instance$8, create_fragment$8, safe_not_equal, ["props"]);
     	}
 
     	get props() {
@@ -51122,3069 +50509,13 @@ var app = (function () {
     	set props(value) {
     		throw new Error("<Griddler>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
     	}
-
-    	get levels() {
-    		throw new Error("<Griddler>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set levels(value) {
-    		throw new Error("<Griddler>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get boards() {
-    		throw new Error("<Griddler>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set boards(value) {
-    		throw new Error("<Griddler>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-    }
-
-    var colorName = {
-    	"aliceblue": [240, 248, 255],
-    	"antiquewhite": [250, 235, 215],
-    	"aqua": [0, 255, 255],
-    	"aquamarine": [127, 255, 212],
-    	"azure": [240, 255, 255],
-    	"beige": [245, 245, 220],
-    	"bisque": [255, 228, 196],
-    	"black": [0, 0, 0],
-    	"blanchedalmond": [255, 235, 205],
-    	"blue": [0, 0, 255],
-    	"blueviolet": [138, 43, 226],
-    	"brown": [165, 42, 42],
-    	"burlywood": [222, 184, 135],
-    	"cadetblue": [95, 158, 160],
-    	"chartreuse": [127, 255, 0],
-    	"chocolate": [210, 105, 30],
-    	"coral": [255, 127, 80],
-    	"cornflowerblue": [100, 149, 237],
-    	"cornsilk": [255, 248, 220],
-    	"crimson": [220, 20, 60],
-    	"cyan": [0, 255, 255],
-    	"darkblue": [0, 0, 139],
-    	"darkcyan": [0, 139, 139],
-    	"darkgoldenrod": [184, 134, 11],
-    	"darkgray": [169, 169, 169],
-    	"darkgreen": [0, 100, 0],
-    	"darkgrey": [169, 169, 169],
-    	"darkkhaki": [189, 183, 107],
-    	"darkmagenta": [139, 0, 139],
-    	"darkolivegreen": [85, 107, 47],
-    	"darkorange": [255, 140, 0],
-    	"darkorchid": [153, 50, 204],
-    	"darkred": [139, 0, 0],
-    	"darksalmon": [233, 150, 122],
-    	"darkseagreen": [143, 188, 143],
-    	"darkslateblue": [72, 61, 139],
-    	"darkslategray": [47, 79, 79],
-    	"darkslategrey": [47, 79, 79],
-    	"darkturquoise": [0, 206, 209],
-    	"darkviolet": [148, 0, 211],
-    	"deeppink": [255, 20, 147],
-    	"deepskyblue": [0, 191, 255],
-    	"dimgray": [105, 105, 105],
-    	"dimgrey": [105, 105, 105],
-    	"dodgerblue": [30, 144, 255],
-    	"firebrick": [178, 34, 34],
-    	"floralwhite": [255, 250, 240],
-    	"forestgreen": [34, 139, 34],
-    	"fuchsia": [255, 0, 255],
-    	"gainsboro": [220, 220, 220],
-    	"ghostwhite": [248, 248, 255],
-    	"gold": [255, 215, 0],
-    	"goldenrod": [218, 165, 32],
-    	"gray": [128, 128, 128],
-    	"green": [0, 128, 0],
-    	"greenyellow": [173, 255, 47],
-    	"grey": [128, 128, 128],
-    	"honeydew": [240, 255, 240],
-    	"hotpink": [255, 105, 180],
-    	"indianred": [205, 92, 92],
-    	"indigo": [75, 0, 130],
-    	"ivory": [255, 255, 240],
-    	"khaki": [240, 230, 140],
-    	"lavender": [230, 230, 250],
-    	"lavenderblush": [255, 240, 245],
-    	"lawngreen": [124, 252, 0],
-    	"lemonchiffon": [255, 250, 205],
-    	"lightblue": [173, 216, 230],
-    	"lightcoral": [240, 128, 128],
-    	"lightcyan": [224, 255, 255],
-    	"lightgoldenrodyellow": [250, 250, 210],
-    	"lightgray": [211, 211, 211],
-    	"lightgreen": [144, 238, 144],
-    	"lightgrey": [211, 211, 211],
-    	"lightpink": [255, 182, 193],
-    	"lightsalmon": [255, 160, 122],
-    	"lightseagreen": [32, 178, 170],
-    	"lightskyblue": [135, 206, 250],
-    	"lightslategray": [119, 136, 153],
-    	"lightslategrey": [119, 136, 153],
-    	"lightsteelblue": [176, 196, 222],
-    	"lightyellow": [255, 255, 224],
-    	"lime": [0, 255, 0],
-    	"limegreen": [50, 205, 50],
-    	"linen": [250, 240, 230],
-    	"magenta": [255, 0, 255],
-    	"maroon": [128, 0, 0],
-    	"mediumaquamarine": [102, 205, 170],
-    	"mediumblue": [0, 0, 205],
-    	"mediumorchid": [186, 85, 211],
-    	"mediumpurple": [147, 112, 219],
-    	"mediumseagreen": [60, 179, 113],
-    	"mediumslateblue": [123, 104, 238],
-    	"mediumspringgreen": [0, 250, 154],
-    	"mediumturquoise": [72, 209, 204],
-    	"mediumvioletred": [199, 21, 133],
-    	"midnightblue": [25, 25, 112],
-    	"mintcream": [245, 255, 250],
-    	"mistyrose": [255, 228, 225],
-    	"moccasin": [255, 228, 181],
-    	"navajowhite": [255, 222, 173],
-    	"navy": [0, 0, 128],
-    	"oldlace": [253, 245, 230],
-    	"olive": [128, 128, 0],
-    	"olivedrab": [107, 142, 35],
-    	"orange": [255, 165, 0],
-    	"orangered": [255, 69, 0],
-    	"orchid": [218, 112, 214],
-    	"palegoldenrod": [238, 232, 170],
-    	"palegreen": [152, 251, 152],
-    	"paleturquoise": [175, 238, 238],
-    	"palevioletred": [219, 112, 147],
-    	"papayawhip": [255, 239, 213],
-    	"peachpuff": [255, 218, 185],
-    	"peru": [205, 133, 63],
-    	"pink": [255, 192, 203],
-    	"plum": [221, 160, 221],
-    	"powderblue": [176, 224, 230],
-    	"purple": [128, 0, 128],
-    	"rebeccapurple": [102, 51, 153],
-    	"red": [255, 0, 0],
-    	"rosybrown": [188, 143, 143],
-    	"royalblue": [65, 105, 225],
-    	"saddlebrown": [139, 69, 19],
-    	"salmon": [250, 128, 114],
-    	"sandybrown": [244, 164, 96],
-    	"seagreen": [46, 139, 87],
-    	"seashell": [255, 245, 238],
-    	"sienna": [160, 82, 45],
-    	"silver": [192, 192, 192],
-    	"skyblue": [135, 206, 235],
-    	"slateblue": [106, 90, 205],
-    	"slategray": [112, 128, 144],
-    	"slategrey": [112, 128, 144],
-    	"snow": [255, 250, 250],
-    	"springgreen": [0, 255, 127],
-    	"steelblue": [70, 130, 180],
-    	"tan": [210, 180, 140],
-    	"teal": [0, 128, 128],
-    	"thistle": [216, 191, 216],
-    	"tomato": [255, 99, 71],
-    	"turquoise": [64, 224, 208],
-    	"violet": [238, 130, 238],
-    	"wheat": [245, 222, 179],
-    	"white": [255, 255, 255],
-    	"whitesmoke": [245, 245, 245],
-    	"yellow": [255, 255, 0],
-    	"yellowgreen": [154, 205, 50]
-    };
-
-    var isArrayish = function isArrayish(obj) {
-    	if (!obj || typeof obj === 'string') {
-    		return false;
-    	}
-
-    	return obj instanceof Array || Array.isArray(obj) ||
-    		(obj.length >= 0 && (obj.splice instanceof Function ||
-    			(Object.getOwnPropertyDescriptor(obj, (obj.length - 1)) && obj.constructor.name !== 'String')));
-    };
-
-    var simpleSwizzle = createCommonjsModule(function (module) {
-
-
-
-    var concat = Array.prototype.concat;
-    var slice = Array.prototype.slice;
-
-    var swizzle = module.exports = function swizzle(args) {
-    	var results = [];
-
-    	for (var i = 0, len = args.length; i < len; i++) {
-    		var arg = args[i];
-
-    		if (isArrayish(arg)) {
-    			// http://jsperf.com/javascript-array-concat-vs-push/98
-    			results = concat.call(results, slice.call(arg));
-    		} else {
-    			results.push(arg);
-    		}
-    	}
-
-    	return results;
-    };
-
-    swizzle.wrap = function (fn) {
-    	return function () {
-    		return fn(swizzle(arguments));
-    	};
-    };
-    });
-
-    var colorString = createCommonjsModule(function (module) {
-    /* MIT license */
-
-
-
-    var reverseNames = {};
-
-    // create a list of reverse color names
-    for (var name in colorName) {
-    	if (colorName.hasOwnProperty(name)) {
-    		reverseNames[colorName[name]] = name;
-    	}
-    }
-
-    var cs = module.exports = {
-    	to: {},
-    	get: {}
-    };
-
-    cs.get = function (string) {
-    	var prefix = string.substring(0, 3).toLowerCase();
-    	var val;
-    	var model;
-    	switch (prefix) {
-    		case 'hsl':
-    			val = cs.get.hsl(string);
-    			model = 'hsl';
-    			break;
-    		case 'hwb':
-    			val = cs.get.hwb(string);
-    			model = 'hwb';
-    			break;
-    		default:
-    			val = cs.get.rgb(string);
-    			model = 'rgb';
-    			break;
-    	}
-
-    	if (!val) {
-    		return null;
-    	}
-
-    	return {model: model, value: val};
-    };
-
-    cs.get.rgb = function (string) {
-    	if (!string) {
-    		return null;
-    	}
-
-    	var abbr = /^#([a-f0-9]{3,4})$/i;
-    	var hex = /^#([a-f0-9]{6})([a-f0-9]{2})?$/i;
-    	var rgba = /^rgba?\(\s*([+-]?\d+)\s*,\s*([+-]?\d+)\s*,\s*([+-]?\d+)\s*(?:,\s*([+-]?[\d\.]+)\s*)?\)$/;
-    	var per = /^rgba?\(\s*([+-]?[\d\.]+)\%\s*,\s*([+-]?[\d\.]+)\%\s*,\s*([+-]?[\d\.]+)\%\s*(?:,\s*([+-]?[\d\.]+)\s*)?\)$/;
-    	var keyword = /(\D+)/;
-
-    	var rgb = [0, 0, 0, 1];
-    	var match;
-    	var i;
-    	var hexAlpha;
-
-    	if (match = string.match(hex)) {
-    		hexAlpha = match[2];
-    		match = match[1];
-
-    		for (i = 0; i < 3; i++) {
-    			// https://jsperf.com/slice-vs-substr-vs-substring-methods-long-string/19
-    			var i2 = i * 2;
-    			rgb[i] = parseInt(match.slice(i2, i2 + 2), 16);
-    		}
-
-    		if (hexAlpha) {
-    			rgb[3] = Math.round((parseInt(hexAlpha, 16) / 255) * 100) / 100;
-    		}
-    	} else if (match = string.match(abbr)) {
-    		match = match[1];
-    		hexAlpha = match[3];
-
-    		for (i = 0; i < 3; i++) {
-    			rgb[i] = parseInt(match[i] + match[i], 16);
-    		}
-
-    		if (hexAlpha) {
-    			rgb[3] = Math.round((parseInt(hexAlpha + hexAlpha, 16) / 255) * 100) / 100;
-    		}
-    	} else if (match = string.match(rgba)) {
-    		for (i = 0; i < 3; i++) {
-    			rgb[i] = parseInt(match[i + 1], 0);
-    		}
-
-    		if (match[4]) {
-    			rgb[3] = parseFloat(match[4]);
-    		}
-    	} else if (match = string.match(per)) {
-    		for (i = 0; i < 3; i++) {
-    			rgb[i] = Math.round(parseFloat(match[i + 1]) * 2.55);
-    		}
-
-    		if (match[4]) {
-    			rgb[3] = parseFloat(match[4]);
-    		}
-    	} else if (match = string.match(keyword)) {
-    		if (match[1] === 'transparent') {
-    			return [0, 0, 0, 0];
-    		}
-
-    		rgb = colorName[match[1]];
-
-    		if (!rgb) {
-    			return null;
-    		}
-
-    		rgb[3] = 1;
-
-    		return rgb;
-    	} else {
-    		return null;
-    	}
-
-    	for (i = 0; i < 3; i++) {
-    		rgb[i] = clamp(rgb[i], 0, 255);
-    	}
-    	rgb[3] = clamp(rgb[3], 0, 1);
-
-    	return rgb;
-    };
-
-    cs.get.hsl = function (string) {
-    	if (!string) {
-    		return null;
-    	}
-
-    	var hsl = /^hsla?\(\s*([+-]?(?:\d*\.)?\d+)(?:deg)?\s*,\s*([+-]?[\d\.]+)%\s*,\s*([+-]?[\d\.]+)%\s*(?:,\s*([+-]?[\d\.]+)\s*)?\)$/;
-    	var match = string.match(hsl);
-
-    	if (match) {
-    		var alpha = parseFloat(match[4]);
-    		var h = (parseFloat(match[1]) + 360) % 360;
-    		var s = clamp(parseFloat(match[2]), 0, 100);
-    		var l = clamp(parseFloat(match[3]), 0, 100);
-    		var a = clamp(isNaN(alpha) ? 1 : alpha, 0, 1);
-
-    		return [h, s, l, a];
-    	}
-
-    	return null;
-    };
-
-    cs.get.hwb = function (string) {
-    	if (!string) {
-    		return null;
-    	}
-
-    	var hwb = /^hwb\(\s*([+-]?\d*[\.]?\d+)(?:deg)?\s*,\s*([+-]?[\d\.]+)%\s*,\s*([+-]?[\d\.]+)%\s*(?:,\s*([+-]?[\d\.]+)\s*)?\)$/;
-    	var match = string.match(hwb);
-
-    	if (match) {
-    		var alpha = parseFloat(match[4]);
-    		var h = ((parseFloat(match[1]) % 360) + 360) % 360;
-    		var w = clamp(parseFloat(match[2]), 0, 100);
-    		var b = clamp(parseFloat(match[3]), 0, 100);
-    		var a = clamp(isNaN(alpha) ? 1 : alpha, 0, 1);
-    		return [h, w, b, a];
-    	}
-
-    	return null;
-    };
-
-    cs.to.hex = function () {
-    	var rgba = simpleSwizzle(arguments);
-
-    	return (
-    		'#' +
-    		hexDouble(rgba[0]) +
-    		hexDouble(rgba[1]) +
-    		hexDouble(rgba[2]) +
-    		(rgba[3] < 1
-    			? (hexDouble(Math.round(rgba[3] * 255)))
-    			: '')
-    	);
-    };
-
-    cs.to.rgb = function () {
-    	var rgba = simpleSwizzle(arguments);
-
-    	return rgba.length < 4 || rgba[3] === 1
-    		? 'rgb(' + Math.round(rgba[0]) + ', ' + Math.round(rgba[1]) + ', ' + Math.round(rgba[2]) + ')'
-    		: 'rgba(' + Math.round(rgba[0]) + ', ' + Math.round(rgba[1]) + ', ' + Math.round(rgba[2]) + ', ' + rgba[3] + ')';
-    };
-
-    cs.to.rgb.percent = function () {
-    	var rgba = simpleSwizzle(arguments);
-
-    	var r = Math.round(rgba[0] / 255 * 100);
-    	var g = Math.round(rgba[1] / 255 * 100);
-    	var b = Math.round(rgba[2] / 255 * 100);
-
-    	return rgba.length < 4 || rgba[3] === 1
-    		? 'rgb(' + r + '%, ' + g + '%, ' + b + '%)'
-    		: 'rgba(' + r + '%, ' + g + '%, ' + b + '%, ' + rgba[3] + ')';
-    };
-
-    cs.to.hsl = function () {
-    	var hsla = simpleSwizzle(arguments);
-    	return hsla.length < 4 || hsla[3] === 1
-    		? 'hsl(' + hsla[0] + ', ' + hsla[1] + '%, ' + hsla[2] + '%)'
-    		: 'hsla(' + hsla[0] + ', ' + hsla[1] + '%, ' + hsla[2] + '%, ' + hsla[3] + ')';
-    };
-
-    // hwb is a bit different than rgb(a) & hsl(a) since there is no alpha specific syntax
-    // (hwb have alpha optional & 1 is default value)
-    cs.to.hwb = function () {
-    	var hwba = simpleSwizzle(arguments);
-
-    	var a = '';
-    	if (hwba.length >= 4 && hwba[3] !== 1) {
-    		a = ', ' + hwba[3];
-    	}
-
-    	return 'hwb(' + hwba[0] + ', ' + hwba[1] + '%, ' + hwba[2] + '%' + a + ')';
-    };
-
-    cs.to.keyword = function (rgb) {
-    	return reverseNames[rgb.slice(0, 3)];
-    };
-
-    // helpers
-    function clamp(num, min, max) {
-    	return Math.min(Math.max(min, num), max);
-    }
-
-    function hexDouble(num) {
-    	var str = num.toString(16).toUpperCase();
-    	return (str.length < 2) ? '0' + str : str;
-    }
-    });
-    var colorString_1 = colorString.to;
-    var colorString_2 = colorString.get;
-
-    var conversions = createCommonjsModule(function (module) {
-    /* MIT license */
-
-
-    // NOTE: conversions should only return primitive values (i.e. arrays, or
-    //       values that give correct `typeof` results).
-    //       do not use box values types (i.e. Number(), String(), etc.)
-
-    var reverseKeywords = {};
-    for (var key in colorName) {
-    	if (colorName.hasOwnProperty(key)) {
-    		reverseKeywords[colorName[key]] = key;
-    	}
-    }
-
-    var convert = module.exports = {
-    	rgb: {channels: 3, labels: 'rgb'},
-    	hsl: {channels: 3, labels: 'hsl'},
-    	hsv: {channels: 3, labels: 'hsv'},
-    	hwb: {channels: 3, labels: 'hwb'},
-    	cmyk: {channels: 4, labels: 'cmyk'},
-    	xyz: {channels: 3, labels: 'xyz'},
-    	lab: {channels: 3, labels: 'lab'},
-    	lch: {channels: 3, labels: 'lch'},
-    	hex: {channels: 1, labels: ['hex']},
-    	keyword: {channels: 1, labels: ['keyword']},
-    	ansi16: {channels: 1, labels: ['ansi16']},
-    	ansi256: {channels: 1, labels: ['ansi256']},
-    	hcg: {channels: 3, labels: ['h', 'c', 'g']},
-    	apple: {channels: 3, labels: ['r16', 'g16', 'b16']},
-    	gray: {channels: 1, labels: ['gray']}
-    };
-
-    // hide .channels and .labels properties
-    for (var model in convert) {
-    	if (convert.hasOwnProperty(model)) {
-    		if (!('channels' in convert[model])) {
-    			throw new Error('missing channels property: ' + model);
-    		}
-
-    		if (!('labels' in convert[model])) {
-    			throw new Error('missing channel labels property: ' + model);
-    		}
-
-    		if (convert[model].labels.length !== convert[model].channels) {
-    			throw new Error('channel and label counts mismatch: ' + model);
-    		}
-
-    		var channels = convert[model].channels;
-    		var labels = convert[model].labels;
-    		delete convert[model].channels;
-    		delete convert[model].labels;
-    		Object.defineProperty(convert[model], 'channels', {value: channels});
-    		Object.defineProperty(convert[model], 'labels', {value: labels});
-    	}
-    }
-
-    convert.rgb.hsl = function (rgb) {
-    	var r = rgb[0] / 255;
-    	var g = rgb[1] / 255;
-    	var b = rgb[2] / 255;
-    	var min = Math.min(r, g, b);
-    	var max = Math.max(r, g, b);
-    	var delta = max - min;
-    	var h;
-    	var s;
-    	var l;
-
-    	if (max === min) {
-    		h = 0;
-    	} else if (r === max) {
-    		h = (g - b) / delta;
-    	} else if (g === max) {
-    		h = 2 + (b - r) / delta;
-    	} else if (b === max) {
-    		h = 4 + (r - g) / delta;
-    	}
-
-    	h = Math.min(h * 60, 360);
-
-    	if (h < 0) {
-    		h += 360;
-    	}
-
-    	l = (min + max) / 2;
-
-    	if (max === min) {
-    		s = 0;
-    	} else if (l <= 0.5) {
-    		s = delta / (max + min);
-    	} else {
-    		s = delta / (2 - max - min);
-    	}
-
-    	return [h, s * 100, l * 100];
-    };
-
-    convert.rgb.hsv = function (rgb) {
-    	var rdif;
-    	var gdif;
-    	var bdif;
-    	var h;
-    	var s;
-
-    	var r = rgb[0] / 255;
-    	var g = rgb[1] / 255;
-    	var b = rgb[2] / 255;
-    	var v = Math.max(r, g, b);
-    	var diff = v - Math.min(r, g, b);
-    	var diffc = function (c) {
-    		return (v - c) / 6 / diff + 1 / 2;
-    	};
-
-    	if (diff === 0) {
-    		h = s = 0;
-    	} else {
-    		s = diff / v;
-    		rdif = diffc(r);
-    		gdif = diffc(g);
-    		bdif = diffc(b);
-
-    		if (r === v) {
-    			h = bdif - gdif;
-    		} else if (g === v) {
-    			h = (1 / 3) + rdif - bdif;
-    		} else if (b === v) {
-    			h = (2 / 3) + gdif - rdif;
-    		}
-    		if (h < 0) {
-    			h += 1;
-    		} else if (h > 1) {
-    			h -= 1;
-    		}
-    	}
-
-    	return [
-    		h * 360,
-    		s * 100,
-    		v * 100
-    	];
-    };
-
-    convert.rgb.hwb = function (rgb) {
-    	var r = rgb[0];
-    	var g = rgb[1];
-    	var b = rgb[2];
-    	var h = convert.rgb.hsl(rgb)[0];
-    	var w = 1 / 255 * Math.min(r, Math.min(g, b));
-
-    	b = 1 - 1 / 255 * Math.max(r, Math.max(g, b));
-
-    	return [h, w * 100, b * 100];
-    };
-
-    convert.rgb.cmyk = function (rgb) {
-    	var r = rgb[0] / 255;
-    	var g = rgb[1] / 255;
-    	var b = rgb[2] / 255;
-    	var c;
-    	var m;
-    	var y;
-    	var k;
-
-    	k = Math.min(1 - r, 1 - g, 1 - b);
-    	c = (1 - r - k) / (1 - k) || 0;
-    	m = (1 - g - k) / (1 - k) || 0;
-    	y = (1 - b - k) / (1 - k) || 0;
-
-    	return [c * 100, m * 100, y * 100, k * 100];
-    };
-
-    /**
-     * See https://en.m.wikipedia.org/wiki/Euclidean_distance#Squared_Euclidean_distance
-     * */
-    function comparativeDistance(x, y) {
-    	return (
-    		Math.pow(x[0] - y[0], 2) +
-    		Math.pow(x[1] - y[1], 2) +
-    		Math.pow(x[2] - y[2], 2)
-    	);
-    }
-
-    convert.rgb.keyword = function (rgb) {
-    	var reversed = reverseKeywords[rgb];
-    	if (reversed) {
-    		return reversed;
-    	}
-
-    	var currentClosestDistance = Infinity;
-    	var currentClosestKeyword;
-
-    	for (var keyword in colorName) {
-    		if (colorName.hasOwnProperty(keyword)) {
-    			var value = colorName[keyword];
-
-    			// Compute comparative distance
-    			var distance = comparativeDistance(rgb, value);
-
-    			// Check if its less, if so set as closest
-    			if (distance < currentClosestDistance) {
-    				currentClosestDistance = distance;
-    				currentClosestKeyword = keyword;
-    			}
-    		}
-    	}
-
-    	return currentClosestKeyword;
-    };
-
-    convert.keyword.rgb = function (keyword) {
-    	return colorName[keyword];
-    };
-
-    convert.rgb.xyz = function (rgb) {
-    	var r = rgb[0] / 255;
-    	var g = rgb[1] / 255;
-    	var b = rgb[2] / 255;
-
-    	// assume sRGB
-    	r = r > 0.04045 ? Math.pow(((r + 0.055) / 1.055), 2.4) : (r / 12.92);
-    	g = g > 0.04045 ? Math.pow(((g + 0.055) / 1.055), 2.4) : (g / 12.92);
-    	b = b > 0.04045 ? Math.pow(((b + 0.055) / 1.055), 2.4) : (b / 12.92);
-
-    	var x = (r * 0.4124) + (g * 0.3576) + (b * 0.1805);
-    	var y = (r * 0.2126) + (g * 0.7152) + (b * 0.0722);
-    	var z = (r * 0.0193) + (g * 0.1192) + (b * 0.9505);
-
-    	return [x * 100, y * 100, z * 100];
-    };
-
-    convert.rgb.lab = function (rgb) {
-    	var xyz = convert.rgb.xyz(rgb);
-    	var x = xyz[0];
-    	var y = xyz[1];
-    	var z = xyz[2];
-    	var l;
-    	var a;
-    	var b;
-
-    	x /= 95.047;
-    	y /= 100;
-    	z /= 108.883;
-
-    	x = x > 0.008856 ? Math.pow(x, 1 / 3) : (7.787 * x) + (16 / 116);
-    	y = y > 0.008856 ? Math.pow(y, 1 / 3) : (7.787 * y) + (16 / 116);
-    	z = z > 0.008856 ? Math.pow(z, 1 / 3) : (7.787 * z) + (16 / 116);
-
-    	l = (116 * y) - 16;
-    	a = 500 * (x - y);
-    	b = 200 * (y - z);
-
-    	return [l, a, b];
-    };
-
-    convert.hsl.rgb = function (hsl) {
-    	var h = hsl[0] / 360;
-    	var s = hsl[1] / 100;
-    	var l = hsl[2] / 100;
-    	var t1;
-    	var t2;
-    	var t3;
-    	var rgb;
-    	var val;
-
-    	if (s === 0) {
-    		val = l * 255;
-    		return [val, val, val];
-    	}
-
-    	if (l < 0.5) {
-    		t2 = l * (1 + s);
-    	} else {
-    		t2 = l + s - l * s;
-    	}
-
-    	t1 = 2 * l - t2;
-
-    	rgb = [0, 0, 0];
-    	for (var i = 0; i < 3; i++) {
-    		t3 = h + 1 / 3 * -(i - 1);
-    		if (t3 < 0) {
-    			t3++;
-    		}
-    		if (t3 > 1) {
-    			t3--;
-    		}
-
-    		if (6 * t3 < 1) {
-    			val = t1 + (t2 - t1) * 6 * t3;
-    		} else if (2 * t3 < 1) {
-    			val = t2;
-    		} else if (3 * t3 < 2) {
-    			val = t1 + (t2 - t1) * (2 / 3 - t3) * 6;
-    		} else {
-    			val = t1;
-    		}
-
-    		rgb[i] = val * 255;
-    	}
-
-    	return rgb;
-    };
-
-    convert.hsl.hsv = function (hsl) {
-    	var h = hsl[0];
-    	var s = hsl[1] / 100;
-    	var l = hsl[2] / 100;
-    	var smin = s;
-    	var lmin = Math.max(l, 0.01);
-    	var sv;
-    	var v;
-
-    	l *= 2;
-    	s *= (l <= 1) ? l : 2 - l;
-    	smin *= lmin <= 1 ? lmin : 2 - lmin;
-    	v = (l + s) / 2;
-    	sv = l === 0 ? (2 * smin) / (lmin + smin) : (2 * s) / (l + s);
-
-    	return [h, sv * 100, v * 100];
-    };
-
-    convert.hsv.rgb = function (hsv) {
-    	var h = hsv[0] / 60;
-    	var s = hsv[1] / 100;
-    	var v = hsv[2] / 100;
-    	var hi = Math.floor(h) % 6;
-
-    	var f = h - Math.floor(h);
-    	var p = 255 * v * (1 - s);
-    	var q = 255 * v * (1 - (s * f));
-    	var t = 255 * v * (1 - (s * (1 - f)));
-    	v *= 255;
-
-    	switch (hi) {
-    		case 0:
-    			return [v, t, p];
-    		case 1:
-    			return [q, v, p];
-    		case 2:
-    			return [p, v, t];
-    		case 3:
-    			return [p, q, v];
-    		case 4:
-    			return [t, p, v];
-    		case 5:
-    			return [v, p, q];
-    	}
-    };
-
-    convert.hsv.hsl = function (hsv) {
-    	var h = hsv[0];
-    	var s = hsv[1] / 100;
-    	var v = hsv[2] / 100;
-    	var vmin = Math.max(v, 0.01);
-    	var lmin;
-    	var sl;
-    	var l;
-
-    	l = (2 - s) * v;
-    	lmin = (2 - s) * vmin;
-    	sl = s * vmin;
-    	sl /= (lmin <= 1) ? lmin : 2 - lmin;
-    	sl = sl || 0;
-    	l /= 2;
-
-    	return [h, sl * 100, l * 100];
-    };
-
-    // http://dev.w3.org/csswg/css-color/#hwb-to-rgb
-    convert.hwb.rgb = function (hwb) {
-    	var h = hwb[0] / 360;
-    	var wh = hwb[1] / 100;
-    	var bl = hwb[2] / 100;
-    	var ratio = wh + bl;
-    	var i;
-    	var v;
-    	var f;
-    	var n;
-
-    	// wh + bl cant be > 1
-    	if (ratio > 1) {
-    		wh /= ratio;
-    		bl /= ratio;
-    	}
-
-    	i = Math.floor(6 * h);
-    	v = 1 - bl;
-    	f = 6 * h - i;
-
-    	if ((i & 0x01) !== 0) {
-    		f = 1 - f;
-    	}
-
-    	n = wh + f * (v - wh); // linear interpolation
-
-    	var r;
-    	var g;
-    	var b;
-    	switch (i) {
-    		default:
-    		case 6:
-    		case 0: r = v; g = n; b = wh; break;
-    		case 1: r = n; g = v; b = wh; break;
-    		case 2: r = wh; g = v; b = n; break;
-    		case 3: r = wh; g = n; b = v; break;
-    		case 4: r = n; g = wh; b = v; break;
-    		case 5: r = v; g = wh; b = n; break;
-    	}
-
-    	return [r * 255, g * 255, b * 255];
-    };
-
-    convert.cmyk.rgb = function (cmyk) {
-    	var c = cmyk[0] / 100;
-    	var m = cmyk[1] / 100;
-    	var y = cmyk[2] / 100;
-    	var k = cmyk[3] / 100;
-    	var r;
-    	var g;
-    	var b;
-
-    	r = 1 - Math.min(1, c * (1 - k) + k);
-    	g = 1 - Math.min(1, m * (1 - k) + k);
-    	b = 1 - Math.min(1, y * (1 - k) + k);
-
-    	return [r * 255, g * 255, b * 255];
-    };
-
-    convert.xyz.rgb = function (xyz) {
-    	var x = xyz[0] / 100;
-    	var y = xyz[1] / 100;
-    	var z = xyz[2] / 100;
-    	var r;
-    	var g;
-    	var b;
-
-    	r = (x * 3.2406) + (y * -1.5372) + (z * -0.4986);
-    	g = (x * -0.9689) + (y * 1.8758) + (z * 0.0415);
-    	b = (x * 0.0557) + (y * -0.2040) + (z * 1.0570);
-
-    	// assume sRGB
-    	r = r > 0.0031308
-    		? ((1.055 * Math.pow(r, 1.0 / 2.4)) - 0.055)
-    		: r * 12.92;
-
-    	g = g > 0.0031308
-    		? ((1.055 * Math.pow(g, 1.0 / 2.4)) - 0.055)
-    		: g * 12.92;
-
-    	b = b > 0.0031308
-    		? ((1.055 * Math.pow(b, 1.0 / 2.4)) - 0.055)
-    		: b * 12.92;
-
-    	r = Math.min(Math.max(0, r), 1);
-    	g = Math.min(Math.max(0, g), 1);
-    	b = Math.min(Math.max(0, b), 1);
-
-    	return [r * 255, g * 255, b * 255];
-    };
-
-    convert.xyz.lab = function (xyz) {
-    	var x = xyz[0];
-    	var y = xyz[1];
-    	var z = xyz[2];
-    	var l;
-    	var a;
-    	var b;
-
-    	x /= 95.047;
-    	y /= 100;
-    	z /= 108.883;
-
-    	x = x > 0.008856 ? Math.pow(x, 1 / 3) : (7.787 * x) + (16 / 116);
-    	y = y > 0.008856 ? Math.pow(y, 1 / 3) : (7.787 * y) + (16 / 116);
-    	z = z > 0.008856 ? Math.pow(z, 1 / 3) : (7.787 * z) + (16 / 116);
-
-    	l = (116 * y) - 16;
-    	a = 500 * (x - y);
-    	b = 200 * (y - z);
-
-    	return [l, a, b];
-    };
-
-    convert.lab.xyz = function (lab) {
-    	var l = lab[0];
-    	var a = lab[1];
-    	var b = lab[2];
-    	var x;
-    	var y;
-    	var z;
-
-    	y = (l + 16) / 116;
-    	x = a / 500 + y;
-    	z = y - b / 200;
-
-    	var y2 = Math.pow(y, 3);
-    	var x2 = Math.pow(x, 3);
-    	var z2 = Math.pow(z, 3);
-    	y = y2 > 0.008856 ? y2 : (y - 16 / 116) / 7.787;
-    	x = x2 > 0.008856 ? x2 : (x - 16 / 116) / 7.787;
-    	z = z2 > 0.008856 ? z2 : (z - 16 / 116) / 7.787;
-
-    	x *= 95.047;
-    	y *= 100;
-    	z *= 108.883;
-
-    	return [x, y, z];
-    };
-
-    convert.lab.lch = function (lab) {
-    	var l = lab[0];
-    	var a = lab[1];
-    	var b = lab[2];
-    	var hr;
-    	var h;
-    	var c;
-
-    	hr = Math.atan2(b, a);
-    	h = hr * 360 / 2 / Math.PI;
-
-    	if (h < 0) {
-    		h += 360;
-    	}
-
-    	c = Math.sqrt(a * a + b * b);
-
-    	return [l, c, h];
-    };
-
-    convert.lch.lab = function (lch) {
-    	var l = lch[0];
-    	var c = lch[1];
-    	var h = lch[2];
-    	var a;
-    	var b;
-    	var hr;
-
-    	hr = h / 360 * 2 * Math.PI;
-    	a = c * Math.cos(hr);
-    	b = c * Math.sin(hr);
-
-    	return [l, a, b];
-    };
-
-    convert.rgb.ansi16 = function (args) {
-    	var r = args[0];
-    	var g = args[1];
-    	var b = args[2];
-    	var value = 1 in arguments ? arguments[1] : convert.rgb.hsv(args)[2]; // hsv -> ansi16 optimization
-
-    	value = Math.round(value / 50);
-
-    	if (value === 0) {
-    		return 30;
-    	}
-
-    	var ansi = 30
-    		+ ((Math.round(b / 255) << 2)
-    		| (Math.round(g / 255) << 1)
-    		| Math.round(r / 255));
-
-    	if (value === 2) {
-    		ansi += 60;
-    	}
-
-    	return ansi;
-    };
-
-    convert.hsv.ansi16 = function (args) {
-    	// optimization here; we already know the value and don't need to get
-    	// it converted for us.
-    	return convert.rgb.ansi16(convert.hsv.rgb(args), args[2]);
-    };
-
-    convert.rgb.ansi256 = function (args) {
-    	var r = args[0];
-    	var g = args[1];
-    	var b = args[2];
-
-    	// we use the extended greyscale palette here, with the exception of
-    	// black and white. normal palette only has 4 greyscale shades.
-    	if (r === g && g === b) {
-    		if (r < 8) {
-    			return 16;
-    		}
-
-    		if (r > 248) {
-    			return 231;
-    		}
-
-    		return Math.round(((r - 8) / 247) * 24) + 232;
-    	}
-
-    	var ansi = 16
-    		+ (36 * Math.round(r / 255 * 5))
-    		+ (6 * Math.round(g / 255 * 5))
-    		+ Math.round(b / 255 * 5);
-
-    	return ansi;
-    };
-
-    convert.ansi16.rgb = function (args) {
-    	var color = args % 10;
-
-    	// handle greyscale
-    	if (color === 0 || color === 7) {
-    		if (args > 50) {
-    			color += 3.5;
-    		}
-
-    		color = color / 10.5 * 255;
-
-    		return [color, color, color];
-    	}
-
-    	var mult = (~~(args > 50) + 1) * 0.5;
-    	var r = ((color & 1) * mult) * 255;
-    	var g = (((color >> 1) & 1) * mult) * 255;
-    	var b = (((color >> 2) & 1) * mult) * 255;
-
-    	return [r, g, b];
-    };
-
-    convert.ansi256.rgb = function (args) {
-    	// handle greyscale
-    	if (args >= 232) {
-    		var c = (args - 232) * 10 + 8;
-    		return [c, c, c];
-    	}
-
-    	args -= 16;
-
-    	var rem;
-    	var r = Math.floor(args / 36) / 5 * 255;
-    	var g = Math.floor((rem = args % 36) / 6) / 5 * 255;
-    	var b = (rem % 6) / 5 * 255;
-
-    	return [r, g, b];
-    };
-
-    convert.rgb.hex = function (args) {
-    	var integer = ((Math.round(args[0]) & 0xFF) << 16)
-    		+ ((Math.round(args[1]) & 0xFF) << 8)
-    		+ (Math.round(args[2]) & 0xFF);
-
-    	var string = integer.toString(16).toUpperCase();
-    	return '000000'.substring(string.length) + string;
-    };
-
-    convert.hex.rgb = function (args) {
-    	var match = args.toString(16).match(/[a-f0-9]{6}|[a-f0-9]{3}/i);
-    	if (!match) {
-    		return [0, 0, 0];
-    	}
-
-    	var colorString = match[0];
-
-    	if (match[0].length === 3) {
-    		colorString = colorString.split('').map(function (char) {
-    			return char + char;
-    		}).join('');
-    	}
-
-    	var integer = parseInt(colorString, 16);
-    	var r = (integer >> 16) & 0xFF;
-    	var g = (integer >> 8) & 0xFF;
-    	var b = integer & 0xFF;
-
-    	return [r, g, b];
-    };
-
-    convert.rgb.hcg = function (rgb) {
-    	var r = rgb[0] / 255;
-    	var g = rgb[1] / 255;
-    	var b = rgb[2] / 255;
-    	var max = Math.max(Math.max(r, g), b);
-    	var min = Math.min(Math.min(r, g), b);
-    	var chroma = (max - min);
-    	var grayscale;
-    	var hue;
-
-    	if (chroma < 1) {
-    		grayscale = min / (1 - chroma);
-    	} else {
-    		grayscale = 0;
-    	}
-
-    	if (chroma <= 0) {
-    		hue = 0;
-    	} else
-    	if (max === r) {
-    		hue = ((g - b) / chroma) % 6;
-    	} else
-    	if (max === g) {
-    		hue = 2 + (b - r) / chroma;
-    	} else {
-    		hue = 4 + (r - g) / chroma + 4;
-    	}
-
-    	hue /= 6;
-    	hue %= 1;
-
-    	return [hue * 360, chroma * 100, grayscale * 100];
-    };
-
-    convert.hsl.hcg = function (hsl) {
-    	var s = hsl[1] / 100;
-    	var l = hsl[2] / 100;
-    	var c = 1;
-    	var f = 0;
-
-    	if (l < 0.5) {
-    		c = 2.0 * s * l;
-    	} else {
-    		c = 2.0 * s * (1.0 - l);
-    	}
-
-    	if (c < 1.0) {
-    		f = (l - 0.5 * c) / (1.0 - c);
-    	}
-
-    	return [hsl[0], c * 100, f * 100];
-    };
-
-    convert.hsv.hcg = function (hsv) {
-    	var s = hsv[1] / 100;
-    	var v = hsv[2] / 100;
-
-    	var c = s * v;
-    	var f = 0;
-
-    	if (c < 1.0) {
-    		f = (v - c) / (1 - c);
-    	}
-
-    	return [hsv[0], c * 100, f * 100];
-    };
-
-    convert.hcg.rgb = function (hcg) {
-    	var h = hcg[0] / 360;
-    	var c = hcg[1] / 100;
-    	var g = hcg[2] / 100;
-
-    	if (c === 0.0) {
-    		return [g * 255, g * 255, g * 255];
-    	}
-
-    	var pure = [0, 0, 0];
-    	var hi = (h % 1) * 6;
-    	var v = hi % 1;
-    	var w = 1 - v;
-    	var mg = 0;
-
-    	switch (Math.floor(hi)) {
-    		case 0:
-    			pure[0] = 1; pure[1] = v; pure[2] = 0; break;
-    		case 1:
-    			pure[0] = w; pure[1] = 1; pure[2] = 0; break;
-    		case 2:
-    			pure[0] = 0; pure[1] = 1; pure[2] = v; break;
-    		case 3:
-    			pure[0] = 0; pure[1] = w; pure[2] = 1; break;
-    		case 4:
-    			pure[0] = v; pure[1] = 0; pure[2] = 1; break;
-    		default:
-    			pure[0] = 1; pure[1] = 0; pure[2] = w;
-    	}
-
-    	mg = (1.0 - c) * g;
-
-    	return [
-    		(c * pure[0] + mg) * 255,
-    		(c * pure[1] + mg) * 255,
-    		(c * pure[2] + mg) * 255
-    	];
-    };
-
-    convert.hcg.hsv = function (hcg) {
-    	var c = hcg[1] / 100;
-    	var g = hcg[2] / 100;
-
-    	var v = c + g * (1.0 - c);
-    	var f = 0;
-
-    	if (v > 0.0) {
-    		f = c / v;
-    	}
-
-    	return [hcg[0], f * 100, v * 100];
-    };
-
-    convert.hcg.hsl = function (hcg) {
-    	var c = hcg[1] / 100;
-    	var g = hcg[2] / 100;
-
-    	var l = g * (1.0 - c) + 0.5 * c;
-    	var s = 0;
-
-    	if (l > 0.0 && l < 0.5) {
-    		s = c / (2 * l);
-    	} else
-    	if (l >= 0.5 && l < 1.0) {
-    		s = c / (2 * (1 - l));
-    	}
-
-    	return [hcg[0], s * 100, l * 100];
-    };
-
-    convert.hcg.hwb = function (hcg) {
-    	var c = hcg[1] / 100;
-    	var g = hcg[2] / 100;
-    	var v = c + g * (1.0 - c);
-    	return [hcg[0], (v - c) * 100, (1 - v) * 100];
-    };
-
-    convert.hwb.hcg = function (hwb) {
-    	var w = hwb[1] / 100;
-    	var b = hwb[2] / 100;
-    	var v = 1 - b;
-    	var c = v - w;
-    	var g = 0;
-
-    	if (c < 1) {
-    		g = (v - c) / (1 - c);
-    	}
-
-    	return [hwb[0], c * 100, g * 100];
-    };
-
-    convert.apple.rgb = function (apple) {
-    	return [(apple[0] / 65535) * 255, (apple[1] / 65535) * 255, (apple[2] / 65535) * 255];
-    };
-
-    convert.rgb.apple = function (rgb) {
-    	return [(rgb[0] / 255) * 65535, (rgb[1] / 255) * 65535, (rgb[2] / 255) * 65535];
-    };
-
-    convert.gray.rgb = function (args) {
-    	return [args[0] / 100 * 255, args[0] / 100 * 255, args[0] / 100 * 255];
-    };
-
-    convert.gray.hsl = convert.gray.hsv = function (args) {
-    	return [0, 0, args[0]];
-    };
-
-    convert.gray.hwb = function (gray) {
-    	return [0, 100, gray[0]];
-    };
-
-    convert.gray.cmyk = function (gray) {
-    	return [0, 0, 0, gray[0]];
-    };
-
-    convert.gray.lab = function (gray) {
-    	return [gray[0], 0, 0];
-    };
-
-    convert.gray.hex = function (gray) {
-    	var val = Math.round(gray[0] / 100 * 255) & 0xFF;
-    	var integer = (val << 16) + (val << 8) + val;
-
-    	var string = integer.toString(16).toUpperCase();
-    	return '000000'.substring(string.length) + string;
-    };
-
-    convert.rgb.gray = function (rgb) {
-    	var val = (rgb[0] + rgb[1] + rgb[2]) / 3;
-    	return [val / 255 * 100];
-    };
-    });
-    var conversions_1 = conversions.rgb;
-    var conversions_2 = conversions.hsl;
-    var conversions_3 = conversions.hsv;
-    var conversions_4 = conversions.hwb;
-    var conversions_5 = conversions.cmyk;
-    var conversions_6 = conversions.xyz;
-    var conversions_7 = conversions.lab;
-    var conversions_8 = conversions.lch;
-    var conversions_9 = conversions.hex;
-    var conversions_10 = conversions.keyword;
-    var conversions_11 = conversions.ansi16;
-    var conversions_12 = conversions.ansi256;
-    var conversions_13 = conversions.hcg;
-    var conversions_14 = conversions.apple;
-    var conversions_15 = conversions.gray;
-
-    /*
-    	this function routes a model to all other models.
-
-    	all functions that are routed have a property `.conversion` attached
-    	to the returned synthetic function. This property is an array
-    	of strings, each with the steps in between the 'from' and 'to'
-    	color models (inclusive).
-
-    	conversions that are not possible simply are not included.
-    */
-
-    function buildGraph() {
-    	var graph = {};
-    	// https://jsperf.com/object-keys-vs-for-in-with-closure/3
-    	var models = Object.keys(conversions);
-
-    	for (var len = models.length, i = 0; i < len; i++) {
-    		graph[models[i]] = {
-    			// http://jsperf.com/1-vs-infinity
-    			// micro-opt, but this is simple.
-    			distance: -1,
-    			parent: null
-    		};
-    	}
-
-    	return graph;
-    }
-
-    // https://en.wikipedia.org/wiki/Breadth-first_search
-    function deriveBFS(fromModel) {
-    	var graph = buildGraph();
-    	var queue = [fromModel]; // unshift -> queue -> pop
-
-    	graph[fromModel].distance = 0;
-
-    	while (queue.length) {
-    		var current = queue.pop();
-    		var adjacents = Object.keys(conversions[current]);
-
-    		for (var len = adjacents.length, i = 0; i < len; i++) {
-    			var adjacent = adjacents[i];
-    			var node = graph[adjacent];
-
-    			if (node.distance === -1) {
-    				node.distance = graph[current].distance + 1;
-    				node.parent = current;
-    				queue.unshift(adjacent);
-    			}
-    		}
-    	}
-
-    	return graph;
-    }
-
-    function link(from, to) {
-    	return function (args) {
-    		return to(from(args));
-    	};
-    }
-
-    function wrapConversion(toModel, graph) {
-    	var path = [graph[toModel].parent, toModel];
-    	var fn = conversions[graph[toModel].parent][toModel];
-
-    	var cur = graph[toModel].parent;
-    	while (graph[cur].parent) {
-    		path.unshift(graph[cur].parent);
-    		fn = link(conversions[graph[cur].parent][cur], fn);
-    		cur = graph[cur].parent;
-    	}
-
-    	fn.conversion = path;
-    	return fn;
-    }
-
-    var route = function (fromModel) {
-    	var graph = deriveBFS(fromModel);
-    	var conversion = {};
-
-    	var models = Object.keys(graph);
-    	for (var len = models.length, i = 0; i < len; i++) {
-    		var toModel = models[i];
-    		var node = graph[toModel];
-
-    		if (node.parent === null) {
-    			// no possible conversion, or this node is the source model.
-    			continue;
-    		}
-
-    		conversion[toModel] = wrapConversion(toModel, graph);
-    	}
-
-    	return conversion;
-    };
-
-    var convert = {};
-
-    var models = Object.keys(conversions);
-
-    function wrapRaw(fn) {
-    	var wrappedFn = function (args) {
-    		if (args === undefined || args === null) {
-    			return args;
-    		}
-
-    		if (arguments.length > 1) {
-    			args = Array.prototype.slice.call(arguments);
-    		}
-
-    		return fn(args);
-    	};
-
-    	// preserve .conversion property if there is one
-    	if ('conversion' in fn) {
-    		wrappedFn.conversion = fn.conversion;
-    	}
-
-    	return wrappedFn;
-    }
-
-    function wrapRounded(fn) {
-    	var wrappedFn = function (args) {
-    		if (args === undefined || args === null) {
-    			return args;
-    		}
-
-    		if (arguments.length > 1) {
-    			args = Array.prototype.slice.call(arguments);
-    		}
-
-    		var result = fn(args);
-
-    		// we're assuming the result is an array here.
-    		// see notice in conversions.js; don't use box types
-    		// in conversion functions.
-    		if (typeof result === 'object') {
-    			for (var len = result.length, i = 0; i < len; i++) {
-    				result[i] = Math.round(result[i]);
-    			}
-    		}
-
-    		return result;
-    	};
-
-    	// preserve .conversion property if there is one
-    	if ('conversion' in fn) {
-    		wrappedFn.conversion = fn.conversion;
-    	}
-
-    	return wrappedFn;
-    }
-
-    models.forEach(function (fromModel) {
-    	convert[fromModel] = {};
-
-    	Object.defineProperty(convert[fromModel], 'channels', {value: conversions[fromModel].channels});
-    	Object.defineProperty(convert[fromModel], 'labels', {value: conversions[fromModel].labels});
-
-    	var routes = route(fromModel);
-    	var routeModels = Object.keys(routes);
-
-    	routeModels.forEach(function (toModel) {
-    		var fn = routes[toModel];
-
-    		convert[fromModel][toModel] = wrapRounded(fn);
-    		convert[fromModel][toModel].raw = wrapRaw(fn);
-    	});
-    });
-
-    var colorConvert = convert;
-
-    var _slice = [].slice;
-
-    var skippedModels = [
-    	// to be honest, I don't really feel like keyword belongs in color convert, but eh.
-    	'keyword',
-
-    	// gray conflicts with some method names, and has its own method defined.
-    	'gray',
-
-    	// shouldn't really be in color-convert either...
-    	'hex'
-    ];
-
-    var hashedModelKeys = {};
-    Object.keys(colorConvert).forEach(function (model) {
-    	hashedModelKeys[_slice.call(colorConvert[model].labels).sort().join('')] = model;
-    });
-
-    var limiters = {};
-
-    function Color(obj, model) {
-    	if (!(this instanceof Color)) {
-    		return new Color(obj, model);
-    	}
-
-    	if (model && model in skippedModels) {
-    		model = null;
-    	}
-
-    	if (model && !(model in colorConvert)) {
-    		throw new Error('Unknown model: ' + model);
-    	}
-
-    	var i;
-    	var channels;
-
-    	if (obj == null) { // eslint-disable-line no-eq-null,eqeqeq
-    		this.model = 'rgb';
-    		this.color = [0, 0, 0];
-    		this.valpha = 1;
-    	} else if (obj instanceof Color) {
-    		this.model = obj.model;
-    		this.color = obj.color.slice();
-    		this.valpha = obj.valpha;
-    	} else if (typeof obj === 'string') {
-    		var result = colorString.get(obj);
-    		if (result === null) {
-    			throw new Error('Unable to parse color from string: ' + obj);
-    		}
-
-    		this.model = result.model;
-    		channels = colorConvert[this.model].channels;
-    		this.color = result.value.slice(0, channels);
-    		this.valpha = typeof result.value[channels] === 'number' ? result.value[channels] : 1;
-    	} else if (obj.length) {
-    		this.model = model || 'rgb';
-    		channels = colorConvert[this.model].channels;
-    		var newArr = _slice.call(obj, 0, channels);
-    		this.color = zeroArray(newArr, channels);
-    		this.valpha = typeof obj[channels] === 'number' ? obj[channels] : 1;
-    	} else if (typeof obj === 'number') {
-    		// this is always RGB - can be converted later on.
-    		obj &= 0xFFFFFF;
-    		this.model = 'rgb';
-    		this.color = [
-    			(obj >> 16) & 0xFF,
-    			(obj >> 8) & 0xFF,
-    			obj & 0xFF
-    		];
-    		this.valpha = 1;
-    	} else {
-    		this.valpha = 1;
-
-    		var keys = Object.keys(obj);
-    		if ('alpha' in obj) {
-    			keys.splice(keys.indexOf('alpha'), 1);
-    			this.valpha = typeof obj.alpha === 'number' ? obj.alpha : 0;
-    		}
-
-    		var hashedKeys = keys.sort().join('');
-    		if (!(hashedKeys in hashedModelKeys)) {
-    			throw new Error('Unable to parse color from object: ' + JSON.stringify(obj));
-    		}
-
-    		this.model = hashedModelKeys[hashedKeys];
-
-    		var labels = colorConvert[this.model].labels;
-    		var color = [];
-    		for (i = 0; i < labels.length; i++) {
-    			color.push(obj[labels[i]]);
-    		}
-
-    		this.color = zeroArray(color);
-    	}
-
-    	// perform limitations (clamping, etc.)
-    	if (limiters[this.model]) {
-    		channels = colorConvert[this.model].channels;
-    		for (i = 0; i < channels; i++) {
-    			var limit = limiters[this.model][i];
-    			if (limit) {
-    				this.color[i] = limit(this.color[i]);
-    			}
-    		}
-    	}
-
-    	this.valpha = Math.max(0, Math.min(1, this.valpha));
-
-    	if (Object.freeze) {
-    		Object.freeze(this);
-    	}
-    }
-
-    Color.prototype = {
-    	toString: function () {
-    		return this.string();
-    	},
-
-    	toJSON: function () {
-    		return this[this.model]();
-    	},
-
-    	string: function (places) {
-    		var self = this.model in colorString.to ? this : this.rgb();
-    		self = self.round(typeof places === 'number' ? places : 1);
-    		var args = self.valpha === 1 ? self.color : self.color.concat(this.valpha);
-    		return colorString.to[self.model](args);
-    	},
-
-    	percentString: function (places) {
-    		var self = this.rgb().round(typeof places === 'number' ? places : 1);
-    		var args = self.valpha === 1 ? self.color : self.color.concat(this.valpha);
-    		return colorString.to.rgb.percent(args);
-    	},
-
-    	array: function () {
-    		return this.valpha === 1 ? this.color.slice() : this.color.concat(this.valpha);
-    	},
-
-    	object: function () {
-    		var result = {};
-    		var channels = colorConvert[this.model].channels;
-    		var labels = colorConvert[this.model].labels;
-
-    		for (var i = 0; i < channels; i++) {
-    			result[labels[i]] = this.color[i];
-    		}
-
-    		if (this.valpha !== 1) {
-    			result.alpha = this.valpha;
-    		}
-
-    		return result;
-    	},
-
-    	unitArray: function () {
-    		var rgb = this.rgb().color;
-    		rgb[0] /= 255;
-    		rgb[1] /= 255;
-    		rgb[2] /= 255;
-
-    		if (this.valpha !== 1) {
-    			rgb.push(this.valpha);
-    		}
-
-    		return rgb;
-    	},
-
-    	unitObject: function () {
-    		var rgb = this.rgb().object();
-    		rgb.r /= 255;
-    		rgb.g /= 255;
-    		rgb.b /= 255;
-
-    		if (this.valpha !== 1) {
-    			rgb.alpha = this.valpha;
-    		}
-
-    		return rgb;
-    	},
-
-    	round: function (places) {
-    		places = Math.max(places || 0, 0);
-    		return new Color(this.color.map(roundToPlace(places)).concat(this.valpha), this.model);
-    	},
-
-    	alpha: function (val) {
-    		if (arguments.length) {
-    			return new Color(this.color.concat(Math.max(0, Math.min(1, val))), this.model);
-    		}
-
-    		return this.valpha;
-    	},
-
-    	// rgb
-    	red: getset('rgb', 0, maxfn(255)),
-    	green: getset('rgb', 1, maxfn(255)),
-    	blue: getset('rgb', 2, maxfn(255)),
-
-    	hue: getset(['hsl', 'hsv', 'hsl', 'hwb', 'hcg'], 0, function (val) { return ((val % 360) + 360) % 360; }), // eslint-disable-line brace-style
-
-    	saturationl: getset('hsl', 1, maxfn(100)),
-    	lightness: getset('hsl', 2, maxfn(100)),
-
-    	saturationv: getset('hsv', 1, maxfn(100)),
-    	value: getset('hsv', 2, maxfn(100)),
-
-    	chroma: getset('hcg', 1, maxfn(100)),
-    	gray: getset('hcg', 2, maxfn(100)),
-
-    	white: getset('hwb', 1, maxfn(100)),
-    	wblack: getset('hwb', 2, maxfn(100)),
-
-    	cyan: getset('cmyk', 0, maxfn(100)),
-    	magenta: getset('cmyk', 1, maxfn(100)),
-    	yellow: getset('cmyk', 2, maxfn(100)),
-    	black: getset('cmyk', 3, maxfn(100)),
-
-    	x: getset('xyz', 0, maxfn(100)),
-    	y: getset('xyz', 1, maxfn(100)),
-    	z: getset('xyz', 2, maxfn(100)),
-
-    	l: getset('lab', 0, maxfn(100)),
-    	a: getset('lab', 1),
-    	b: getset('lab', 2),
-
-    	keyword: function (val) {
-    		if (arguments.length) {
-    			return new Color(val);
-    		}
-
-    		return colorConvert[this.model].keyword(this.color);
-    	},
-
-    	hex: function (val) {
-    		if (arguments.length) {
-    			return new Color(val);
-    		}
-
-    		return colorString.to.hex(this.rgb().round().color);
-    	},
-
-    	rgbNumber: function () {
-    		var rgb = this.rgb().color;
-    		return ((rgb[0] & 0xFF) << 16) | ((rgb[1] & 0xFF) << 8) | (rgb[2] & 0xFF);
-    	},
-
-    	luminosity: function () {
-    		// http://www.w3.org/TR/WCAG20/#relativeluminancedef
-    		var rgb = this.rgb().color;
-
-    		var lum = [];
-    		for (var i = 0; i < rgb.length; i++) {
-    			var chan = rgb[i] / 255;
-    			lum[i] = (chan <= 0.03928) ? chan / 12.92 : Math.pow(((chan + 0.055) / 1.055), 2.4);
-    		}
-
-    		return 0.2126 * lum[0] + 0.7152 * lum[1] + 0.0722 * lum[2];
-    	},
-
-    	contrast: function (color2) {
-    		// http://www.w3.org/TR/WCAG20/#contrast-ratiodef
-    		var lum1 = this.luminosity();
-    		var lum2 = color2.luminosity();
-
-    		if (lum1 > lum2) {
-    			return (lum1 + 0.05) / (lum2 + 0.05);
-    		}
-
-    		return (lum2 + 0.05) / (lum1 + 0.05);
-    	},
-
-    	level: function (color2) {
-    		var contrastRatio = this.contrast(color2);
-    		if (contrastRatio >= 7.1) {
-    			return 'AAA';
-    		}
-
-    		return (contrastRatio >= 4.5) ? 'AA' : '';
-    	},
-
-    	isDark: function () {
-    		// YIQ equation from http://24ways.org/2010/calculating-color-contrast
-    		var rgb = this.rgb().color;
-    		var yiq = (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000;
-    		return yiq < 128;
-    	},
-
-    	isLight: function () {
-    		return !this.isDark();
-    	},
-
-    	negate: function () {
-    		var rgb = this.rgb();
-    		for (var i = 0; i < 3; i++) {
-    			rgb.color[i] = 255 - rgb.color[i];
-    		}
-    		return rgb;
-    	},
-
-    	lighten: function (ratio) {
-    		var hsl = this.hsl();
-    		hsl.color[2] += hsl.color[2] * ratio;
-    		return hsl;
-    	},
-
-    	darken: function (ratio) {
-    		var hsl = this.hsl();
-    		hsl.color[2] -= hsl.color[2] * ratio;
-    		return hsl;
-    	},
-
-    	saturate: function (ratio) {
-    		var hsl = this.hsl();
-    		hsl.color[1] += hsl.color[1] * ratio;
-    		return hsl;
-    	},
-
-    	desaturate: function (ratio) {
-    		var hsl = this.hsl();
-    		hsl.color[1] -= hsl.color[1] * ratio;
-    		return hsl;
-    	},
-
-    	whiten: function (ratio) {
-    		var hwb = this.hwb();
-    		hwb.color[1] += hwb.color[1] * ratio;
-    		return hwb;
-    	},
-
-    	blacken: function (ratio) {
-    		var hwb = this.hwb();
-    		hwb.color[2] += hwb.color[2] * ratio;
-    		return hwb;
-    	},
-
-    	grayscale: function () {
-    		// http://en.wikipedia.org/wiki/Grayscale#Converting_color_to_grayscale
-    		var rgb = this.rgb().color;
-    		var val = rgb[0] * 0.3 + rgb[1] * 0.59 + rgb[2] * 0.11;
-    		return Color.rgb(val, val, val);
-    	},
-
-    	fade: function (ratio) {
-    		return this.alpha(this.valpha - (this.valpha * ratio));
-    	},
-
-    	opaquer: function (ratio) {
-    		return this.alpha(this.valpha + (this.valpha * ratio));
-    	},
-
-    	rotate: function (degrees) {
-    		var hsl = this.hsl();
-    		var hue = hsl.color[0];
-    		hue = (hue + degrees) % 360;
-    		hue = hue < 0 ? 360 + hue : hue;
-    		hsl.color[0] = hue;
-    		return hsl;
-    	},
-
-    	mix: function (mixinColor, weight) {
-    		// ported from sass implementation in C
-    		// https://github.com/sass/libsass/blob/0e6b4a2850092356aa3ece07c6b249f0221caced/functions.cpp#L209
-    		if (!mixinColor || !mixinColor.rgb) {
-    			throw new Error('Argument to "mix" was not a Color instance, but rather an instance of ' + typeof mixinColor);
-    		}
-    		var color1 = mixinColor.rgb();
-    		var color2 = this.rgb();
-    		var p = weight === undefined ? 0.5 : weight;
-
-    		var w = 2 * p - 1;
-    		var a = color1.alpha() - color2.alpha();
-
-    		var w1 = (((w * a === -1) ? w : (w + a) / (1 + w * a)) + 1) / 2.0;
-    		var w2 = 1 - w1;
-
-    		return Color.rgb(
-    				w1 * color1.red() + w2 * color2.red(),
-    				w1 * color1.green() + w2 * color2.green(),
-    				w1 * color1.blue() + w2 * color2.blue(),
-    				color1.alpha() * p + color2.alpha() * (1 - p));
-    	}
-    };
-
-    // model conversion methods and static constructors
-    Object.keys(colorConvert).forEach(function (model) {
-    	if (skippedModels.indexOf(model) !== -1) {
-    		return;
-    	}
-
-    	var channels = colorConvert[model].channels;
-
-    	// conversion methods
-    	Color.prototype[model] = function () {
-    		if (this.model === model) {
-    			return new Color(this);
-    		}
-
-    		if (arguments.length) {
-    			return new Color(arguments, model);
-    		}
-
-    		var newAlpha = typeof arguments[channels] === 'number' ? channels : this.valpha;
-    		return new Color(assertArray(colorConvert[this.model][model].raw(this.color)).concat(newAlpha), model);
-    	};
-
-    	// 'static' construction methods
-    	Color[model] = function (color) {
-    		if (typeof color === 'number') {
-    			color = zeroArray(_slice.call(arguments), channels);
-    		}
-    		return new Color(color, model);
-    	};
-    });
-
-    function roundTo(num, places) {
-    	return Number(num.toFixed(places));
-    }
-
-    function roundToPlace(places) {
-    	return function (num) {
-    		return roundTo(num, places);
-    	};
-    }
-
-    function getset(model, channel, modifier) {
-    	model = Array.isArray(model) ? model : [model];
-
-    	model.forEach(function (m) {
-    		(limiters[m] || (limiters[m] = []))[channel] = modifier;
-    	});
-
-    	model = model[0];
-
-    	return function (val) {
-    		var result;
-
-    		if (arguments.length) {
-    			if (modifier) {
-    				val = modifier(val);
-    			}
-
-    			result = this[model]();
-    			result.color[channel] = val;
-    			return result;
-    		}
-
-    		result = this[model]().color[channel];
-    		if (modifier) {
-    			result = modifier(result);
-    		}
-
-    		return result;
-    	};
-    }
-
-    function maxfn(max) {
-    	return function (v) {
-    		return Math.max(0, Math.min(max, v));
-    	};
-    }
-
-    function assertArray(val) {
-    	return Array.isArray(val) ? val : [val];
-    }
-
-    function zeroArray(arr, length) {
-    	for (var i = 0; i < length; i++) {
-    		if (typeof arr[i] !== 'number') {
-    			arr[i] = 0;
-    		}
-    	}
-
-    	return arr;
-    }
-
-    var color = Color;
-
-    /**
-     * Original Work
-     * http://www.paintassistant.com/rybrgb.html
-     * Modified by Dave Eddy <dave@daveeddy.com>
-     */
-
-    const COLOR_RANGE = [
-      0,
-      1,
-      2,
-      3,
-      4,
-      5,
-      6,
-      7,
-      8,
-      9,
-      'A',
-      'B',
-      'C',
-      'D',
-      'E',
-      'F'
-    ];
-
-    const hexColors = lodash.sortedUniqBy(
-      lodash.flattenDeep(
-        COLOR_RANGE.map(
-          c => COLOR_RANGE.map(
-            c2 => COLOR_RANGE.map(
-              c3 => `${c3}${c2}${c}`
-            )
-          )
-        )
-      ),
-      h => new color(`#${h}`).luminosity()
-    );
-
-    /* src/BuildlerBlock.svelte generated by Svelte v3.6.7 */
-
-    const file$a = "src/BuildlerBlock.svelte";
-
-    function create_fragment$b(ctx) {
-    	var div, current, dispose;
-
-    	const default_slot_1 = ctx.$$slots.default;
-    	const default_slot = create_slot(default_slot_1, ctx, null);
-
-    	return {
-    		c: function create() {
-    			div = element("div");
-
-    			if (default_slot) default_slot.c();
-
-    			set_style(div, "background", ctx.bg);
-    			set_style(div, "color", ctx.textColor);
-    			set_style(div, "transition", "all " + ctx.transitionTime + "s ease-in-out");
-    			attr(div, "class", "svelte-qgbta2");
-    			add_location(div, file$a, 33, 0, 640);
-
-    			dispose = [
-    				listen(div, "click", ctx.click_handler),
-    				listen(div, "contextmenu", ctx.contextmenu_handler)
-    			];
-    		},
-
-    		l: function claim(nodes) {
-    			if (default_slot) default_slot.l(div_nodes);
-    			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
-    		},
-
-    		m: function mount(target, anchor) {
-    			insert(target, div, anchor);
-
-    			if (default_slot) {
-    				default_slot.m(div, null);
-    			}
-
-    			current = true;
-    		},
-
-    		p: function update(changed, ctx) {
-    			if (default_slot && default_slot.p && changed.$$scope) {
-    				default_slot.p(get_slot_changes(default_slot_1, ctx, changed, null), get_slot_context(default_slot_1, ctx, null));
-    			}
-
-    			if (!current || changed.bg) {
-    				set_style(div, "background", ctx.bg);
-    			}
-
-    			if (!current || changed.textColor) {
-    				set_style(div, "color", ctx.textColor);
-    			}
-
-    			if (!current || changed.transitionTime) {
-    				set_style(div, "transition", "all " + ctx.transitionTime + "s ease-in-out");
-    			}
-    		},
-
-    		i: function intro(local) {
-    			if (current) return;
-    			transition_in(default_slot, local);
-    			current = true;
-    		},
-
-    		o: function outro(local) {
-    			transition_out(default_slot, local);
-    			current = false;
-    		},
-
-    		d: function destroy(detaching) {
-    			if (detaching) {
-    				detach(div);
-    			}
-
-    			if (default_slot) default_slot.d(detaching);
-    			run_all(dispose);
-    		}
-    	};
-    }
-
-    const white$1 = '#eee';
-
-    const black$1 = '#111';
-
-    const red$1 = '#d22';
-
-    function instance$b($$self, $$props, $$invalidate) {
-    	let { row, col, state = 0, color, onClick, onRightClick, transitionTime = 0.2 } = $$props;
-
-    	const writable_props = ['row', 'col', 'state', 'color', 'onClick', 'onRightClick', 'transitionTime'];
-    	Object.keys($$props).forEach(key => {
-    		if (!writable_props.includes(key) && !key.startsWith('$$')) console.warn(`<BuildlerBlock> was created with unknown prop '${key}'`);
-    	});
-
-    	let { $$slots = {}, $$scope } = $$props;
-
-    	function click_handler() {
-    		return onClick && onClick(row, col);
-    	}
-
-    	function contextmenu_handler(e) {
-    	    if (onRightClick) {
-    	      e.preventDefault();
-    	      onRightClick(row, col);
-    	    }
-    	  }
-
-    	$$self.$set = $$props => {
-    		if ('row' in $$props) $$invalidate('row', row = $$props.row);
-    		if ('col' in $$props) $$invalidate('col', col = $$props.col);
-    		if ('state' in $$props) $$invalidate('state', state = $$props.state);
-    		if ('color' in $$props) $$invalidate('color', color = $$props.color);
-    		if ('onClick' in $$props) $$invalidate('onClick', onClick = $$props.onClick);
-    		if ('onRightClick' in $$props) $$invalidate('onRightClick', onRightClick = $$props.onRightClick);
-    		if ('transitionTime' in $$props) $$invalidate('transitionTime', transitionTime = $$props.transitionTime);
-    		if ('$$scope' in $$props) $$invalidate('$$scope', $$scope = $$props.$$scope);
-    	};
-
-    	let bg, textColor;
-
-    	$$self.$$.update = ($$dirty = { state: 1, color: 1, bg: 1 }) => {
-    		if ($$dirty.state || $$dirty.color) { $$invalidate('bg', bg = state === -2 ? red$1 : (state === -1 ? white$1 : color)); }
-    		if ($$dirty.bg) { $$invalidate('textColor', textColor = bg === white$1 ? black$1 : white$1); }
-    	};
-
-    	return {
-    		row,
-    		col,
-    		state,
-    		color,
-    		onClick,
-    		onRightClick,
-    		transitionTime,
-    		bg,
-    		textColor,
-    		click_handler,
-    		contextmenu_handler,
-    		$$slots,
-    		$$scope
-    	};
-    }
-
-    class BuildlerBlock extends SvelteComponentDev {
-    	constructor(options) {
-    		super(options);
-    		init(this, options, instance$b, create_fragment$b, safe_not_equal, ["row", "col", "state", "color", "onClick", "onRightClick", "transitionTime"]);
-
-    		const { ctx } = this.$$;
-    		const props = options.props || {};
-    		if (ctx.row === undefined && !('row' in props)) {
-    			console.warn("<BuildlerBlock> was created without expected prop 'row'");
-    		}
-    		if (ctx.col === undefined && !('col' in props)) {
-    			console.warn("<BuildlerBlock> was created without expected prop 'col'");
-    		}
-    		if (ctx.color === undefined && !('color' in props)) {
-    			console.warn("<BuildlerBlock> was created without expected prop 'color'");
-    		}
-    		if (ctx.onClick === undefined && !('onClick' in props)) {
-    			console.warn("<BuildlerBlock> was created without expected prop 'onClick'");
-    		}
-    		if (ctx.onRightClick === undefined && !('onRightClick' in props)) {
-    			console.warn("<BuildlerBlock> was created without expected prop 'onRightClick'");
-    		}
-    	}
-
-    	get row() {
-    		throw new Error("<BuildlerBlock>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set row(value) {
-    		throw new Error("<BuildlerBlock>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get col() {
-    		throw new Error("<BuildlerBlock>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set col(value) {
-    		throw new Error("<BuildlerBlock>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get state() {
-    		throw new Error("<BuildlerBlock>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set state(value) {
-    		throw new Error("<BuildlerBlock>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get color() {
-    		throw new Error("<BuildlerBlock>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set color(value) {
-    		throw new Error("<BuildlerBlock>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get onClick() {
-    		throw new Error("<BuildlerBlock>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set onClick(value) {
-    		throw new Error("<BuildlerBlock>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get onRightClick() {
-    		throw new Error("<BuildlerBlock>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set onRightClick(value) {
-    		throw new Error("<BuildlerBlock>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get transitionTime() {
-    		throw new Error("<BuildlerBlock>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set transitionTime(value) {
-    		throw new Error("<BuildlerBlock>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-    }
-
-    /* src/Buildler.svelte generated by Svelte v3.6.7 */
-
-    const file$b = "src/Buildler.svelte";
-
-    function get_each_context_1$1(ctx, list, i) {
-    	const child_ctx = Object.create(ctx);
-    	child_ctx.col = list[i];
-    	child_ctx.colIndex = i;
-    	return child_ctx;
-    }
-
-    function get_each_context$1(ctx, list, i) {
-    	const child_ctx = Object.create(ctx);
-    	child_ctx.row = list[i];
-    	child_ctx.rowIndex = i;
-    	return child_ctx;
-    }
-
-    function get_each_context_2$1(ctx, list, i) {
-    	const child_ctx = Object.create(ctx);
-    	child_ctx.color = list[i];
-    	child_ctx.index = i;
-    	return child_ctx;
-    }
-
-    function get_each_context_3$1(ctx, list, i) {
-    	const child_ctx = Object.create(ctx);
-    	child_ctx.color = list[i];
-    	return child_ctx;
-    }
-
-    // (178:2) {#if showColorPicker}
-    function create_if_block_1$1(ctx) {
-    	var div, section, dispose;
-
-    	var each_value_3 = hexColors;
-
-    	var each_blocks = [];
-
-    	for (var i = 0; i < each_value_3.length; i += 1) {
-    		each_blocks[i] = create_each_block_3$1(get_each_context_3$1(ctx, each_value_3, i));
-    	}
-
-    	return {
-    		c: function create() {
-    			div = element("div");
-    			section = element("section");
-
-    			for (var i = 0; i < each_blocks.length; i += 1) {
-    				each_blocks[i].c();
-    			}
-    			attr(section, "class", "color-selector svelte-o239yw");
-    			add_location(section, file$b, 182, 6, 3642);
-    			attr(div, "class", "color-selector-container svelte-o239yw");
-    			add_location(div, file$b, 178, 4, 3539);
-
-    			dispose = [
-    				listen(section, "click", ctx.click_handler_1),
-    				listen(div, "click", ctx.click_handler_2)
-    			];
-    		},
-
-    		m: function mount(target, anchor) {
-    			insert(target, div, anchor);
-    			append(div, section);
-
-    			for (var i = 0; i < each_blocks.length; i += 1) {
-    				each_blocks[i].m(section, null);
-    			}
-    		},
-
-    		p: function update(changed, ctx) {
-    			if (changed.hexColors) {
-    				each_value_3 = hexColors;
-
-    				for (var i = 0; i < each_value_3.length; i += 1) {
-    					const child_ctx = get_each_context_3$1(ctx, each_value_3, i);
-
-    					if (each_blocks[i]) {
-    						each_blocks[i].p(changed, child_ctx);
-    					} else {
-    						each_blocks[i] = create_each_block_3$1(child_ctx);
-    						each_blocks[i].c();
-    						each_blocks[i].m(section, null);
-    					}
-    				}
-
-    				for (; i < each_blocks.length; i += 1) {
-    					each_blocks[i].d(1);
-    				}
-    				each_blocks.length = each_value_3.length;
-    			}
-    		},
-
-    		d: function destroy(detaching) {
-    			if (detaching) {
-    				detach(div);
-    			}
-
-    			destroy_each(each_blocks, detaching);
-
-    			run_all(dispose);
-    		}
-    	};
-    }
-
-    // (187:8) {#each hexColors as color}
-    function create_each_block_3$1(ctx) {
-    	var div, dispose;
-
-    	function click_handler() {
-    		return ctx.click_handler(ctx);
-    	}
-
-    	return {
-    		c: function create() {
-    			div = element("div");
-    			attr(div, "class", "color-option svelte-o239yw");
-    			set_style(div, "background", "#" + ctx.color);
-    			add_location(div, file$b, 187, 10, 3784);
-    			dispose = listen(div, "click", click_handler);
-    		},
-
-    		m: function mount(target, anchor) {
-    			insert(target, div, anchor);
-    		},
-
-    		p: function update(changed, new_ctx) {
-    			ctx = new_ctx;
-    			if (changed.hexColors) {
-    				set_style(div, "background", "#" + ctx.color);
-    			}
-    		},
-
-    		d: function destroy(detaching) {
-    			if (detaching) {
-    				detach(div);
-    			}
-
-    			dispose();
-    		}
-    	};
-    }
-
-    // (200:6) {#if !colors.length}
-    function create_if_block$2(ctx) {
-    	var span;
-
-    	return {
-    		c: function create() {
-    			span = element("span");
-    			span.textContent = "No colors added";
-    			add_location(span, file$b, 200, 8, 4047);
-    		},
-
-    		m: function mount(target, anchor) {
-    			insert(target, span, anchor);
-    		},
-
-    		d: function destroy(detaching) {
-    			if (detaching) {
-    				detach(span);
-    			}
-    		}
-    	};
-    }
-
-    // (203:6) {#each colors as color, index}
-    function create_each_block_2$1(ctx) {
-    	var div, t_value = ctx.color, t, div_class_value, dispose;
-
-    	function click_handler_3() {
-    		return ctx.click_handler_3(ctx);
-    	}
-
-    	function contextmenu_handler(...args) {
-    		return ctx.contextmenu_handler(ctx, ...args);
-    	}
-
-    	return {
-    		c: function create() {
-    			div = element("div");
-    			t = text(t_value);
-    			attr(div, "class", div_class_value = "color " + (ctx.index === ctx.colorIndex && 'active') + " svelte-o239yw");
-    			set_style(div, "background", ctx.color);
-    			add_location(div, file$b, 203, 8, 4133);
-
-    			dispose = [
-    				listen(div, "click", click_handler_3),
-    				listen(div, "contextmenu", contextmenu_handler)
-    			];
-    		},
-
-    		m: function mount(target, anchor) {
-    			insert(target, div, anchor);
-    			append(div, t);
-    		},
-
-    		p: function update(changed, new_ctx) {
-    			ctx = new_ctx;
-    			if ((changed.colors) && t_value !== (t_value = ctx.color)) {
-    				set_data(t, t_value);
-    			}
-
-    			if ((changed.colorIndex) && div_class_value !== (div_class_value = "color " + (ctx.index === ctx.colorIndex && 'active') + " svelte-o239yw")) {
-    				attr(div, "class", div_class_value);
-    			}
-
-    			if (changed.colors) {
-    				set_style(div, "background", ctx.color);
-    			}
-    		},
-
-    		d: function destroy(detaching) {
-    			if (detaching) {
-    				detach(div);
-    			}
-
-    			run_all(dispose);
-    		}
-    	};
-    }
-
-    // (227:8) {#each row as col, colIndex}
-    function create_each_block_1$1(ctx) {
-    	var current;
-
-    	function func() {
-    		return ctx.func(ctx);
-    	}
-
-    	function contextmenu_handler_1() {
-    		return ctx.contextmenu_handler_1(ctx);
-    	}
-
-    	var buildlerblock = new BuildlerBlock({
-    		props: {
-    		row: ctx.rowIndex,
-    		col: ctx.colIndex,
-    		state: ctx.col,
-    		color: ctx.colors[ctx.col],
-    		onClick: func,
-    		transitionTime: 0.05
-    	},
-    		$$inline: true
-    	});
-    	buildlerblock.$on("contextmenu", contextmenu_handler_1);
-
-    	return {
-    		c: function create() {
-    			buildlerblock.$$.fragment.c();
-    		},
-
-    		m: function mount(target, anchor) {
-    			mount_component(buildlerblock, target, anchor);
-    			current = true;
-    		},
-
-    		p: function update(changed, new_ctx) {
-    			ctx = new_ctx;
-    			var buildlerblock_changes = {};
-    			if (changed.solution) buildlerblock_changes.state = ctx.col;
-    			if (changed.colors || changed.solution) buildlerblock_changes.color = ctx.colors[ctx.col];
-    			if (changed.toggleEnabled) buildlerblock_changes.onClick = func;
-    			buildlerblock.$set(buildlerblock_changes);
-    		},
-
-    		i: function intro(local) {
-    			if (current) return;
-    			transition_in(buildlerblock.$$.fragment, local);
-
-    			current = true;
-    		},
-
-    		o: function outro(local) {
-    			transition_out(buildlerblock.$$.fragment, local);
-    			current = false;
-    		},
-
-    		d: function destroy(detaching) {
-    			destroy_component(buildlerblock, detaching);
-    		}
-    	};
-    }
-
-    // (226:6) {#each solution as row, rowIndex}
-    function create_each_block$1(ctx) {
-    	var each_1_anchor, current;
-
-    	var each_value_1 = ctx.row;
-
-    	var each_blocks = [];
-
-    	for (var i = 0; i < each_value_1.length; i += 1) {
-    		each_blocks[i] = create_each_block_1$1(get_each_context_1$1(ctx, each_value_1, i));
-    	}
-
-    	const out = i => transition_out(each_blocks[i], 1, 1, () => {
-    		each_blocks[i] = null;
-    	});
-
-    	return {
-    		c: function create() {
-    			for (var i = 0; i < each_blocks.length; i += 1) {
-    				each_blocks[i].c();
-    			}
-
-    			each_1_anchor = empty();
-    		},
-
-    		m: function mount(target, anchor) {
-    			for (var i = 0; i < each_blocks.length; i += 1) {
-    				each_blocks[i].m(target, anchor);
-    			}
-
-    			insert(target, each_1_anchor, anchor);
-    			current = true;
-    		},
-
-    		p: function update(changed, ctx) {
-    			if (changed.solution || changed.colors || changed.toggleEnabled) {
-    				each_value_1 = ctx.row;
-
-    				for (var i = 0; i < each_value_1.length; i += 1) {
-    					const child_ctx = get_each_context_1$1(ctx, each_value_1, i);
-
-    					if (each_blocks[i]) {
-    						each_blocks[i].p(changed, child_ctx);
-    						transition_in(each_blocks[i], 1);
-    					} else {
-    						each_blocks[i] = create_each_block_1$1(child_ctx);
-    						each_blocks[i].c();
-    						transition_in(each_blocks[i], 1);
-    						each_blocks[i].m(each_1_anchor.parentNode, each_1_anchor);
-    					}
-    				}
-
-    				group_outros();
-    				for (i = each_value_1.length; i < each_blocks.length; i += 1) out(i);
-    				check_outros();
-    			}
-    		},
-
-    		i: function intro(local) {
-    			if (current) return;
-    			for (var i = 0; i < each_value_1.length; i += 1) transition_in(each_blocks[i]);
-
-    			current = true;
-    		},
-
-    		o: function outro(local) {
-    			each_blocks = each_blocks.filter(Boolean);
-    			for (let i = 0; i < each_blocks.length; i += 1) transition_out(each_blocks[i]);
-
-    			current = false;
-    		},
-
-    		d: function destroy(detaching) {
-    			destroy_each(each_blocks, detaching);
-
-    			if (detaching) {
-    				detach(each_1_anchor);
-    			}
-    		}
-    	};
-    }
-
-    function create_fragment$c(ctx) {
-    	var div5, section0, div0, input0, t0, input1, t1, input2, t2, t3, section1, div2, t4, t5, div1, t7, section2, div3, t8, div4, button, current, dispose;
-
-    	var if_block0 = (ctx.showColorPicker) && create_if_block_1$1(ctx);
-
-    	var if_block1 = (!ctx.colors.length) && create_if_block$2();
-
-    	var each_value_2 = ctx.colors;
-
-    	var each_blocks_1 = [];
-
-    	for (var i = 0; i < each_value_2.length; i += 1) {
-    		each_blocks_1[i] = create_each_block_2$1(get_each_context_2$1(ctx, each_value_2, i));
-    	}
-
-    	var each_value = ctx.solution;
-
-    	var each_blocks = [];
-
-    	for (var i = 0; i < each_value.length; i += 1) {
-    		each_blocks[i] = create_each_block$1(get_each_context$1(ctx, each_value, i));
-    	}
-
-    	const out = i => transition_out(each_blocks[i], 1, 1, () => {
-    		each_blocks[i] = null;
-    	});
-
-    	return {
-    		c: function create() {
-    			div5 = element("div");
-    			section0 = element("section");
-    			div0 = element("div");
-    			input0 = element("input");
-    			t0 = space();
-    			input1 = element("input");
-    			t1 = space();
-    			input2 = element("input");
-    			t2 = space();
-    			if (if_block0) if_block0.c();
-    			t3 = space();
-    			section1 = element("section");
-    			div2 = element("div");
-    			if (if_block1) if_block1.c();
-    			t4 = space();
-
-    			for (var i = 0; i < each_blocks_1.length; i += 1) {
-    				each_blocks_1[i].c();
-    			}
-
-    			t5 = space();
-    			div1 = element("div");
-    			div1.textContent = "+";
-    			t7 = space();
-    			section2 = element("section");
-    			div3 = element("div");
-
-    			for (var i = 0; i < each_blocks.length; i += 1) {
-    				each_blocks[i].c();
-    			}
-
-    			t8 = space();
-    			div4 = element("div");
-    			button = element("button");
-    			button.textContent = "Save";
-    			attr(input0, "type", "text");
-    			attr(input0, "placeholder", "Griddler Title");
-    			add_location(input0, file$b, 157, 6, 3173);
-    			attr(input1, "type", "number");
-    			attr(input1, "min", "0");
-    			attr(input1, "max", MAX_SIZE);
-    			attr(input1, "class", "svelte-o239yw");
-    			add_location(input1, file$b, 162, 6, 3279);
-    			attr(input2, "type", "number");
-    			attr(input2, "min", "0");
-    			attr(input2, "max", MAX_SIZE);
-    			attr(input2, "class", "svelte-o239yw");
-    			add_location(input2, file$b, 168, 6, 3385);
-    			add_location(div0, file$b, 156, 4, 3161);
-    			attr(section0, "class", "svelte-o239yw");
-    			add_location(section0, file$b, 155, 2, 3147);
-    			attr(div1, "class", "color add svelte-o239yw");
-    			add_location(div1, file$b, 215, 6, 4449);
-    			attr(div2, "class", "colors svelte-o239yw");
-    			add_location(div2, file$b, 198, 4, 3991);
-    			attr(section1, "class", "svelte-o239yw");
-    			add_location(section1, file$b, 197, 2, 3977);
-    			attr(div3, "class", "board svelte-o239yw");
-    			set_style(div3, "grid-template-columns", "repeat(" + ctx.width + ", 1fr)");
-    			set_style(div3, "grid-template-rows", "repeat(" + ctx.height + ", 1fr)");
-    			add_location(div3, file$b, 221, 4, 4577);
-    			attr(section2, "class", "svelte-o239yw");
-    			add_location(section2, file$b, 220, 2, 4563);
-    			add_location(button, file$b, 242, 4, 5225);
-    			set_style(div4, "display", "flex");
-    			set_style(div4, "justify-content", "center");
-    			set_style(div4, "margin-top", "2rem");
-    			add_location(div4, file$b, 241, 2, 5149);
-    			add_location(div5, file$b, 154, 0, 3139);
-
-    			dispose = [
-    				listen(input0, "input", ctx.input0_input_handler),
-    				listen(input1, "input", ctx.input1_input_handler),
-    				listen(input2, "input", ctx.input2_input_handler),
-    				listen(div1, "click", ctx.click_handler_4),
-    				listen(button, "click", ctx.click_handler_5)
-    			];
-    		},
-
-    		l: function claim(nodes) {
-    			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
-    		},
-
-    		m: function mount(target, anchor) {
-    			insert(target, div5, anchor);
-    			append(div5, section0);
-    			append(section0, div0);
-    			append(div0, input0);
-
-    			input0.value = ctx.title;
-
-    			append(div0, t0);
-    			append(div0, input1);
-
-    			input1.value = ctx.width;
-
-    			append(div0, t1);
-    			append(div0, input2);
-
-    			input2.value = ctx.height;
-
-    			append(div5, t2);
-    			if (if_block0) if_block0.m(div5, null);
-    			append(div5, t3);
-    			append(div5, section1);
-    			append(section1, div2);
-    			if (if_block1) if_block1.m(div2, null);
-    			append(div2, t4);
-
-    			for (var i = 0; i < each_blocks_1.length; i += 1) {
-    				each_blocks_1[i].m(div2, null);
-    			}
-
-    			append(div2, t5);
-    			append(div2, div1);
-    			append(div5, t7);
-    			append(div5, section2);
-    			append(section2, div3);
-
-    			for (var i = 0; i < each_blocks.length; i += 1) {
-    				each_blocks[i].m(div3, null);
-    			}
-
-    			append(div5, t8);
-    			append(div5, div4);
-    			append(div4, button);
-    			current = true;
-    		},
-
-    		p: function update(changed, ctx) {
-    			if (changed.title && (input0.value !== ctx.title)) input0.value = ctx.title;
-    			if (changed.width) input1.value = ctx.width;
-    			if (changed.height) input2.value = ctx.height;
-
-    			if (ctx.showColorPicker) {
-    				if (if_block0) {
-    					if_block0.p(changed, ctx);
-    				} else {
-    					if_block0 = create_if_block_1$1(ctx);
-    					if_block0.c();
-    					if_block0.m(div5, t3);
-    				}
-    			} else if (if_block0) {
-    				if_block0.d(1);
-    				if_block0 = null;
-    			}
-
-    			if (!ctx.colors.length) {
-    				if (!if_block1) {
-    					if_block1 = create_if_block$2();
-    					if_block1.c();
-    					if_block1.m(div2, t4);
-    				}
-    			} else if (if_block1) {
-    				if_block1.d(1);
-    				if_block1 = null;
-    			}
-
-    			if (changed.colorIndex || changed.colors) {
-    				each_value_2 = ctx.colors;
-
-    				for (var i = 0; i < each_value_2.length; i += 1) {
-    					const child_ctx = get_each_context_2$1(ctx, each_value_2, i);
-
-    					if (each_blocks_1[i]) {
-    						each_blocks_1[i].p(changed, child_ctx);
-    					} else {
-    						each_blocks_1[i] = create_each_block_2$1(child_ctx);
-    						each_blocks_1[i].c();
-    						each_blocks_1[i].m(div2, t5);
-    					}
-    				}
-
-    				for (; i < each_blocks_1.length; i += 1) {
-    					each_blocks_1[i].d(1);
-    				}
-    				each_blocks_1.length = each_value_2.length;
-    			}
-
-    			if (changed.solution || changed.colors || changed.toggleEnabled) {
-    				each_value = ctx.solution;
-
-    				for (var i = 0; i < each_value.length; i += 1) {
-    					const child_ctx = get_each_context$1(ctx, each_value, i);
-
-    					if (each_blocks[i]) {
-    						each_blocks[i].p(changed, child_ctx);
-    						transition_in(each_blocks[i], 1);
-    					} else {
-    						each_blocks[i] = create_each_block$1(child_ctx);
-    						each_blocks[i].c();
-    						transition_in(each_blocks[i], 1);
-    						each_blocks[i].m(div3, null);
-    					}
-    				}
-
-    				group_outros();
-    				for (i = each_value.length; i < each_blocks.length; i += 1) out(i);
-    				check_outros();
-    			}
-
-    			if (!current || changed.width) {
-    				set_style(div3, "grid-template-columns", "repeat(" + ctx.width + ", 1fr)");
-    			}
-
-    			if (!current || changed.height) {
-    				set_style(div3, "grid-template-rows", "repeat(" + ctx.height + ", 1fr)");
-    			}
-    		},
-
-    		i: function intro(local) {
-    			if (current) return;
-    			for (var i = 0; i < each_value.length; i += 1) transition_in(each_blocks[i]);
-
-    			current = true;
-    		},
-
-    		o: function outro(local) {
-    			each_blocks = each_blocks.filter(Boolean);
-    			for (let i = 0; i < each_blocks.length; i += 1) transition_out(each_blocks[i]);
-
-    			current = false;
-    		},
-
-    		d: function destroy(detaching) {
-    			if (detaching) {
-    				detach(div5);
-    			}
-
-    			if (if_block0) if_block0.d();
-    			if (if_block1) if_block1.d();
-
-    			destroy_each(each_blocks_1, detaching);
-
-    			destroy_each(each_blocks, detaching);
-
-    			run_all(dispose);
-    		}
-    	};
-    }
-
-    const MAX_SIZE = 24;
-
-    function instance$c($$self, $$props, $$invalidate) {
-    	
-
-      let title = '';
-      let width = 8;
-      let height = 8;
-      let colors = [];
-      let colorIndex = -1;
-      let showColorPicker;
-
-      const resetSolution = (width, height) => {
-        const _solution = Array(width).fill().map(() => Array(height).fill(-1));
-        console.log(_solution);
-        return _solution;  };
-
-      const reset = (row, col) => {
-        solution[row][col] = -1; $$invalidate('solution', solution), $$invalidate('width', width), $$invalidate('height', height);
-      };
-
-      const toggleEnabled = (row, col) => { const $$result = solution[row][col] = solution[row][col] === -1
-        ? colorIndex
-        : -1; $$invalidate('solution', solution), $$invalidate('width', width), $$invalidate('height', height); return $$result; };
-
-      const selectColor = index => { const $$result = colorIndex = index; $$invalidate('colorIndex', colorIndex); return $$result; };
-      const toggleShowColorPicker = () => { const $$result = showColorPicker = true; $$invalidate('showColorPicker', showColorPicker); return $$result; };
-
-      const addColor = (hex) => {
-        $$invalidate('colors', colors = [...colors, `#${hex}`]);
-        $$invalidate('colorIndex', colorIndex = colors.length - 1);
-        $$invalidate('showColorPicker', showColorPicker = false);
-      };
-
-      const addLevel = async () => {
-        if (!title || !colors.length) {
-          return null;
-        }
-        const level = { title, colors, solution };
-        const resp = await client.mutate({
-          mutation: AddLevel,
-          variables: { level }
-        });
-        debugger;
-      };
-
-    	function input0_input_handler() {
-    		title = this.value;
-    		$$invalidate('title', title);
-    	}
-
-    	function input1_input_handler() {
-    		width = to_number(this.value);
-    		$$invalidate('width', width);
-    	}
-
-    	function input2_input_handler() {
-    		height = to_number(this.value);
-    		$$invalidate('height', height);
-    	}
-
-    	function click_handler({ color }) {
-    		return addColor(color);
-    	}
-
-    	function click_handler_1() {
-    		const $$result = showColorPicker = false;
-    		$$invalidate('showColorPicker', showColorPicker);
-    		return $$result;
-    	}
-
-    	function click_handler_2() {
-    		const $$result = showColorPicker = false;
-    		$$invalidate('showColorPicker', showColorPicker);
-    		return $$result;
-    	}
-
-    	function click_handler_3({ index }) {
-    		return selectColor(index);
-    	}
-
-    	function contextmenu_handler({ index }, e) {
-    	            e.preventDefault();
-    	            reset(index);
-    	          }
-
-    	function click_handler_4() {
-    		return toggleShowColorPicker();
-    	}
-
-    	function func({ rowIndex, colIndex }) {
-    		return toggleEnabled(rowIndex, colIndex);
-    	}
-
-    	function contextmenu_handler_1({ rowIndex, colIndex }) {
-    		return reset(rowIndex, colIndex);
-    	}
-
-    	function click_handler_5() {
-    		return addLevel();
-    	}
-
-    	let solution;
-
-    	$$self.$$.update = ($$dirty = { width: 1, height: 1 }) => {
-    		if ($$dirty.width || $$dirty.height) { $$invalidate('solution', solution = resetSolution(width, height)); }
-    	};
-
-    	return {
-    		title,
-    		width,
-    		height,
-    		colors,
-    		colorIndex,
-    		showColorPicker,
-    		reset,
-    		toggleEnabled,
-    		selectColor,
-    		toggleShowColorPicker,
-    		addColor,
-    		addLevel,
-    		solution,
-    		input0_input_handler,
-    		input1_input_handler,
-    		input2_input_handler,
-    		click_handler,
-    		click_handler_1,
-    		click_handler_2,
-    		click_handler_3,
-    		contextmenu_handler,
-    		click_handler_4,
-    		func,
-    		contextmenu_handler_1,
-    		click_handler_5
-    	};
-    }
-
-    class Buildler extends SvelteComponentDev {
-    	constructor(options) {
-    		super(options);
-    		init(this, options, instance$c, create_fragment$c, safe_not_equal, []);
-    	}
     }
 
     /* src/App.svelte generated by Svelte v3.6.7 */
 
-    const file$c = "src/App.svelte";
+    const file$9 = "src/App.svelte";
 
-    // (70:0) {:catch error}
-    function create_catch_block(ctx) {
-    	var span, t_value = ctx.error, t;
-
-    	return {
-    		c: function create() {
-    			span = element("span");
-    			t = text(t_value);
-    			add_location(span, file$c, 70, 2, 1775);
-    		},
-
-    		m: function mount(target, anchor) {
-    			insert(target, span, anchor);
-    			append(span, t);
-    		},
-
-    		p: noop,
-    		i: noop,
-    		o: noop,
-
-    		d: function destroy(detaching) {
-    			if (detaching) {
-    				detach(span);
-    			}
-    		}
-    	};
-    }
-
-    // (51:0) {:then resp}
-    function create_then_block(ctx) {
+    function create_fragment$9(ctx) {
     	var t, section, current;
 
     	var switch_value = ctx.bgs[5];
@@ -54203,21 +50534,19 @@ var app = (function () {
     		var switch_instance = new switch_value(switch_props());
     	}
 
-    	var router = new Router_1({
-    		props: {
-    		$$slots: { default: [create_default_slot$1] },
-    		$$scope: { ctx }
-    	},
-    		$$inline: true
-    	});
+    	var griddler = new Griddler({ $$inline: true });
 
     	return {
     		c: function create() {
     			if (switch_instance) switch_instance.$$.fragment.c();
     			t = space();
     			section = element("section");
-    			router.$$.fragment.c();
-    			add_location(section, file$c, 56, 2, 1434);
+    			griddler.$$.fragment.c();
+    			add_location(section, file$9, 23, 0, 803);
+    		},
+
+    		l: function claim(nodes) {
+    			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
     		},
 
     		m: function mount(target, anchor) {
@@ -54227,7 +50556,7 @@ var app = (function () {
 
     			insert(target, t, anchor);
     			insert(target, section, anchor);
-    			mount_component(router, section, null);
+    			mount_component(griddler, section, null);
     			current = true;
     		},
 
@@ -54252,24 +50581,20 @@ var app = (function () {
     					switch_instance = null;
     				}
     			}
-
-    			var router_changes = {};
-    			if (changed.$$scope) router_changes.$$scope = { changed, ctx };
-    			router.$set(router_changes);
     		},
 
     		i: function intro(local) {
     			if (current) return;
     			if (switch_instance) transition_in(switch_instance.$$.fragment, local);
 
-    			transition_in(router.$$.fragment, local);
+    			transition_in(griddler.$$.fragment, local);
 
     			current = true;
     		},
 
     		o: function outro(local) {
     			if (switch_instance) transition_out(switch_instance.$$.fragment, local);
-    			transition_out(router.$$.fragment, local);
+    			transition_out(griddler.$$.fragment, local);
     			current = false;
     		},
 
@@ -54281,284 +50606,23 @@ var app = (function () {
     				detach(section);
     			}
 
-    			destroy_component(router, );
+    			destroy_component(griddler, );
     		}
     	};
     }
 
-    // (59:6) <Route path="/build">
-    function create_default_slot_2$1(ctx) {
-    	var current;
-
-    	var buildler = new Buildler({ $$inline: true });
-
-    	return {
-    		c: function create() {
-    			buildler.$$.fragment.c();
-    		},
-
-    		m: function mount(target, anchor) {
-    			mount_component(buildler, target, anchor);
-    			current = true;
-    		},
-
-    		i: function intro(local) {
-    			if (current) return;
-    			transition_in(buildler.$$.fragment, local);
-
-    			current = true;
-    		},
-
-    		o: function outro(local) {
-    			transition_out(buildler.$$.fragment, local);
-    			current = false;
-    		},
-
-    		d: function destroy(detaching) {
-    			destroy_component(buildler, detaching);
-    		}
-    	};
-    }
-
-    // (62:6) <Route path="/play/:levelIndex" fallback>
-    function create_default_slot_1$1(ctx) {
-    	var current;
-
-    	var griddler = new Griddler({
-    		props: {
-    		levels: ctx.resp.data.levels,
-    		boards: ctx.resp.data.levels.map(func)
-    	},
-    		$$inline: true
-    	});
-
-    	return {
-    		c: function create() {
-    			griddler.$$.fragment.c();
-    		},
-
-    		m: function mount(target, anchor) {
-    			mount_component(griddler, target, anchor);
-    			current = true;
-    		},
-
-    		p: function update(changed, ctx) {
-    			var griddler_changes = {};
-    			if (changed.levels) griddler_changes.levels = ctx.resp.data.levels;
-    			if (changed.levels) griddler_changes.boards = ctx.resp.data.levels.map(func);
-    			griddler.$set(griddler_changes);
-    		},
-
-    		i: function intro(local) {
-    			if (current) return;
-    			transition_in(griddler.$$.fragment, local);
-
-    			current = true;
-    		},
-
-    		o: function outro(local) {
-    			transition_out(griddler.$$.fragment, local);
-    			current = false;
-    		},
-
-    		d: function destroy(detaching) {
-    			destroy_component(griddler, detaching);
-    		}
-    	};
-    }
-
-    // (58:4) <Router>
-    function create_default_slot$1(ctx) {
-    	var t, current;
-
-    	var route0 = new Route({
-    		props: {
-    		path: "/build",
-    		$$slots: { default: [create_default_slot_2$1] },
-    		$$scope: { ctx }
-    	},
-    		$$inline: true
-    	});
-
-    	var route1 = new Route({
-    		props: {
-    		path: "/play/:levelIndex",
-    		fallback: true,
-    		$$slots: { default: [create_default_slot_1$1] },
-    		$$scope: { ctx }
-    	},
-    		$$inline: true
-    	});
-
-    	return {
-    		c: function create() {
-    			route0.$$.fragment.c();
-    			t = space();
-    			route1.$$.fragment.c();
-    		},
-
-    		m: function mount(target, anchor) {
-    			mount_component(route0, target, anchor);
-    			insert(target, t, anchor);
-    			mount_component(route1, target, anchor);
-    			current = true;
-    		},
-
-    		p: function update(changed, ctx) {
-    			var route0_changes = {};
-    			if (changed.$$scope) route0_changes.$$scope = { changed, ctx };
-    			route0.$set(route0_changes);
-
-    			var route1_changes = {};
-    			if (changed.$$scope) route1_changes.$$scope = { changed, ctx };
-    			route1.$set(route1_changes);
-    		},
-
-    		i: function intro(local) {
-    			if (current) return;
-    			transition_in(route0.$$.fragment, local);
-
-    			transition_in(route1.$$.fragment, local);
-
-    			current = true;
-    		},
-
-    		o: function outro(local) {
-    			transition_out(route0.$$.fragment, local);
-    			transition_out(route1.$$.fragment, local);
-    			current = false;
-    		},
-
-    		d: function destroy(detaching) {
-    			destroy_component(route0, detaching);
-
-    			if (detaching) {
-    				detach(t);
-    			}
-
-    			destroy_component(route1, detaching);
-    		}
-    	};
-    }
-
-    // (49:17)    <span>Loading</span> {:then resp}
-    function create_pending_block(ctx) {
-    	var span;
-
-    	return {
-    		c: function create() {
-    			span = element("span");
-    			span.textContent = "Loading";
-    			add_location(span, file$c, 49, 2, 1185);
-    		},
-
-    		m: function mount(target, anchor) {
-    			insert(target, span, anchor);
-    		},
-
-    		p: noop,
-    		i: noop,
-    		o: noop,
-
-    		d: function destroy(detaching) {
-    			if (detaching) {
-    				detach(span);
-    			}
-    		}
-    	};
-    }
-
-    function create_fragment$d(ctx) {
-    	var await_block_anchor, promise, current;
-
-    	let info = {
-    		ctx,
-    		current: null,
-    		token: null,
-    		pending: create_pending_block,
-    		then: create_then_block,
-    		catch: create_catch_block,
-    		value: 'resp',
-    		error: 'error',
-    		blocks: [,,,]
-    	};
-
-    	handle_promise(promise = ctx.levels(), info);
-
-    	return {
-    		c: function create() {
-    			await_block_anchor = empty();
-
-    			info.block.c();
-    		},
-
-    		l: function claim(nodes) {
-    			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
-    		},
-
-    		m: function mount(target, anchor) {
-    			insert(target, await_block_anchor, anchor);
-
-    			info.block.m(target, info.anchor = anchor);
-    			info.mount = () => await_block_anchor.parentNode;
-    			info.anchor = await_block_anchor;
-
-    			current = true;
-    		},
-
-    		p: function update(changed, new_ctx) {
-    			ctx = new_ctx;
-    			info.ctx = ctx;
-
-    			if (promise !== (promise = ctx.levels()) && handle_promise(promise, info)) ; else {
-    				info.block.p(changed, assign(assign({}, ctx), info.resolved));
-    			}
-    		},
-
-    		i: function intro(local) {
-    			if (current) return;
-    			transition_in(info.block);
-    			current = true;
-    		},
-
-    		o: function outro(local) {
-    			for (let i = 0; i < 3; i += 1) {
-    				const block = info.blocks[i];
-    				transition_out(block);
-    			}
-
-    			current = false;
-    		},
-
-    		d: function destroy(detaching) {
-    			if (detaching) {
-    				detach(await_block_anchor);
-    			}
-
-    			info.block.d(detaching);
-    			info.token = null;
-    			info = null;
-    		}
-    	};
-    }
-
-    function func(l) {
-    	return l.solution.map(r => r.map(c => -1));
-    }
-
-    function instance$d($$self) {
+    function instance$9($$self) {
     	
 
       const bgs = [Aare, Clarence, Doubs, Hinterrhein, Inn, Kander, Linth];
-      const levels = async() => await client.query({ query: Levels });
 
-    	return { bgs, levels };
+    	return { bgs };
     }
 
     class App extends SvelteComponentDev {
     	constructor(options) {
     		super(options);
-    		init(this, options, instance$d, create_fragment$d, safe_not_equal, []);
+    		init(this, options, instance$9, create_fragment$9, safe_not_equal, []);
     	}
     }
 
