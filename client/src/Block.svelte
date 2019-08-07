@@ -14,7 +14,7 @@
 
   $: bg = state === -2 ? red : (state === -1 ? white : color);
   $: textColor = bg === white ? black : white;
-  $: _styles = `background: ${bg}; color: ${textColor}; transition: all ${transitionTime}s ease-in-out;`
+  $: _styles = `background: ${bg}; color: ${textColor}; transition: all ${transitionTime}s ease-in-out;${!!styles ? styles : ''}`;
 </script>
 
 <style>

@@ -48781,7 +48781,7 @@ var app = (function () {
 
     			attr(div, "style", div_style_value = "" + ctx._styles + ctx.styles);
     			attr(div, "class", "svelte-1pm8ck7");
-    			add_location(div, file$7, 34, 0, 766);
+    			add_location(div, file$7, 34, 0, 792);
 
     			dispose = [
     				listen(div, "click", ctx.click_handler),
@@ -48879,10 +48879,10 @@ var app = (function () {
 
     	let bg, textColor, _styles;
 
-    	$$self.$$.update = ($$dirty = { state: 1, color: 1, bg: 1, textColor: 1, transitionTime: 1 }) => {
+    	$$self.$$.update = ($$dirty = { state: 1, color: 1, bg: 1, textColor: 1, transitionTime: 1, styles: 1 }) => {
     		if ($$dirty.state || $$dirty.color) { $$invalidate('bg', bg = state === -2 ? red : (state === -1 ? white : color)); }
     		if ($$dirty.bg) { $$invalidate('textColor', textColor = bg === white ? black : white); }
-    		if ($$dirty.bg || $$dirty.textColor || $$dirty.transitionTime) { $$invalidate('_styles', _styles = `background: ${bg}; color: ${textColor}; transition: all ${transitionTime}s ease-in-out;`); }
+    		if ($$dirty.bg || $$dirty.textColor || $$dirty.transitionTime || $$dirty.styles) { $$invalidate('_styles', _styles = `background: ${bg}; color: ${textColor}; transition: all ${transitionTime}s ease-in-out;${!!styles ? styles : ''}`); }
     	};
 
     	return {
@@ -49043,7 +49043,122 @@ var app = (function () {
     	return child_ctx;
     }
 
-    // (118:2) {#if colors && !!colors.length}
+    function get_each_context_7(ctx, list, i) {
+    	const child_ctx = Object.create(ctx);
+    	child_ctx.level = list[i];
+    	child_ctx.index = i;
+    	return child_ctx;
+    }
+
+    // (115:2) {#if levels && !!levels.length}
+    function create_if_block_6(ctx) {
+    	var div;
+
+    	var each_value_7 = ctx.levels;
+
+    	var each_blocks = [];
+
+    	for (var i = 0; i < each_value_7.length; i += 1) {
+    		each_blocks[i] = create_each_block_7(get_each_context_7(ctx, each_value_7, i));
+    	}
+
+    	return {
+    		c: function create() {
+    			div = element("div");
+
+    			for (var i = 0; i < each_blocks.length; i += 1) {
+    				each_blocks[i].c();
+    			}
+    			attr(div, "class", "flex-row justify-center svelte-w9h21n");
+    			set_style(div, "margin-bottom", "1rem");
+    			add_location(div, file$8, 115, 4, 2453);
+    		},
+
+    		m: function mount(target, anchor) {
+    			insert(target, div, anchor);
+
+    			for (var i = 0; i < each_blocks.length; i += 1) {
+    				each_blocks[i].m(div, null);
+    			}
+    		},
+
+    		p: function update(changed, ctx) {
+    			if (changed.levels) {
+    				each_value_7 = ctx.levels;
+
+    				for (var i = 0; i < each_value_7.length; i += 1) {
+    					const child_ctx = get_each_context_7(ctx, each_value_7, i);
+
+    					if (each_blocks[i]) {
+    						each_blocks[i].p(changed, child_ctx);
+    					} else {
+    						each_blocks[i] = create_each_block_7(child_ctx);
+    						each_blocks[i].c();
+    						each_blocks[i].m(div, null);
+    					}
+    				}
+
+    				for (; i < each_blocks.length; i += 1) {
+    					each_blocks[i].d(1);
+    				}
+    				each_blocks.length = each_value_7.length;
+    			}
+    		},
+
+    		d: function destroy(detaching) {
+    			if (detaching) {
+    				detach(div);
+    			}
+
+    			destroy_each(each_blocks, detaching);
+    		}
+    	};
+    }
+
+    // (117:6) {#each levels as level, index}
+    function create_each_block_7(ctx) {
+    	var div, t0, t1, dispose;
+
+    	function click_handler() {
+    		return ctx.click_handler(ctx);
+    	}
+
+    	return {
+    		c: function create() {
+    			div = element("div");
+    			t0 = text(ctx.index);
+    			t1 = space();
+    			set_style(div, "margin-right", "0.5rem");
+    			set_style(div, "display", "inline-block");
+    			set_style(div, "padding", "0.5rem");
+    			set_style(div, "background", "#fff");
+    			set_style(div, "border-radius", "4px");
+    			set_style(div, "cursor", "pointer");
+    			add_location(div, file$8, 117, 8, 2564);
+    			dispose = listen(div, "click", click_handler);
+    		},
+
+    		m: function mount(target, anchor) {
+    			insert(target, div, anchor);
+    			append(div, t0);
+    			append(div, t1);
+    		},
+
+    		p: function update(changed, new_ctx) {
+    			ctx = new_ctx;
+    		},
+
+    		d: function destroy(detaching) {
+    			if (detaching) {
+    				detach(div);
+    			}
+
+    			dispose();
+    		}
+    	};
+    }
+
+    // (127:2) {#if colors && !!colors.length}
     function create_if_block_5(ctx) {
     	var div, current;
 
@@ -49066,8 +49181,8 @@ var app = (function () {
     			for (var i = 0; i < each_blocks.length; i += 1) {
     				each_blocks[i].c();
     			}
-    			attr(div, "class", "flex-row justify-center margin-bottom svelte-opa93d");
-    			add_location(div, file$8, 118, 4, 2412);
+    			attr(div, "class", "flex-row justify-center margin-bottom svelte-w9h21n");
+    			add_location(div, file$8, 127, 4, 2866);
     		},
 
     		m: function mount(target, anchor) {
@@ -49128,7 +49243,7 @@ var app = (function () {
     	};
     }
 
-    // (121:8) <Block           state={1}           color={color}           onClick={() => { setLayerIndex(index); }}           styles="border-radius: 4px; margin: 0 4px;"         >
+    // (130:8) <Block           state={1}           color={color}           onClick={() => { setLayerIndex(index); }}           styles="border-radius: 4px; margin: 0 4px;"         >
     function create_default_slot_4(ctx) {
     	var t0_value = ctx.color, t0, t1;
 
@@ -49158,7 +49273,7 @@ var app = (function () {
     	};
     }
 
-    // (120:6) {#each colors as color, index}
+    // (129:6) {#each colors as color, index}
     function create_each_block_6(ctx) {
     	var current;
 
@@ -49215,7 +49330,7 @@ var app = (function () {
     	};
     }
 
-    // (133:4) {#if colTotals && !!colTotals.length}
+    // (142:4) {#if colTotals && !!colTotals.length}
     function create_if_block_4(ctx) {
     	var t0, t1, current;
 
@@ -49346,7 +49461,7 @@ var app = (function () {
     	};
     }
 
-    // (140:8) <Block           color={color}           state={1}         >
+    // (149:8) <Block           color={color}           state={1}         >
     function create_default_slot_3(ctx) {
     	var t_value = ctx.total, t;
 
@@ -49373,7 +49488,7 @@ var app = (function () {
     	};
     }
 
-    // (139:6) {#each colTotals as total}
+    // (148:6) {#each colTotals as total}
     function create_each_block_5(ctx) {
     	var current;
 
@@ -49422,7 +49537,7 @@ var app = (function () {
     	};
     }
 
-    // (155:4) {#if rowTotals && !!rowTotals.length}
+    // (164:4) {#if rowTotals && !!rowTotals.length}
     function create_if_block_3(ctx) {
     	var div, current;
 
@@ -49445,8 +49560,8 @@ var app = (function () {
     			for (var i = 0; i < each_blocks.length; i += 1) {
     				each_blocks[i].c();
     			}
-    			attr(div, "class", "flex-col svelte-opa93d");
-    			add_location(div, file$8, 155, 6, 3303);
+    			attr(div, "class", "flex-col svelte-w9h21n");
+    			add_location(div, file$8, 164, 6, 3757);
     		},
 
     		m: function mount(target, anchor) {
@@ -49507,7 +49622,7 @@ var app = (function () {
     	};
     }
 
-    // (158:10) <Block             color={color}             state={1}           >
+    // (167:10) <Block             color={color}             state={1}           >
     function create_default_slot_2(ctx) {
     	var t0_value = ctx.total, t0, t1;
 
@@ -49537,7 +49652,7 @@ var app = (function () {
     	};
     }
 
-    // (157:8) {#each rowTotals as total}
+    // (166:8) {#each rowTotals as total}
     function create_each_block_4(ctx) {
     	var current;
 
@@ -49586,11 +49701,11 @@ var app = (function () {
     	};
     }
 
-    // (167:4) {#if boards && !!boards.length}
+    // (176:4) {#if board}
     function create_if_block_2(ctx) {
     	var div, section, current;
 
-    	var each_value_2 = ctx.boards[ctx.levelIndex];
+    	var each_value_2 = ctx.board;
 
     	var each_blocks = [];
 
@@ -49610,10 +49725,12 @@ var app = (function () {
     			for (var i = 0; i < each_blocks.length; i += 1) {
     				each_blocks[i].c();
     			}
-    			attr(section, "class", "board svelte-opa93d");
-    			add_location(section, file$8, 168, 8, 3589);
-    			attr(div, "class", "flex-row svelte-opa93d");
-    			add_location(div, file$8, 167, 6, 3558);
+    			attr(section, "class", "board svelte-w9h21n");
+    			set_style(section, "grid-template-columns", "repeat(" + ctx.board[0].length + ", 1fr)");
+    			set_style(section, "grid-template-rows", "repeat(" + ctx.board.length + ", 1fr)");
+    			add_location(section, file$8, 177, 8, 4023);
+    			attr(div, "class", "flex-row svelte-w9h21n");
+    			add_location(div, file$8, 176, 6, 3992);
     		},
 
     		m: function mount(target, anchor) {
@@ -49628,8 +49745,8 @@ var app = (function () {
     		},
 
     		p: function update(changed, ctx) {
-    			if (changed.boards || changed.levelIndex || changed.toggleEnabled || changed.toggleDisabled || changed.colors) {
-    				each_value_2 = ctx.boards[ctx.levelIndex];
+    			if (changed.board || changed.toggleEnabled || changed.toggleDisabled || changed.colors) {
+    				each_value_2 = ctx.board;
 
     				for (var i = 0; i < each_value_2.length; i += 1) {
     					const child_ctx = get_each_context_2(ctx, each_value_2, i);
@@ -49648,6 +49765,11 @@ var app = (function () {
     				group_outros();
     				for (i = each_value_2.length; i < each_blocks.length; i += 1) out(i);
     				check_outros();
+    			}
+
+    			if (!current || changed.board) {
+    				set_style(section, "grid-template-columns", "repeat(" + ctx.board[0].length + ", 1fr)");
+    				set_style(section, "grid-template-rows", "repeat(" + ctx.board.length + ", 1fr)");
     			}
     		},
 
@@ -49675,7 +49797,7 @@ var app = (function () {
     	};
     }
 
-    // (171:12) {#each row as item, colIndex}
+    // (183:12) {#each row as item, colIndex}
     function create_each_block_3(ctx) {
     	var current;
 
@@ -49703,10 +49825,10 @@ var app = (function () {
 
     		p: function update(changed, ctx) {
     			var block_changes = {};
-    			if (changed.boards || changed.levelIndex) block_changes.state = ctx.item;
+    			if (changed.board) block_changes.state = ctx.item;
     			if (changed.toggleEnabled) block_changes.onClick = ctx.toggleEnabled;
     			if (changed.toggleDisabled) block_changes.onRightClick = ctx.toggleDisabled;
-    			if (changed.colors || changed.boards || changed.levelIndex) block_changes.color = ctx.colors[ctx.item];
+    			if (changed.colors || changed.board) block_changes.color = ctx.colors[ctx.item];
     			block.$set(block_changes);
     		},
 
@@ -49728,7 +49850,7 @@ var app = (function () {
     	};
     }
 
-    // (170:10) {#each boards[levelIndex] as row, rowIndex}
+    // (182:10) {#each board as row, rowIndex}
     function create_each_block_2(ctx) {
     	var each_1_anchor, current;
 
@@ -49763,7 +49885,7 @@ var app = (function () {
     		},
 
     		p: function update(changed, ctx) {
-    			if (changed.boards || changed.levelIndex || changed.toggleEnabled || changed.toggleDisabled || changed.colors) {
+    			if (changed.board || changed.toggleEnabled || changed.toggleDisabled || changed.colors) {
     				each_value_3 = ctx.row;
 
     				for (var i = 0; i < each_value_3.length; i += 1) {
@@ -49810,7 +49932,7 @@ var app = (function () {
     	};
     }
 
-    // (185:4) {#if rowTotals && !!rowTotals.length}
+    // (197:4) {#if rowTotals && !!rowTotals.length}
     function create_if_block_1(ctx) {
     	var div, current;
 
@@ -49833,8 +49955,8 @@ var app = (function () {
     			for (var i = 0; i < each_blocks.length; i += 1) {
     				each_blocks[i].c();
     			}
-    			attr(div, "class", "flex-col svelte-opa93d");
-    			add_location(div, file$8, 185, 6, 4089);
+    			attr(div, "class", "flex-col svelte-w9h21n");
+    			add_location(div, file$8, 197, 6, 4651);
     		},
 
     		m: function mount(target, anchor) {
@@ -49895,7 +50017,7 @@ var app = (function () {
     	};
     }
 
-    // (188:10) <Block             color={color}             state={1}           >
+    // (200:10) <Block             color={color}             state={1}           >
     function create_default_slot_1(ctx) {
     	var t0_value = ctx.total, t0, t1;
 
@@ -49925,7 +50047,7 @@ var app = (function () {
     	};
     }
 
-    // (187:8) {#each rowTotals as total}
+    // (199:8) {#each rowTotals as total}
     function create_each_block_1(ctx) {
     	var current;
 
@@ -49974,7 +50096,7 @@ var app = (function () {
     	};
     }
 
-    // (198:2) {#if colTotals && !!colTotals.length}
+    // (210:2) {#if colTotals && !!colTotals.length}
     function create_if_block(ctx) {
     	var div, t0, t1, current;
 
@@ -50020,8 +50142,8 @@ var app = (function () {
 
     			t1 = space();
     			block1.$$.fragment.c();
-    			attr(div, "class", "flex-row justify-center svelte-opa93d");
-    			add_location(div, file$8, 198, 4, 4355);
+    			attr(div, "class", "flex-row justify-center svelte-w9h21n");
+    			add_location(div, file$8, 210, 4, 4917);
     		},
 
     		m: function mount(target, anchor) {
@@ -50105,7 +50227,7 @@ var app = (function () {
     	};
     }
 
-    // (206:8) <Block           color={color}           state={1}         >
+    // (218:8) <Block           color={color}           state={1}         >
     function create_default_slot(ctx) {
     	var t_value = ctx.total, t;
 
@@ -50132,7 +50254,7 @@ var app = (function () {
     	};
     }
 
-    // (205:6) {#each colTotals as total}
+    // (217:6) {#each colTotals as total}
     function create_each_block(ctx) {
     	var current;
 
@@ -50182,56 +50304,58 @@ var app = (function () {
     }
 
     function create_fragment$8(ctx) {
-    	var div3, h1, t0, t1, h2, t3, t4, div0, t5, div1, t6, t7, t8, t9, div2, t10_value = ctx.same.toString(), t10, current;
+    	var div3, h1, t0, t1, t2, t3, t4, t5, div0, t6, div1, t7, t8, t9, t10, div2, t11_value = ctx.same.toString(), t11, current;
 
-    	var if_block0 = (ctx.colors && !!ctx.colors.length) && create_if_block_5(ctx);
+    	var if_block0 = (ctx.levels && !!ctx.levels.length) && create_if_block_6(ctx);
 
-    	var if_block1 = (ctx.colTotals && !!ctx.colTotals.length) && create_if_block_4(ctx);
+    	var if_block1 = (ctx.colors && !!ctx.colors.length) && create_if_block_5(ctx);
 
-    	var if_block2 = (ctx.rowTotals && !!ctx.rowTotals.length) && create_if_block_3(ctx);
+    	var if_block2 = (ctx.colTotals && !!ctx.colTotals.length) && create_if_block_4(ctx);
 
-    	var if_block3 = (ctx.boards && !!ctx.boards.length) && create_if_block_2(ctx);
+    	var if_block3 = (ctx.rowTotals && !!ctx.rowTotals.length) && create_if_block_3(ctx);
 
-    	var if_block4 = (ctx.rowTotals && !!ctx.rowTotals.length) && create_if_block_1(ctx);
+    	var if_block4 = (ctx.board) && create_if_block_2(ctx);
 
-    	var if_block5 = (ctx.colTotals && !!ctx.colTotals.length) && create_if_block(ctx);
+    	var if_block5 = (ctx.rowTotals && !!ctx.rowTotals.length) && create_if_block_1(ctx);
+
+    	var if_block6 = (ctx.colTotals && !!ctx.colTotals.length) && create_if_block(ctx);
 
     	return {
     		c: function create() {
     			div3 = element("div");
     			h1 = element("h1");
-    			t0 = text(ctx.title);
-    			t1 = space();
-    			h2 = element("h2");
-    			h2.textContent = "Butts";
+    			t0 = text(ctx.levelIndex);
+    			t1 = text(": ");
+    			t2 = text(ctx.title);
     			t3 = space();
     			if (if_block0) if_block0.c();
     			t4 = space();
-    			div0 = element("div");
     			if (if_block1) if_block1.c();
     			t5 = space();
-    			div1 = element("div");
+    			div0 = element("div");
     			if (if_block2) if_block2.c();
     			t6 = space();
+    			div1 = element("div");
     			if (if_block3) if_block3.c();
     			t7 = space();
     			if (if_block4) if_block4.c();
     			t8 = space();
     			if (if_block5) if_block5.c();
     			t9 = space();
+    			if (if_block6) if_block6.c();
+    			t10 = space();
     			div2 = element("div");
-    			t10 = text(t10_value);
-    			attr(h1, "class", "svelte-opa93d");
-    			add_location(h1, file$8, 115, 2, 2340);
-    			add_location(h2, file$8, 116, 2, 2359);
-    			attr(div0, "class", "flex-row justify-center svelte-opa93d");
-    			add_location(div0, file$8, 131, 2, 2746);
-    			attr(div1, "class", "flex-row justify-center svelte-opa93d");
-    			add_location(div1, file$8, 153, 2, 3217);
-    			attr(div2, "class", "flex-row justify-center svelte-opa93d");
-    			add_location(div2, file$8, 219, 2, 4790);
-    			attr(div3, "class", "main svelte-opa93d");
-    			add_location(div3, file$8, 114, 0, 2319);
+    			t11 = text(t11_value);
+    			attr(h1, "class", "svelte-w9h21n");
+    			add_location(h1, file$8, 113, 2, 2384);
+    			attr(div0, "class", "flex-row justify-center svelte-w9h21n");
+    			add_location(div0, file$8, 140, 2, 3200);
+    			attr(div1, "class", "flex-row justify-center svelte-w9h21n");
+    			add_location(div1, file$8, 162, 2, 3671);
+    			attr(div2, "class", "flex-row justify-center svelte-w9h21n");
+    			add_location(div2, file$8, 231, 2, 5352);
+    			attr(div3, "class", "main svelte-w9h21n");
+    			add_location(div3, file$8, 112, 0, 2363);
     		},
 
     		l: function claim(nodes) {
@@ -50242,60 +50366,61 @@ var app = (function () {
     			insert(target, div3, anchor);
     			append(div3, h1);
     			append(h1, t0);
-    			append(div3, t1);
-    			append(div3, h2);
+    			append(h1, t1);
+    			append(h1, t2);
     			append(div3, t3);
     			if (if_block0) if_block0.m(div3, null);
     			append(div3, t4);
-    			append(div3, div0);
-    			if (if_block1) if_block1.m(div0, null);
+    			if (if_block1) if_block1.m(div3, null);
     			append(div3, t5);
+    			append(div3, div0);
+    			if (if_block2) if_block2.m(div0, null);
+    			append(div3, t6);
     			append(div3, div1);
-    			if (if_block2) if_block2.m(div1, null);
-    			append(div1, t6);
     			if (if_block3) if_block3.m(div1, null);
     			append(div1, t7);
     			if (if_block4) if_block4.m(div1, null);
-    			append(div3, t8);
-    			if (if_block5) if_block5.m(div3, null);
+    			append(div1, t8);
+    			if (if_block5) if_block5.m(div1, null);
     			append(div3, t9);
+    			if (if_block6) if_block6.m(div3, null);
+    			append(div3, t10);
     			append(div3, div2);
-    			append(div2, t10);
+    			append(div2, t11);
     			current = true;
     		},
 
     		p: function update(changed, ctx) {
-    			if (!current || changed.title) {
-    				set_data(t0, ctx.title);
+    			if (!current || changed.levelIndex) {
+    				set_data(t0, ctx.levelIndex);
     			}
 
-    			if (ctx.colors && !!ctx.colors.length) {
+    			if (!current || changed.title) {
+    				set_data(t2, ctx.title);
+    			}
+
+    			if (ctx.levels && !!ctx.levels.length) {
     				if (if_block0) {
     					if_block0.p(changed, ctx);
-    					transition_in(if_block0, 1);
     				} else {
-    					if_block0 = create_if_block_5(ctx);
+    					if_block0 = create_if_block_6(ctx);
     					if_block0.c();
-    					transition_in(if_block0, 1);
     					if_block0.m(div3, t4);
     				}
     			} else if (if_block0) {
-    				group_outros();
-    				transition_out(if_block0, 1, 1, () => {
-    					if_block0 = null;
-    				});
-    				check_outros();
+    				if_block0.d(1);
+    				if_block0 = null;
     			}
 
-    			if (ctx.colTotals && !!ctx.colTotals.length) {
+    			if (ctx.colors && !!ctx.colors.length) {
     				if (if_block1) {
     					if_block1.p(changed, ctx);
     					transition_in(if_block1, 1);
     				} else {
-    					if_block1 = create_if_block_4(ctx);
+    					if_block1 = create_if_block_5(ctx);
     					if_block1.c();
     					transition_in(if_block1, 1);
-    					if_block1.m(div0, null);
+    					if_block1.m(div3, t5);
     				}
     			} else if (if_block1) {
     				group_outros();
@@ -50305,15 +50430,15 @@ var app = (function () {
     				check_outros();
     			}
 
-    			if (ctx.rowTotals && !!ctx.rowTotals.length) {
+    			if (ctx.colTotals && !!ctx.colTotals.length) {
     				if (if_block2) {
     					if_block2.p(changed, ctx);
     					transition_in(if_block2, 1);
     				} else {
-    					if_block2 = create_if_block_3(ctx);
+    					if_block2 = create_if_block_4(ctx);
     					if_block2.c();
     					transition_in(if_block2, 1);
-    					if_block2.m(div1, t6);
+    					if_block2.m(div0, null);
     				}
     			} else if (if_block2) {
     				group_outros();
@@ -50323,12 +50448,12 @@ var app = (function () {
     				check_outros();
     			}
 
-    			if (ctx.boards && !!ctx.boards.length) {
+    			if (ctx.rowTotals && !!ctx.rowTotals.length) {
     				if (if_block3) {
     					if_block3.p(changed, ctx);
     					transition_in(if_block3, 1);
     				} else {
-    					if_block3 = create_if_block_2(ctx);
+    					if_block3 = create_if_block_3(ctx);
     					if_block3.c();
     					transition_in(if_block3, 1);
     					if_block3.m(div1, t7);
@@ -50341,15 +50466,15 @@ var app = (function () {
     				check_outros();
     			}
 
-    			if (ctx.rowTotals && !!ctx.rowTotals.length) {
+    			if (ctx.board) {
     				if (if_block4) {
     					if_block4.p(changed, ctx);
     					transition_in(if_block4, 1);
     				} else {
-    					if_block4 = create_if_block_1(ctx);
+    					if_block4 = create_if_block_2(ctx);
     					if_block4.c();
     					transition_in(if_block4, 1);
-    					if_block4.m(div1, null);
+    					if_block4.m(div1, t8);
     				}
     			} else if (if_block4) {
     				group_outros();
@@ -50359,15 +50484,15 @@ var app = (function () {
     				check_outros();
     			}
 
-    			if (ctx.colTotals && !!ctx.colTotals.length) {
+    			if (ctx.rowTotals && !!ctx.rowTotals.length) {
     				if (if_block5) {
     					if_block5.p(changed, ctx);
     					transition_in(if_block5, 1);
     				} else {
-    					if_block5 = create_if_block(ctx);
+    					if_block5 = create_if_block_1(ctx);
     					if_block5.c();
     					transition_in(if_block5, 1);
-    					if_block5.m(div3, t9);
+    					if_block5.m(div1, null);
     				}
     			} else if (if_block5) {
     				group_outros();
@@ -50377,29 +50502,47 @@ var app = (function () {
     				check_outros();
     			}
 
-    			if ((!current || changed.same) && t10_value !== (t10_value = ctx.same.toString())) {
-    				set_data(t10, t10_value);
+    			if (ctx.colTotals && !!ctx.colTotals.length) {
+    				if (if_block6) {
+    					if_block6.p(changed, ctx);
+    					transition_in(if_block6, 1);
+    				} else {
+    					if_block6 = create_if_block(ctx);
+    					if_block6.c();
+    					transition_in(if_block6, 1);
+    					if_block6.m(div3, t10);
+    				}
+    			} else if (if_block6) {
+    				group_outros();
+    				transition_out(if_block6, 1, 1, () => {
+    					if_block6 = null;
+    				});
+    				check_outros();
+    			}
+
+    			if ((!current || changed.same) && t11_value !== (t11_value = ctx.same.toString())) {
+    				set_data(t11, t11_value);
     			}
     		},
 
     		i: function intro(local) {
     			if (current) return;
-    			transition_in(if_block0);
     			transition_in(if_block1);
     			transition_in(if_block2);
     			transition_in(if_block3);
     			transition_in(if_block4);
     			transition_in(if_block5);
+    			transition_in(if_block6);
     			current = true;
     		},
 
     		o: function outro(local) {
-    			transition_out(if_block0);
     			transition_out(if_block1);
     			transition_out(if_block2);
     			transition_out(if_block3);
     			transition_out(if_block4);
     			transition_out(if_block5);
+    			transition_out(if_block6);
     			current = false;
     		},
 
@@ -50414,6 +50557,7 @@ var app = (function () {
     			if (if_block3) if_block3.d();
     			if (if_block4) if_block4.d();
     			if (if_block5) if_block5.d();
+    			if (if_block6) if_block6.d();
     		}
     	};
     }
@@ -50426,46 +50570,39 @@ var app = (function () {
       let levels;
       let boards;
       let level;
-      let title;
-      let colors;
-      let solution;
-      let board;
-      let color;
-      let rowTotals, colTotals;
 
       let levelIndex = 0;
       let layerIndex = 0;
       let same = false;
 
-      const setLayerIndex = index => { layerIndex = index; };
+      const setLevelIndex = index => {
+        $$invalidate('levelIndex', levelIndex = index);
+        $$invalidate('level', level = levels[levelIndex]);
+      };
+      const setLayerIndex = index => { $$invalidate('layerIndex', layerIndex = index); };
 
       const toggleDisabled = (row, col) => { const $$result = (
         board[row][col] = board[row][col] === -2
           ? -1
           : -2
-      ); return $$result; };
+      ); $$invalidate('board', board), $$invalidate('boards', boards), $$invalidate('levelIndex', levelIndex); return $$result; };
 
       const toggleEnabled = (row, col) => {
         board[row][col] = board[row][col] === -1
           ? layerIndex
-          : -1;    $$invalidate('same', same = deepEqual(matrix(solution), matrix(board)));
+          : -1; $$invalidate('board', board), $$invalidate('boards', boards), $$invalidate('levelIndex', levelIndex);
+        $$invalidate('same', same = deepEqual(matrix(solution), matrix(board)));
 
-        if (same && levelIndex < levels.length) ;
+        if (same && levelIndex < levels.length) {
+          $$invalidate('levelIndex', levelIndex += 1);
+        }
       };
 
       onMount(async () => {
         const resp = await client.query({ query: Levels });
-        debugger;
-        levels = resp.data.levels;
+        $$invalidate('levels', levels = resp.data.levels);
         $$invalidate('boards', boards = levels.map(l => l.solution.map(r => r.map(c => -1))));
-        level = levels[levelIndex];
-        $$invalidate('title', title = level.title);
-        $$invalidate('colors', colors = level.colors);
-        solution = level.solution;
-        board = boards[levelIndex];
-        $$invalidate('color', color = colors[layerIndex]);
-        [rowTotals, colTotals] = generateTotals(colors, solution)[layerIndex]; $$invalidate('rowTotals', rowTotals); $$invalidate('colTotals', colTotals);
-
+        $$invalidate('level', level = levels[levelIndex]);
       });
 
     	const writable_props = ['props'];
@@ -50473,25 +50610,46 @@ var app = (function () {
     		if (!writable_props.includes(key) && !key.startsWith('$$')) console.warn(`<Griddler> was created with unknown prop '${key}'`);
     	});
 
+    	function click_handler({ index }) {
+    		return setLevelIndex(index);
+    	}
+
     	function func({ index }) { setLayerIndex(index); }
 
     	$$self.$set = $$props => {
     		if ('props' in $$props) $$invalidate('props', props = $$props.props);
     	};
 
+    	let title, colors, solution, board, color, rowTotals, colTotals;
+
+    	$$self.$$.update = ($$dirty = { level: 1, boards: 1, levelIndex: 1, colors: 1, layerIndex: 1, solution: 1 }) => {
+    		if ($$dirty.level) { $$invalidate('title', title = level ? level.title : ''); }
+    		if ($$dirty.level) { $$invalidate('colors', colors = level ? level.colors : ''); }
+    		if ($$dirty.level) { $$invalidate('solution', solution = level ? level.solution : ''); }
+    		if ($$dirty.boards || $$dirty.levelIndex) { $$invalidate('board', board = boards ? boards[levelIndex] : null); }
+    		if ($$dirty.colors || $$dirty.layerIndex) { $$invalidate('color', color = colors ? colors[layerIndex] : null); }
+    		if ($$dirty.colors || $$dirty.solution || $$dirty.layerIndex) { [rowTotals, colTotals] = (!!colors && !!solution)
+            ? generateTotals(colors, solution)[layerIndex]
+            : [[], []]
+          ; $$invalidate('rowTotals', rowTotals), $$invalidate('colors', colors), $$invalidate('solution', solution), $$invalidate('layerIndex', layerIndex), $$invalidate('level', level); $$invalidate('colTotals', colTotals), $$invalidate('colors', colors), $$invalidate('solution', solution), $$invalidate('layerIndex', layerIndex), $$invalidate('level', level); }
+    	};
+
     	return {
     		props,
-    		boards,
-    		title,
-    		colors,
-    		color,
-    		rowTotals,
-    		colTotals,
+    		levels,
     		levelIndex,
     		same,
+    		setLevelIndex,
     		setLayerIndex,
     		toggleDisabled,
     		toggleEnabled,
+    		title,
+    		colors,
+    		board,
+    		color,
+    		rowTotals,
+    		colTotals,
+    		click_handler,
     		func
     	};
     }

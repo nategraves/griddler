@@ -15,16 +15,20 @@
   let levels;
   let boards;
   let level;
-  let title;
-  let colors;
-  let solution;
-  let board;
-  let color;
-  let rowTotals, colTotals;
 
   let levelIndex = 0;
   let layerIndex = 0;
   let same = false;
+
+  $: title = level ? level.title : '';
+  $: colors = level ? level.colors : '';
+  $: solution = level ? level.solution : '';
+  $: board = boards ? boards[levelIndex] : null;
+  $: color = colors ? colors[layerIndex] : null;
+  $: [rowTotals, colTotals] = (!!colors && !!solution)
+    ? generateTotals(colors, solution)[layerIndex]
+    : [[], []]
+  ;
 
   const resetBoard = (solution) => {
     const width = solution[0].length;
@@ -39,6 +43,10 @@
     board = resetBoard(solution);
   }
 
+  const setLevelIndex = index => {
+    levelIndex = index;
+    level = levels[levelIndex];
+  };
   const setLayerIndex = index => { layerIndex = index; };
 
   const toggleDisabled = (row, col) => (
@@ -54,23 +62,15 @@
     same = deepEqual(matrix(solution), matrix(board));
 
     if (same && levelIndex < levels.length) {
-      
+      levelIndex += 1;
     }
   };
 
   onMount(async () => {
     const resp = await client.query({ query: Levels });
-    debugger;
     levels = resp.data.levels;
     boards = levels.map(l => l.solution.map(r => r.map(c => -1)));
     level = levels[levelIndex];
-    title = level.title;
-    colors = level.colors;
-    solution = level.solution;
-    board = boards[levelIndex];
-    color = colors[layerIndex];
-    [rowTotals, colTotals] = generateTotals(colors, solution)[layerIndex];
-
   });
 </script>
 
@@ -106,15 +106,24 @@
 
   .board {
     display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    grid-template-rows: repeat(7, 1fr);
     grid-gap: 0px;
   }
 </style>
 
 <div class="main">
-  <h1>{title}</h1>
-  <h2>Butts</h2>
+  <h1>{levelIndex}: {title}</h1>
+  {#if levels && !!levels.length}
+    <div class="flex-row justify-center" style="margin-bottom: 1rem">
+      {#each levels as level, index}
+        <div
+          on:click={() => setLevelIndex(index)}
+          style="margin-right: 0.5rem; display: inline-block; padding: 0.5rem; background: #fff; border-radius: 4px; cursor: pointer;"
+        >
+          {index}
+        </div>
+      {/each}
+    </div>
+  {/if}
   {#if colors && !!colors.length}
     <div class="flex-row justify-center margin-bottom">
       {#each colors as color, index}
@@ -164,10 +173,13 @@
         {/each}
       </div>
     {/if}
-    {#if boards && !!boards.length}
+    {#if board}
       <div class="flex-row">
-        <section class="board">
-          {#each boards[levelIndex] as row, rowIndex}
+        <section
+          class="board"
+          style="grid-template-columns: repeat({board[0].length}, 1fr); grid-template-rows: repeat({board.length}, 1fr);"
+        >
+          {#each board as row, rowIndex}
             {#each row as item, colIndex}
               <Block
                 state={item}
