@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "devDependencies": {
     "apollo-boost": "^0.4.3",
-    "color": "^3.1.2",
     "graphql": "^14.4.2",
     "mathjs": "^6.0.3",
     "npm-run-all": "^4.1.5",
@@ -19,6 +18,7 @@
     "svelte": "^3.0.0",
     "svelte-apollo": "^0.3.0",
     "svelte-color-picker": "^1.0.6",
+    "tinycolor2": "^1.4.1",
     "tslib": "^1.10.0",
     "typescript": "^3.5.3"
   },

@@ -15,6 +15,8 @@
   let levels;
   let boards;
   let level;
+  let mainDown;
+  let secondaryDown;
 
   let levelIndex = 0;
   let layerIndex = 0;
@@ -62,7 +64,7 @@
     same = deepEqual(matrix(solution), matrix(board));
 
     if (same && levelIndex < levels.length) {
-      levelIndex += 1;
+      setLevelIndex(levelIndex + 1);
     }
   };
 
