@@ -9,9 +9,13 @@
   export let onMouseEnter;
   export let onMouseOver;
   export let onMouseLeave;
+  export let onMouseDown;
+  export let onMouseUp;
   export let onRightClick;
   export let transitionTime = 0.2;
   export let styles;
+  export let mainDown;
+  export let secondaryDown;
 
   const white = '#eee';
   const black = '#111';
@@ -32,9 +36,22 @@
     cursor: pointer;
     display: flex;
     font-size: 14px;
-    height: 48px;
     justify-content: center;
+    height: 48px;
     width: 48px;
+    position: relative;
+  }
+
+  .debug {
+    font-size: 6px;
+    position: absolute;
+    background: #fff;
+    color: #111;
+    top: 0;
+    left: 0;
+    padding: 1px;
+    height: 10px;
+    width: 10px;
   }
 </style>
 
@@ -43,6 +60,16 @@
   on:click={() => {
     if (onClick) {
       onClick(row, col);
+    }
+  }}
+  on:mousedown={() => {
+    if (onMouseDown) {
+      onMouseDown(row, col);
+    }
+  }}
+  on:mouseup={() => {
+    if (onMouseUp) {
+      onMouseUp(row, col);
     }
   }}
   on:mouseenter={() => {
@@ -69,6 +96,8 @@
     }
   }}
 >
-  {hover ? 't' : 'f'}
+  <div class="debug">
+    {state}
+  </div>
   <slot />
 </div>

@@ -49962,52 +49962,58 @@ var app = (function () {
     const file$7 = "src/Block.svelte";
 
     function create_fragment$7(ctx) {
-    	var div, t0_value = ctx.hover ? 't' : 'f', t0, t1, current, dispose;
+    	var div1, div0, t0, t1, current, dispose;
 
     	const default_slot_1 = ctx.$$slots.default;
     	const default_slot = create_slot(default_slot_1, ctx, null);
 
     	return {
     		c: function create() {
-    			div = element("div");
-    			t0 = text(t0_value);
+    			div1 = element("div");
+    			div0 = element("div");
+    			t0 = text(ctx.state);
     			t1 = space();
 
     			if (default_slot) default_slot.c();
+    			attr(div0, "class", "debug svelte-m9lxbx");
+    			add_location(div0, file$7, 98, 2, 1939);
 
-    			attr(div, "style", ctx._styles);
-    			attr(div, "class", "svelte-1pm8ck7");
-    			add_location(div, file$7, 40, 0, 943);
+    			attr(div1, "style", ctx._styles);
+    			attr(div1, "class", "svelte-m9lxbx");
+    			add_location(div1, file$7, 57, 0, 1245);
 
     			dispose = [
-    				listen(div, "click", ctx.click_handler),
-    				listen(div, "mouseenter", ctx.mouseenter_handler),
-    				listen(div, "mouseover", ctx.mouseover_handler),
-    				listen(div, "mouseleave", ctx.mouseleave_handler),
-    				listen(div, "contextmenu", ctx.contextmenu_handler)
+    				listen(div1, "click", ctx.click_handler),
+    				listen(div1, "mousedown", ctx.mousedown_handler),
+    				listen(div1, "mouseup", ctx.mouseup_handler),
+    				listen(div1, "mouseenter", ctx.mouseenter_handler),
+    				listen(div1, "mouseover", ctx.mouseover_handler),
+    				listen(div1, "mouseleave", ctx.mouseleave_handler),
+    				listen(div1, "contextmenu", ctx.contextmenu_handler)
     			];
     		},
 
     		l: function claim(nodes) {
-    			if (default_slot) default_slot.l(div_nodes);
+    			if (default_slot) default_slot.l(div1_nodes);
     			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
     		},
 
     		m: function mount(target, anchor) {
-    			insert(target, div, anchor);
-    			append(div, t0);
-    			append(div, t1);
+    			insert(target, div1, anchor);
+    			append(div1, div0);
+    			append(div0, t0);
+    			append(div1, t1);
 
     			if (default_slot) {
-    				default_slot.m(div, null);
+    				default_slot.m(div1, null);
     			}
 
     			current = true;
     		},
 
     		p: function update(changed, ctx) {
-    			if ((!current || changed.hover) && t0_value !== (t0_value = ctx.hover ? 't' : 'f')) {
-    				set_data(t0, t0_value);
+    			if (!current || changed.state) {
+    				set_data(t0, ctx.state);
     			}
 
     			if (default_slot && default_slot.p && changed.$$scope) {
@@ -50015,7 +50021,7 @@ var app = (function () {
     			}
 
     			if (!current || changed._styles) {
-    				attr(div, "style", ctx._styles);
+    				attr(div1, "style", ctx._styles);
     			}
     		},
 
@@ -50032,7 +50038,7 @@ var app = (function () {
 
     		d: function destroy(detaching) {
     			if (detaching) {
-    				detach(div);
+    				detach(div1);
     			}
 
     			if (default_slot) default_slot.d(detaching);
@@ -50048,10 +50054,10 @@ var app = (function () {
     const red = '#d22';
 
     function instance$7($$self, $$props, $$invalidate) {
-    	let { row, col, state = -1, color, onClick, onMouseEnter, onMouseOver, onMouseLeave, onRightClick, transitionTime = 0.2, styles } = $$props;
+    	let { row, col, state = -1, color, onClick, onMouseEnter, onMouseOver, onMouseLeave, onMouseDown, onMouseUp, onRightClick, transitionTime = 0.2, styles, mainDown, secondaryDown } = $$props;
       let hover = false;
 
-    	const writable_props = ['row', 'col', 'state', 'color', 'onClick', 'onMouseEnter', 'onMouseOver', 'onMouseLeave', 'onRightClick', 'transitionTime', 'styles'];
+    	const writable_props = ['row', 'col', 'state', 'color', 'onClick', 'onMouseEnter', 'onMouseOver', 'onMouseLeave', 'onMouseDown', 'onMouseUp', 'onRightClick', 'transitionTime', 'styles', 'mainDown', 'secondaryDown'];
     	Object.keys($$props).forEach(key => {
     		if (!writable_props.includes(key) && !key.startsWith('$$')) console.warn(`<Block> was created with unknown prop '${key}'`);
     	});
@@ -50061,6 +50067,18 @@ var app = (function () {
     	function click_handler() {
     	    if (onClick) {
     	      onClick(row, col);
+    	    }
+    	  }
+
+    	function mousedown_handler() {
+    	    if (onMouseDown) {
+    	      onMouseDown(row, col);
+    	    }
+    	  }
+
+    	function mouseup_handler() {
+    	    if (onMouseUp) {
+    	      onMouseUp(row, col);
     	    }
     	  }
 
@@ -50100,9 +50118,13 @@ var app = (function () {
     		if ('onMouseEnter' in $$props) $$invalidate('onMouseEnter', onMouseEnter = $$props.onMouseEnter);
     		if ('onMouseOver' in $$props) $$invalidate('onMouseOver', onMouseOver = $$props.onMouseOver);
     		if ('onMouseLeave' in $$props) $$invalidate('onMouseLeave', onMouseLeave = $$props.onMouseLeave);
+    		if ('onMouseDown' in $$props) $$invalidate('onMouseDown', onMouseDown = $$props.onMouseDown);
+    		if ('onMouseUp' in $$props) $$invalidate('onMouseUp', onMouseUp = $$props.onMouseUp);
     		if ('onRightClick' in $$props) $$invalidate('onRightClick', onRightClick = $$props.onRightClick);
     		if ('transitionTime' in $$props) $$invalidate('transitionTime', transitionTime = $$props.transitionTime);
     		if ('styles' in $$props) $$invalidate('styles', styles = $$props.styles);
+    		if ('mainDown' in $$props) $$invalidate('mainDown', mainDown = $$props.mainDown);
+    		if ('secondaryDown' in $$props) $$invalidate('secondaryDown', secondaryDown = $$props.secondaryDown);
     		if ('$$scope' in $$props) $$invalidate('$$scope', $$scope = $$props.$$scope);
     	};
 
@@ -50123,12 +50145,18 @@ var app = (function () {
     		onMouseEnter,
     		onMouseOver,
     		onMouseLeave,
+    		onMouseDown,
+    		onMouseUp,
     		onRightClick,
     		transitionTime,
     		styles,
+    		mainDown,
+    		secondaryDown,
     		hover,
     		_styles,
     		click_handler,
+    		mousedown_handler,
+    		mouseup_handler,
     		mouseenter_handler,
     		mouseover_handler,
     		mouseleave_handler,
@@ -50141,7 +50169,7 @@ var app = (function () {
     class Block extends SvelteComponentDev {
     	constructor(options) {
     		super(options);
-    		init(this, options, instance$7, create_fragment$7, safe_not_equal, ["row", "col", "state", "color", "onClick", "onMouseEnter", "onMouseOver", "onMouseLeave", "onRightClick", "transitionTime", "styles"]);
+    		init(this, options, instance$7, create_fragment$7, safe_not_equal, ["row", "col", "state", "color", "onClick", "onMouseEnter", "onMouseOver", "onMouseLeave", "onMouseDown", "onMouseUp", "onRightClick", "transitionTime", "styles", "mainDown", "secondaryDown"]);
 
     		const { ctx } = this.$$;
     		const props = options.props || {};
@@ -50166,11 +50194,23 @@ var app = (function () {
     		if (ctx.onMouseLeave === undefined && !('onMouseLeave' in props)) {
     			console.warn("<Block> was created without expected prop 'onMouseLeave'");
     		}
+    		if (ctx.onMouseDown === undefined && !('onMouseDown' in props)) {
+    			console.warn("<Block> was created without expected prop 'onMouseDown'");
+    		}
+    		if (ctx.onMouseUp === undefined && !('onMouseUp' in props)) {
+    			console.warn("<Block> was created without expected prop 'onMouseUp'");
+    		}
     		if (ctx.onRightClick === undefined && !('onRightClick' in props)) {
     			console.warn("<Block> was created without expected prop 'onRightClick'");
     		}
     		if (ctx.styles === undefined && !('styles' in props)) {
     			console.warn("<Block> was created without expected prop 'styles'");
+    		}
+    		if (ctx.mainDown === undefined && !('mainDown' in props)) {
+    			console.warn("<Block> was created without expected prop 'mainDown'");
+    		}
+    		if (ctx.secondaryDown === undefined && !('secondaryDown' in props)) {
+    			console.warn("<Block> was created without expected prop 'secondaryDown'");
     		}
     	}
 
@@ -50238,6 +50278,22 @@ var app = (function () {
     		throw new Error("<Block>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
     	}
 
+    	get onMouseDown() {
+    		throw new Error("<Block>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	set onMouseDown(value) {
+    		throw new Error("<Block>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	get onMouseUp() {
+    		throw new Error("<Block>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	set onMouseUp(value) {
+    		throw new Error("<Block>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
     	get onRightClick() {
     		throw new Error("<Block>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
     	}
@@ -50259,6 +50315,22 @@ var app = (function () {
     	}
 
     	set styles(value) {
+    		throw new Error("<Block>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	get mainDown() {
+    		throw new Error("<Block>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	set mainDown(value) {
+    		throw new Error("<Block>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	get secondaryDown() {
+    		throw new Error("<Block>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	set secondaryDown(value) {
     		throw new Error("<Block>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
     	}
     }
@@ -50319,7 +50391,7 @@ var app = (function () {
     	return child_ctx;
     }
 
-    // (117:2) {#if levels && !!levels.length}
+    // (152:2) {#if levels && !!levels.length}
     function create_if_block_6(ctx) {
     	var div;
 
@@ -50340,7 +50412,7 @@ var app = (function () {
     			}
     			attr(div, "class", "flex-row justify-center svelte-w9h21n");
     			set_style(div, "margin-bottom", "1rem");
-    			add_location(div, file$8, 117, 4, 2504);
+    			add_location(div, file$8, 152, 4, 3202);
     		},
 
     		m: function mount(target, anchor) {
@@ -50384,7 +50456,7 @@ var app = (function () {
     	};
     }
 
-    // (119:6) {#each levels as level, index}
+    // (154:6) {#each levels as level, index}
     function create_each_block_7(ctx) {
     	var div, t0, t1, dispose;
 
@@ -50403,7 +50475,7 @@ var app = (function () {
     			set_style(div, "background", "#fff");
     			set_style(div, "border-radius", "4px");
     			set_style(div, "cursor", "pointer");
-    			add_location(div, file$8, 119, 8, 2615);
+    			add_location(div, file$8, 154, 8, 3313);
     			dispose = listen(div, "click", click_handler);
     		},
 
@@ -50427,9 +50499,9 @@ var app = (function () {
     	};
     }
 
-    // (129:2) {#if colors && !!colors.length}
+    // (164:2) {#if colors && !!colors.length}
     function create_if_block_5(ctx) {
-    	var div, current;
+    	var div, t, current;
 
     	var each_value_6 = ctx.colors;
 
@@ -50443,6 +50515,15 @@ var app = (function () {
     		each_blocks[i] = null;
     	});
 
+    	var block = new Block({
+    		props: {
+    		state: -2,
+    		onClick: ctx.func_1,
+    		styles: "border-radius: 4px; margin: 0 4px;"
+    	},
+    		$$inline: true
+    	});
+
     	return {
     		c: function create() {
     			div = element("div");
@@ -50450,8 +50531,11 @@ var app = (function () {
     			for (var i = 0; i < each_blocks.length; i += 1) {
     				each_blocks[i].c();
     			}
+
+    			t = space();
+    			block.$$.fragment.c();
     			attr(div, "class", "flex-row justify-center margin-bottom svelte-w9h21n");
-    			add_location(div, file$8, 129, 4, 2917);
+    			add_location(div, file$8, 164, 4, 3615);
     		},
 
     		m: function mount(target, anchor) {
@@ -50461,6 +50545,8 @@ var app = (function () {
     				each_blocks[i].m(div, null);
     			}
 
+    			append(div, t);
+    			mount_component(block, div, null);
     			current = true;
     		},
 
@@ -50478,7 +50564,7 @@ var app = (function () {
     						each_blocks[i] = create_each_block_6(child_ctx);
     						each_blocks[i].c();
     						transition_in(each_blocks[i], 1);
-    						each_blocks[i].m(div, null);
+    						each_blocks[i].m(div, t);
     					}
     				}
 
@@ -50486,11 +50572,17 @@ var app = (function () {
     				for (i = each_value_6.length; i < each_blocks.length; i += 1) out(i);
     				check_outros();
     			}
+
+    			var block_changes = {};
+    			if (changed.resetBoard) block_changes.onClick = ctx.func_1;
+    			block.$set(block_changes);
     		},
 
     		i: function intro(local) {
     			if (current) return;
     			for (var i = 0; i < each_value_6.length; i += 1) transition_in(each_blocks[i]);
+
+    			transition_in(block.$$.fragment, local);
 
     			current = true;
     		},
@@ -50499,6 +50591,7 @@ var app = (function () {
     			each_blocks = each_blocks.filter(Boolean);
     			for (let i = 0; i < each_blocks.length; i += 1) transition_out(each_blocks[i]);
 
+    			transition_out(block.$$.fragment, local);
     			current = false;
     		},
 
@@ -50508,41 +50601,40 @@ var app = (function () {
     			}
 
     			destroy_each(each_blocks, detaching);
+
+    			destroy_component(block, );
     		}
     	};
     }
 
-    // (132:8) <Block           state={1}           color={color}           onClick={() => { setLayerIndex(index); }}           styles="border-radius: 4px; margin: 0 4px;"         >
+    // (167:8) <Block           state={1}           color={color}           onClick={() => { setLayerIndex(index); }}           styles="border-radius: 4px; margin: 0 4px;"         >
     function create_default_slot_4(ctx) {
-    	var t0_value = ctx.color, t0, t1;
+    	var t_value = ctx.color, t;
 
     	return {
     		c: function create() {
-    			t0 = text(t0_value);
-    			t1 = space();
+    			t = text(t_value);
     		},
 
     		m: function mount(target, anchor) {
-    			insert(target, t0, anchor);
-    			insert(target, t1, anchor);
+    			insert(target, t, anchor);
     		},
 
     		p: function update(changed, ctx) {
-    			if ((changed.colors) && t0_value !== (t0_value = ctx.color)) {
-    				set_data(t0, t0_value);
+    			if ((changed.colors) && t_value !== (t_value = ctx.color)) {
+    				set_data(t, t_value);
     			}
     		},
 
     		d: function destroy(detaching) {
     			if (detaching) {
-    				detach(t0);
-    				detach(t1);
+    				detach(t);
     			}
     		}
     	};
     }
 
-    // (131:6) {#each colors as color, index}
+    // (166:6) {#each colors as color, index}
     function create_each_block_6(ctx) {
     	var current;
 
@@ -50599,7 +50691,7 @@ var app = (function () {
     	};
     }
 
-    // (144:4) {#if colTotals && !!colTotals.length}
+    // (184:4) {#if colTotals && !!colTotals.length}
     function create_if_block_4(ctx) {
     	var t0, t1, current;
 
@@ -50730,7 +50822,7 @@ var app = (function () {
     	};
     }
 
-    // (151:8) <Block           color={color}           state={1}         >
+    // (191:8) <Block           color={color}           state={1}         >
     function create_default_slot_3(ctx) {
     	var t_value = ctx.total, t;
 
@@ -50757,7 +50849,7 @@ var app = (function () {
     	};
     }
 
-    // (150:6) {#each colTotals as total}
+    // (190:6) {#each colTotals as total}
     function create_each_block_5(ctx) {
     	var current;
 
@@ -50806,7 +50898,7 @@ var app = (function () {
     	};
     }
 
-    // (166:4) {#if rowTotals && !!rowTotals.length}
+    // (206:4) {#if rowTotals && !!rowTotals.length}
     function create_if_block_3(ctx) {
     	var div, current;
 
@@ -50830,7 +50922,7 @@ var app = (function () {
     				each_blocks[i].c();
     			}
     			attr(div, "class", "flex-col svelte-w9h21n");
-    			add_location(div, file$8, 166, 6, 3808);
+    			add_location(div, file$8, 206, 6, 4636);
     		},
 
     		m: function mount(target, anchor) {
@@ -50891,7 +50983,7 @@ var app = (function () {
     	};
     }
 
-    // (169:10) <Block             color={color}             state={1}           >
+    // (209:10) <Block             color={color}             state={1}           >
     function create_default_slot_2(ctx) {
     	var t0_value = ctx.total, t0, t1;
 
@@ -50921,7 +51013,7 @@ var app = (function () {
     	};
     }
 
-    // (168:8) {#each rowTotals as total}
+    // (208:8) {#each rowTotals as total}
     function create_each_block_4(ctx) {
     	var current;
 
@@ -50970,7 +51062,7 @@ var app = (function () {
     	};
     }
 
-    // (178:4) {#if board}
+    // (218:4) {#if board}
     function create_if_block_2(ctx) {
     	var div, section, current;
 
@@ -50997,9 +51089,9 @@ var app = (function () {
     			attr(section, "class", "board svelte-w9h21n");
     			set_style(section, "grid-template-columns", "repeat(" + ctx.board[0].length + ", 1fr)");
     			set_style(section, "grid-template-rows", "repeat(" + ctx.board.length + ", 1fr)");
-    			add_location(section, file$8, 179, 8, 4074);
+    			add_location(section, file$8, 219, 8, 4902);
     			attr(div, "class", "flex-row svelte-w9h21n");
-    			add_location(div, file$8, 178, 6, 4043);
+    			add_location(div, file$8, 218, 6, 4871);
     		},
 
     		m: function mount(target, anchor) {
@@ -51014,7 +51106,7 @@ var app = (function () {
     		},
 
     		p: function update(changed, ctx) {
-    			if (changed.board || changed.toggleEnabled || changed.toggleDisabled || changed.colors) {
+    			if (changed.board || changed.mouseDown || changed.mouseEnter || changed.mouseUp || changed.toggleDisabled || changed.colors || changed.mainDown || changed.secondaryDown) {
     				each_value_2 = ctx.board;
 
     				for (var i = 0; i < each_value_2.length; i += 1) {
@@ -51066,7 +51158,7 @@ var app = (function () {
     	};
     }
 
-    // (185:12) {#each row as item, colIndex}
+    // (225:12) {#each row as item, colIndex}
     function create_each_block_3(ctx) {
     	var current;
 
@@ -51075,9 +51167,13 @@ var app = (function () {
     		state: ctx.item,
     		row: ctx.rowIndex,
     		col: ctx.colIndex,
-    		onClick: ctx.toggleEnabled,
+    		onMouseDown: ctx.mouseDown,
+    		onMouseEnter: ctx.mouseEnter,
+    		onMouseUp: ctx.mouseUp,
     		onRightClick: ctx.toggleDisabled,
-    		color: ctx.colors[ctx.item]
+    		color: ctx.colors[ctx.item],
+    		mainDown: ctx.mainDown,
+    		secondaryDown: ctx.secondaryDown
     	},
     		$$inline: true
     	});
@@ -51095,9 +51191,13 @@ var app = (function () {
     		p: function update(changed, ctx) {
     			var block_changes = {};
     			if (changed.board) block_changes.state = ctx.item;
-    			if (changed.toggleEnabled) block_changes.onClick = ctx.toggleEnabled;
+    			if (changed.mouseDown) block_changes.onMouseDown = ctx.mouseDown;
+    			if (changed.mouseEnter) block_changes.onMouseEnter = ctx.mouseEnter;
+    			if (changed.mouseUp) block_changes.onMouseUp = ctx.mouseUp;
     			if (changed.toggleDisabled) block_changes.onRightClick = ctx.toggleDisabled;
     			if (changed.colors || changed.board) block_changes.color = ctx.colors[ctx.item];
+    			if (changed.mainDown) block_changes.mainDown = ctx.mainDown;
+    			if (changed.secondaryDown) block_changes.secondaryDown = ctx.secondaryDown;
     			block.$set(block_changes);
     		},
 
@@ -51119,7 +51219,7 @@ var app = (function () {
     	};
     }
 
-    // (184:10) {#each board as row, rowIndex}
+    // (224:10) {#each board as row, rowIndex}
     function create_each_block_2(ctx) {
     	var each_1_anchor, current;
 
@@ -51154,7 +51254,7 @@ var app = (function () {
     		},
 
     		p: function update(changed, ctx) {
-    			if (changed.board || changed.toggleEnabled || changed.toggleDisabled || changed.colors) {
+    			if (changed.board || changed.mouseDown || changed.mouseEnter || changed.mouseUp || changed.toggleDisabled || changed.colors || changed.mainDown || changed.secondaryDown) {
     				each_value_3 = ctx.row;
 
     				for (var i = 0; i < each_value_3.length; i += 1) {
@@ -51201,7 +51301,7 @@ var app = (function () {
     	};
     }
 
-    // (199:4) {#if rowTotals && !!rowTotals.length}
+    // (243:4) {#if rowTotals && !!rowTotals.length}
     function create_if_block_1(ctx) {
     	var div, current;
 
@@ -51225,7 +51325,7 @@ var app = (function () {
     				each_blocks[i].c();
     			}
     			attr(div, "class", "flex-col svelte-w9h21n");
-    			add_location(div, file$8, 199, 6, 4702);
+    			add_location(div, file$8, 243, 6, 5690);
     		},
 
     		m: function mount(target, anchor) {
@@ -51286,7 +51386,7 @@ var app = (function () {
     	};
     }
 
-    // (202:10) <Block             color={color}             state={1}           >
+    // (246:10) <Block             color={color}             state={1}           >
     function create_default_slot_1(ctx) {
     	var t0_value = ctx.total, t0, t1;
 
@@ -51316,7 +51416,7 @@ var app = (function () {
     	};
     }
 
-    // (201:8) {#each rowTotals as total}
+    // (245:8) {#each rowTotals as total}
     function create_each_block_1(ctx) {
     	var current;
 
@@ -51365,7 +51465,7 @@ var app = (function () {
     	};
     }
 
-    // (212:2) {#if colTotals && !!colTotals.length}
+    // (256:2) {#if colTotals && !!colTotals.length}
     function create_if_block(ctx) {
     	var div, t0, t1, current;
 
@@ -51412,7 +51512,7 @@ var app = (function () {
     			t1 = space();
     			block1.$$.fragment.c();
     			attr(div, "class", "flex-row justify-center svelte-w9h21n");
-    			add_location(div, file$8, 212, 4, 4968);
+    			add_location(div, file$8, 256, 4, 5956);
     		},
 
     		m: function mount(target, anchor) {
@@ -51496,7 +51596,7 @@ var app = (function () {
     	};
     }
 
-    // (220:8) <Block           color={color}           state={1}         >
+    // (264:8) <Block           color={color}           state={1}         >
     function create_default_slot(ctx) {
     	var t_value = ctx.total, t;
 
@@ -51523,7 +51623,7 @@ var app = (function () {
     	};
     }
 
-    // (219:6) {#each colTotals as total}
+    // (263:6) {#each colTotals as total}
     function create_each_block(ctx) {
     	var current;
 
@@ -51616,15 +51716,15 @@ var app = (function () {
     			div2 = element("div");
     			t11 = text(t11_value);
     			attr(h1, "class", "svelte-w9h21n");
-    			add_location(h1, file$8, 115, 2, 2435);
+    			add_location(h1, file$8, 150, 2, 3133);
     			attr(div0, "class", "flex-row justify-center svelte-w9h21n");
-    			add_location(div0, file$8, 142, 2, 3251);
+    			add_location(div0, file$8, 182, 2, 4079);
     			attr(div1, "class", "flex-row justify-center svelte-w9h21n");
-    			add_location(div1, file$8, 164, 2, 3722);
+    			add_location(div1, file$8, 204, 2, 4550);
     			attr(div2, "class", "flex-row justify-center svelte-w9h21n");
-    			add_location(div2, file$8, 233, 2, 5403);
+    			add_location(div2, file$8, 277, 2, 6391);
     			attr(div3, "class", "main svelte-w9h21n");
-    			add_location(div3, file$8, 114, 0, 2414);
+    			add_location(div3, file$8, 149, 0, 3112);
     		},
 
     		l: function claim(nodes) {
@@ -51839,10 +51939,20 @@ var app = (function () {
       let levels;
       let boards;
       let level;
+      let mainDown;
+      let mainDownTarget;
+      let secondaryDown;
 
       let levelIndex = 0;
       let layerIndex = 0;
       let same = false;
+
+      const resetBoard = () => {
+        const width = solution[0].length;
+        const height = solution.length;
+        const _board = Array(width).fill().map(() => Array(height).fill(-1));
+        return _board;
+      };
 
       const setLevelIndex = index => {
         $$invalidate('levelIndex', levelIndex = index);
@@ -51856,10 +51966,28 @@ var app = (function () {
           : -2
       ); $$invalidate('board', board), $$invalidate('boards', boards), $$invalidate('levelIndex', levelIndex); return $$result; };
 
-      const toggleEnabled = (row, col) => {
+      const mouseDown = (row, col) => {
+        if (board[row][col] < -1) {
+          return false;
+        }
+
+        $$invalidate('mainDown', mainDown = true);
         board[row][col] = board[row][col] === -1
           ? layerIndex
           : -1; $$invalidate('board', board), $$invalidate('boards', boards), $$invalidate('levelIndex', levelIndex);
+        mainDownTarget = board[row][col];
+      };
+
+      const mouseEnter = (row, col) => {
+        if (mainDown && mainDownTarget !== null) {
+          board[row][col] = mainDownTarget; $$invalidate('board', board), $$invalidate('boards', boards), $$invalidate('levelIndex', levelIndex);
+        }
+      };
+
+      const mouseUp = (row, col) => {
+        $$invalidate('mainDown', mainDown = false);
+        mainDownTarget = null;
+
         $$invalidate('same', same = deepEqual(matrix(solution), matrix(board)));
 
         if (same && levelIndex < levels.length) {
@@ -51885,6 +52013,10 @@ var app = (function () {
 
     	function func({ index }) { setLayerIndex(index); }
 
+    	function func_1() {
+    		return resetBoard();
+    	}
+
     	$$self.$set = $$props => {
     		if ('props' in $$props) $$invalidate('props', props = $$props.props);
     	};
@@ -51906,12 +52038,17 @@ var app = (function () {
     	return {
     		props,
     		levels,
+    		mainDown,
+    		secondaryDown,
     		levelIndex,
     		same,
+    		resetBoard,
     		setLevelIndex,
     		setLayerIndex,
     		toggleDisabled,
-    		toggleEnabled,
+    		mouseDown,
+    		mouseEnter,
+    		mouseUp,
     		title,
     		colors,
     		board,
@@ -51919,7 +52056,8 @@ var app = (function () {
     		rowTotals,
     		colTotals,
     		click_handler,
-    		func
+    		func,
+    		func_1
     	};
     }
 

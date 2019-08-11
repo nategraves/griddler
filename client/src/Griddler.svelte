@@ -16,6 +16,7 @@
   let boards;
   let level;
   let mainDown;
+  let mainDownTarget;
   let secondaryDown;
 
   let levelIndex = 0;
@@ -32,7 +33,7 @@
     : [[], []]
   ;
 
-  const resetBoard = (solution) => {
+  const resetBoard = () => {
     const width = solution[0].length;
     const height = solution.length;
     const _board = Array(width).fill().map(() => Array(height).fill(-1));
@@ -42,6 +43,7 @@
   const changeLevel = (d) => {
     same = false;
     levelIndex += d;
+    layerIndex = 0;
     board = resetBoard(solution);
   }
 
@@ -57,10 +59,43 @@
       : -2
   );
 
-  const toggleEnabled = (row, col) => {
+  const mouseDown = (row, col) => {
+    if (board[row][col] < -1) {
+      return false;
+    }
+
+    mainDown = true;
     board[row][col] = board[row][col] === -1
       ? layerIndex
-      : -1
+      : -1;
+    mainDownTarget = board[row][col];
+  }
+
+  const mouseEnter = (row, col) => {
+    if (mainDown && mainDownTarget !== null) {
+      board[row][col] = mainDownTarget;
+    }
+  }
+
+  const mouseUp = (row, col) => {
+    mainDown = false;
+    mainDownTarget = null;
+
+    same = deepEqual(matrix(solution), matrix(board));
+
+    if (same && levelIndex < levels.length) {
+      setLevelIndex(levelIndex + 1);
+    }
+  }
+
+  const toggleEnabled = (row, col) => {
+    if (board[row][col] < -1) {
+      return false;
+    }
+
+    board[row][col] = board[row][col] === -1
+      ? layerIndex
+      : -1;
     same = deepEqual(matrix(solution), matrix(board));
 
     if (same && levelIndex < levels.length) {
@@ -138,6 +173,11 @@
           {color}
         </Block>
       {/each}
+      <Block
+        state={-2}
+        onClick={() => resetBoard()}
+        styles="border-radius: 4px; margin: 0 4px;"
+      />
     </div>
   {/if}
   <div class="flex-row justify-center">
@@ -187,9 +227,13 @@
                 state={item}
                 row={rowIndex}
                 col={colIndex}
-                onClick={toggleEnabled}
+                onMouseDown={mouseDown}
+                onMouseEnter={mouseEnter}
+                onMouseUp={mouseUp}
                 onRightClick={toggleDisabled}
                 color={colors[item]}
+                mainDown={mainDown}
+                secondaryDown={secondaryDown}
               />
             {/each}
           {/each}
