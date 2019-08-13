@@ -2,8 +2,14 @@
   const defaultColors = ["#F2F2F2", "#75CBB3", "#DC2249", "#7A4865", "#F6CB51", "#3D2C42"];
   const colorsNeeded = defaultColors.length;
 
-  export let colors;
+  export let colors = defaultColors;
   export let styles;
+
+  import { fillColors } from '../utils';
+
+  if (colors.length < colorsNeeded) {
+    fillColors(colors, colorsNeeded);
+  }
 </script>
 
 <style></style>

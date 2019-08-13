@@ -1,4 +1,10 @@
-h1.svelte-w9h21n{color:#222;font-size:1.3rem;text-align:center;text-transform:uppercase}.main.svelte-w9h21n{background:'#fff';padding:2rem}.flex-row.svelte-w9h21n{display:flex}.flex-col.svelte-w9h21n{display:flex;flex-direction:column}.justify-center.svelte-w9h21n{justify-content:center}.margin-bottom.svelte-w9h21n{margin-bottom:1rem}.board.svelte-w9h21n{display:grid;grid-gap:0px}
-div.svelte-m9lxbx{align-items:center;background:white;border:1px solid rgba(0, 0, 0, 0.4);box-sizing:border-box;cursor:pointer;display:flex;font-size:14px;justify-content:center;height:48px;width:48px;position:relative}.debug.svelte-m9lxbx{font-size:6px;position:absolute;background:#fff;color:#111;top:0;left:0;padding:1px;height:10px;width:10px}
+h1.svelte-16omsoe{color:#222;font-size:1.3rem;text-align:center;text-transform:uppercase}.main.svelte-16omsoe{background-color:rgba(255, 255, 255, 0.9);border:8px solid #111;padding:0 2rem 2rem;border-bottom-left-radius:8px;border-bottom-right-radius:8px}.flex-row.svelte-16omsoe{display:flex}.flex-col.svelte-16omsoe{display:flex;flex-direction:column}.justify-center.svelte-16omsoe{justify-content:center}.margin-bottom.svelte-16omsoe{margin-bottom:1rem}.board.svelte-16omsoe{display:grid;grid-gap:0px}.level-select.svelte-16omsoe{align-items:center;background:#fff;border:1px solid rgba(0, 0, 0, 0.5);border-radius:4px;cursor:pointer;display:inline-flex;height:20px;justify-content:center;margin-right:0.5rem;padding:0.5rem;width:20px}.level-select.svelte-16omsoe:last-of-type{margin-right:0}.close.icon.svelte-16omsoe{color:#000;position:absolute;margin-top:0;margin-left:0;width:21px;height:21px}.close.icon.svelte-16omsoe:before{content:'';position:absolute;top:10px;width:21px;height:1px;background-color:currentColor;transform:rotate(-45deg)}.close.icon.svelte-16omsoe:after{content:'';position:absolute;top:10px;width:21px;height:1px;background-color:currentColor;transform:rotate(45deg)}
+div.svelte-3882c3{align-items:center;background-color:#fff;border:1px solid rgba(0, 0, 0, 0.4);box-sizing:border-box;cursor:pointer;display:flex;font-size:14px;justify-content:center;height:48px;width:48px;position:relative}div.disabled.svelte-3882c3{background-color:#eee;background-image:repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 3px,
+      rgba(0, 0, 0, 0.15) 3px,
+      rgba(0, 0, 0, 0.25) 6px
+    )}
 
 /*# sourceMappingURL=bundle.css.map */

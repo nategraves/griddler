@@ -9,14 +9,24 @@
   import { generateTotals } from './utils.ts';
   import { client, Levels } from './gql';
   import Block from './Block.svelte';
+  import Aare from './patterns/Aare.svelte';
+  import Clarence from './patterns/Clarence.svelte';
+  import Doubs from './patterns/Doubs.svelte';
+  import Hinterrhein from './patterns/Hinterrhein.svelte';
+  import Inn from './patterns/Inn.svelte';
+  import Kander from './patterns/Kander.svelte';
+  import Linth from './patterns/Linth.svelte';
+  import Mataura from './patterns/Mataura.svelte';
+
+  const bgs = [Aare, Clarence, Inn, Kander, Mataura, Linth, Hinterrhein];
 
   export let props = {};
 
   let levels;
   let boards;
   let level;
-  let mainDown;
-  let mainDownTarget;
+  let buttonDown;
+  let buttonDownValue;
   let secondaryDown;
 
   let levelIndex = 0;
@@ -40,11 +50,31 @@
     return _board;
   }
 
+  const clearBoard = () => {
+    boards[levelIndex] = [
+      ...Array(solution[0].length).fill().map(
+        () => Array(solution.length).fill(-1)
+      )
+    ]
+  }
+
   const changeLevel = (d) => {
     same = false;
     levelIndex += d;
     layerIndex = 0;
     board = resetBoard(solution);
+  }
+
+  const compareBoard = () => {
+    console.log('Comparing board...')
+    const tmpBoard = [
+      ...board.map(row => row.map(col => col === -2 ? -1 : col))
+    ];
+    same = deepEqual(matrix(solution), matrix(board));
+
+    if (same && levelIndex < levels.length) {
+      setLevelIndex(levelIndex + 1);
+    }
   }
 
   const setLevelIndex = index => {
@@ -59,33 +89,41 @@
       : -2
   );
 
-  const mouseDown = (row, col) => {
+  const mouseDown = (e, row, col) => {
     if (board[row][col] < -1) {
       return false;
     }
 
-    mainDown = true;
-    board[row][col] = board[row][col] === -1
-      ? layerIndex
-      : -1;
-    mainDownTarget = board[row][col];
+    buttonDown = e.button;
+
+    switch(buttonDown) {
+      case 0:
+        buttonDownValue = board[row][col] === -1 ? layerIndex : -1;
+        break;
+      case 2:
+        buttonDownValue = -2;
+        break;
+    }
+    board[row][col] = buttonDownValue
   }
 
   const mouseEnter = (row, col) => {
-    if (mainDown && mainDownTarget !== null) {
-      board[row][col] = mainDownTarget;
+    if (
+      board[row][col] < -1
+      || board[row][col] === buttonDownValue
+    ) {
+      return false;
+    }
+
+    if (buttonDown !== null && buttonDownValue !== null) {
+      board[row][col] = buttonDownValue;
     }
   }
 
   const mouseUp = (row, col) => {
-    mainDown = false;
-    mainDownTarget = null;
-
-    same = deepEqual(matrix(solution), matrix(board));
-
-    if (same && levelIndex < levels.length) {
-      setLevelIndex(levelIndex + 1);
-    }
+    buttonDown = null;
+    buttonDownValue = null;
+    compareBoard();
   }
 
   const toggleEnabled = (row, col) => {
@@ -96,11 +134,8 @@
     board[row][col] = board[row][col] === -1
       ? layerIndex
       : -1;
-    same = deepEqual(matrix(solution), matrix(board));
 
-    if (same && levelIndex < levels.length) {
-      setLevelIndex(levelIndex + 1);
-    }
+    compareBoard();
   };
 
   onMount(async () => {
@@ -120,8 +155,11 @@
   }
 
   .main {
-    background: '#fff';
-    padding: 2rem;
+    background-color: rgba(255, 255, 255, 0.9);
+    border: 8px solid #111;
+    padding: 0 2rem 2rem;
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
   }
 
   .flex-row {
@@ -145,22 +183,73 @@
     display: grid;
     grid-gap: 0px;
   }
+
+  .level-select {
+    align-items: center;
+    background: #fff;
+    border: 1px solid rgba(0, 0, 0, 0.5);
+    border-radius: 4px;
+    cursor: pointer;
+    display: inline-flex;
+    height: 20px;
+    justify-content: center;
+    margin-right: 0.5rem;
+    padding: 0.5rem;
+    width: 20px;
+  }
+
+  .level-select:last-of-type {
+    margin-right: 0;
+  }
+
+  .close.icon {
+    color: #000;
+    position: absolute;
+    margin-top: 0;
+    margin-left: 0;
+    width: 21px;
+    height: 21px;
+  }
+
+  .close.icon:before {
+    content: '';
+    position: absolute;
+    top: 10px;
+    width: 21px;
+    height: 1px;
+    background-color: currentColor;
+    transform: rotate(-45deg);
+  }
+
+  .close.icon:after {
+    content: '';
+    position: absolute;
+    top: 10px;
+    width: 21px;
+    height: 1px;
+    background-color: currentColor;
+    transform: rotate(45deg);
+  }
 </style>
 
+{#if colors}
+  <svelte:component
+    this={bgs[levelIndex]}
+    colors={colors}
+    styles="position: absolute; z-index: -1; top: 0; bottom: 0; left: 0; right: 0;"
+  />
+{/if}
 <div class="main">
-  <h1>{levelIndex}: {title}</h1>
   {#if levels && !!levels.length}
-    <div class="flex-row justify-center" style="margin-bottom: 1rem">
+    <div class="flex-row justify-center" style="margin: 1rem 0">
       {#each levels as level, index}
-        <div
-          on:click={() => setLevelIndex(index)}
-          style="margin-right: 0.5rem; display: inline-block; padding: 0.5rem; background: #fff; border-radius: 4px; cursor: pointer;"
-        >
+        <div class="level-select" on:click={() => setLevelIndex(index)}>
           {index}
         </div>
       {/each}
     </div>
   {/if}
+  <h1>{levelIndex}: {title}</h1>
   {#if colors && !!colors.length}
     <div class="flex-row justify-center margin-bottom">
       {#each colors as color, index}
@@ -174,10 +263,13 @@
         </Block>
       {/each}
       <Block
-        state={-2}
-        onClick={() => resetBoard()}
-        styles="border-radius: 4px; margin: 0 4px;"
-      />
+        state={1}
+        color={'#ddd'}
+        onClick={() => clearBoard()}
+        styles="border-radius: 4px; margin: 0 4px; position: relative;"
+      >
+        <div class="close icon" />
+      </Block>
     </div>
   {/if}
   <div class="flex-row justify-center">
@@ -232,8 +324,7 @@
                 onMouseUp={mouseUp}
                 onRightClick={toggleDisabled}
                 color={colors[item]}
-                mainDown={mainDown}
-                secondaryDown={secondaryDown}
+                buttonDown={buttonDown}
               />
             {/each}
           {/each}
@@ -275,7 +366,4 @@
       />
     </div>
   {/if}
-  <div class="flex-row justify-center">
-    {same.toString()}
-  </div>
 </div>
