@@ -109,13 +109,14 @@
 
   const mouseEnter = (row, col) => {
     if (
-      board[row][col] < -1
-      || board[row][col] === buttonDownValue
+      board[row][col] === -2
+      || buttonDown === null
+      || buttonDownValue === null
     ) {
       return false;
     }
 
-    if (buttonDown !== null && buttonDownValue !== null) {
+    if () {
       board[row][col] = buttonDownValue;
     }
   }
