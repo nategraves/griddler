@@ -116,9 +116,7 @@
       return false;
     }
 
-    if () {
-      board[row][col] = buttonDownValue;
-    }
+    board[row][col] = buttonDownValue;
   }
 
   const mouseUp = (row, col) => {

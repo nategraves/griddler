@@ -18031,7 +18031,6 @@ var app = (function () {
             // extra care to replace process.env.NODE_ENV in their production builds,
             // or define an appropriate global.process polyfill.
         }
-    //# sourceMappingURL=invariant.esm.js.map
 
     var fastJsonStableStringify = function (data, opts) {
         if (!opts) opts = {};
@@ -18216,7 +18215,6 @@ var app = (function () {
         bSet.add(b);
         return false;
     }
-    //# sourceMappingURL=equality.esm.js.map
 
     function isStringValue(value) {
         return value.kind === 'StringValue';
@@ -19000,7 +18998,6 @@ var app = (function () {
         }
         return value;
     }
-    //# sourceMappingURL=bundle.esm.js.map
 
     var Observable_1 = createCommonjsModule(function (module, exports) {
 
@@ -19620,7 +19617,6 @@ var app = (function () {
     var zenObservable = Observable_1.Observable;
 
     var Observable = zenObservable;
-    //# sourceMappingURL=bundle.esm.js.map
 
     function validateOperation(operation) {
         var OPERATION_FIELDS = [
@@ -19775,7 +19771,6 @@ var app = (function () {
     function execute(link, operation) {
         return (link.request(createOperation(operation.context, transformOperation(validateOperation(operation)))) || Observable.of());
     }
-    //# sourceMappingURL=bundle.esm.js.map
 
     function symbolObservablePonyfill(root) {
     	var result;
@@ -21909,7 +21904,6 @@ var app = (function () {
         };
         return ApolloClient;
     }());
-    //# sourceMappingURL=bundle.esm.js.map
 
     function queryFromPojo(obj) {
         var op = {
@@ -22077,7 +22071,6 @@ var app = (function () {
         };
         return ApolloCache;
     }());
-    //# sourceMappingURL=bundle.esm.js.map
 
     // This currentContext variable will only be used if the makeSlotClass
     // function is called, which happens only if this is the first copy of the
@@ -22217,7 +22210,6 @@ var app = (function () {
     }();
 
     var bind = Slot.bind, noContext = Slot.noContext;
-    //# sourceMappingURL=context.esm.js.map
 
     function defaultDispose() { }
     var Cache = /** @class */ (function () {
@@ -22696,7 +22688,6 @@ var app = (function () {
         };
         return optimistic;
     }
-    //# sourceMappingURL=bundle.esm.js.map
 
     var testMap = new Map();
     if (testMap.set(1, 2) !== testMap) {
@@ -23665,7 +23656,6 @@ var app = (function () {
         };
         return InMemoryCache;
     }(ApolloCache));
-    //# sourceMappingURL=bundle.esm.js.map
 
     /**
      * Produces the value of a block string from its parsed raw value, similar to
@@ -24180,7 +24170,6 @@ var app = (function () {
             return fallbackURI || '/graphql';
         }
     };
-    //# sourceMappingURL=bundle.esm.js.map
 
     var createHttpLink = function (linkOptions) {
         if (linkOptions === void 0) { linkOptions = {}; }
@@ -24320,7 +24309,6 @@ var app = (function () {
         }
         return HttpLink;
     }(ApolloLink));
-    //# sourceMappingURL=bundle.esm.js.map
 
     function onError(errorHandler) {
         return new ApolloLink(function (operation, forward) {
@@ -24400,7 +24388,6 @@ var app = (function () {
         };
         return ErrorLink;
     }(ApolloLink));
-    //# sourceMappingURL=bundle.esm.js.map
 
     /**
      * The `defineToJSON()` function defines toJSON() and inspect() prototype
@@ -27303,7 +27290,6 @@ var app = (function () {
         }
         return DefaultClient;
     }(ApolloClient));
-    //# sourceMappingURL=bundle.esm.js.map
 
     const DEFAULT_CONFIG = {
       // minimum relative difference between two compared values,
@@ -41597,7 +41583,6 @@ var app = (function () {
         }
         return colors;
     };
-    //# sourceMappingURL=utils.js.map
 
     const client = new DefaultClient({
       uri: 'http://localhost:4040/graphql'
@@ -50113,7 +50098,7 @@ var app = (function () {
     	return child_ctx;
     }
 
-    // (235:0) {#if colors}
+    // (234:0) {#if colors}
     function create_if_block_7(ctx) {
     	var switch_instance_anchor, current;
 
@@ -50200,7 +50185,7 @@ var app = (function () {
     	};
     }
 
-    // (243:2) {#if levels && !!levels.length}
+    // (242:2) {#if levels && !!levels.length}
     function create_if_block_6(ctx) {
     	var div;
 
@@ -50221,7 +50206,7 @@ var app = (function () {
     			}
     			attr(div, "class", "flex-row justify-center svelte-16omsoe");
     			set_style(div, "margin", "1rem 0");
-    			add_location(div, file$8, 243, 4, 5287);
+    			add_location(div, file$8, 242, 4, 5240);
     		},
 
     		m: function mount(target, anchor) {
@@ -50265,7 +50250,7 @@ var app = (function () {
     	};
     }
 
-    // (245:6) {#each levels as level, index}
+    // (244:6) {#each levels as level, index}
     function create_each_block_7(ctx) {
     	var div, t0, t1, dispose;
 
@@ -50279,7 +50264,7 @@ var app = (function () {
     			t0 = text(ctx.index);
     			t1 = space();
     			attr(div, "class", "level-select svelte-16omsoe");
-    			add_location(div, file$8, 245, 8, 5393);
+    			add_location(div, file$8, 244, 8, 5346);
     			dispose = listen(div, "click", click_handler);
     		},
 
@@ -50303,7 +50288,7 @@ var app = (function () {
     	};
     }
 
-    // (253:2) {#if colors && !!colors.length}
+    // (252:2) {#if colors && !!colors.length}
     function create_if_block_5(ctx) {
     	var div, t, current;
 
@@ -50342,7 +50327,7 @@ var app = (function () {
     			t = space();
     			block.$$.fragment.c();
     			attr(div, "class", "flex-row justify-center margin-bottom svelte-16omsoe");
-    			add_location(div, file$8, 253, 4, 5595);
+    			add_location(div, file$8, 252, 4, 5548);
     		},
 
     		m: function mount(target, anchor) {
@@ -50415,7 +50400,7 @@ var app = (function () {
     	};
     }
 
-    // (256:8) <Block           state={1}           color={color}           onClick={() => { setLayerIndex(index); }}           styles="border-radius: 4px; margin: 0 4px;"         >
+    // (255:8) <Block           state={1}           color={color}           onClick={() => { setLayerIndex(index); }}           styles="border-radius: 4px; margin: 0 4px;"         >
     function create_default_slot_5(ctx) {
     	var t_value = ctx.color, t;
 
@@ -50442,7 +50427,7 @@ var app = (function () {
     	};
     }
 
-    // (255:6) {#each colors as color, index}
+    // (254:6) {#each colors as color, index}
     function create_each_block_6(ctx) {
     	var current;
 
@@ -50499,7 +50484,7 @@ var app = (function () {
     	};
     }
 
-    // (265:6) <Block         state={1}         color={'#ddd'}         onClick={() => clearBoard()}         styles="border-radius: 4px; margin: 0 4px; position: relative;"       >
+    // (264:6) <Block         state={1}         color={'#ddd'}         onClick={() => clearBoard()}         styles="border-radius: 4px; margin: 0 4px; position: relative;"       >
     function create_default_slot_4(ctx) {
     	var div;
 
@@ -50507,7 +50492,7 @@ var app = (function () {
     		c: function create() {
     			div = element("div");
     			attr(div, "class", "close icon svelte-16omsoe");
-    			add_location(div, file$8, 270, 8, 6087);
+    			add_location(div, file$8, 269, 8, 6040);
     		},
 
     		m: function mount(target, anchor) {
@@ -50522,7 +50507,7 @@ var app = (function () {
     	};
     }
 
-    // (276:4) {#if colTotals && !!colTotals.length}
+    // (275:4) {#if colTotals && !!colTotals.length}
     function create_if_block_4(ctx) {
     	var t0, t1, current;
 
@@ -50653,7 +50638,7 @@ var app = (function () {
     	};
     }
 
-    // (283:8) <Block           color={color}           state={1}         >
+    // (282:8) <Block           color={color}           state={1}         >
     function create_default_slot_3(ctx) {
     	var t_value = ctx.total, t;
 
@@ -50680,7 +50665,7 @@ var app = (function () {
     	};
     }
 
-    // (282:6) {#each colTotals as total}
+    // (281:6) {#each colTotals as total}
     function create_each_block_5(ctx) {
     	var current;
 
@@ -50729,7 +50714,7 @@ var app = (function () {
     	};
     }
 
-    // (298:4) {#if rowTotals && !!rowTotals.length}
+    // (297:4) {#if rowTotals && !!rowTotals.length}
     function create_if_block_3(ctx) {
     	var div, current;
 
@@ -50753,7 +50738,7 @@ var app = (function () {
     				each_blocks[i].c();
     			}
     			attr(div, "class", "flex-col svelte-16omsoe");
-    			add_location(div, file$8, 298, 6, 6707);
+    			add_location(div, file$8, 297, 6, 6660);
     		},
 
     		m: function mount(target, anchor) {
@@ -50814,7 +50799,7 @@ var app = (function () {
     	};
     }
 
-    // (301:10) <Block             color={color}             state={1}           >
+    // (300:10) <Block             color={color}             state={1}           >
     function create_default_slot_2(ctx) {
     	var t0_value = ctx.total, t0, t1;
 
@@ -50844,7 +50829,7 @@ var app = (function () {
     	};
     }
 
-    // (300:8) {#each rowTotals as total}
+    // (299:8) {#each rowTotals as total}
     function create_each_block_4(ctx) {
     	var current;
 
@@ -50893,7 +50878,7 @@ var app = (function () {
     	};
     }
 
-    // (310:4) {#if board}
+    // (309:4) {#if board}
     function create_if_block_2(ctx) {
     	var div, section, current;
 
@@ -50920,9 +50905,9 @@ var app = (function () {
     			attr(section, "class", "board svelte-16omsoe");
     			set_style(section, "grid-template-columns", "repeat(" + ctx.board[0].length + ", 1fr)");
     			set_style(section, "grid-template-rows", "repeat(" + ctx.board.length + ", 1fr)");
-    			add_location(section, file$8, 311, 8, 6973);
+    			add_location(section, file$8, 310, 8, 6926);
     			attr(div, "class", "flex-row svelte-16omsoe");
-    			add_location(div, file$8, 310, 6, 6942);
+    			add_location(div, file$8, 309, 6, 6895);
     		},
 
     		m: function mount(target, anchor) {
@@ -50989,7 +50974,7 @@ var app = (function () {
     	};
     }
 
-    // (317:12) {#each row as item, colIndex}
+    // (316:12) {#each row as item, colIndex}
     function create_each_block_3(ctx) {
     	var current;
 
@@ -51048,7 +51033,7 @@ var app = (function () {
     	};
     }
 
-    // (316:10) {#each board as row, rowIndex}
+    // (315:10) {#each board as row, rowIndex}
     function create_each_block_2(ctx) {
     	var each_1_anchor, current;
 
@@ -51130,7 +51115,7 @@ var app = (function () {
     	};
     }
 
-    // (334:4) {#if rowTotals && !!rowTotals.length}
+    // (333:4) {#if rowTotals && !!rowTotals.length}
     function create_if_block_1(ctx) {
     	var div, current;
 
@@ -51154,7 +51139,7 @@ var app = (function () {
     				each_blocks[i].c();
     			}
     			attr(div, "class", "flex-col svelte-16omsoe");
-    			add_location(div, file$8, 334, 6, 7719);
+    			add_location(div, file$8, 333, 6, 7672);
     		},
 
     		m: function mount(target, anchor) {
@@ -51215,7 +51200,7 @@ var app = (function () {
     	};
     }
 
-    // (337:10) <Block             color={color}             state={1}           >
+    // (336:10) <Block             color={color}             state={1}           >
     function create_default_slot_1(ctx) {
     	var t0_value = ctx.total, t0, t1;
 
@@ -51245,7 +51230,7 @@ var app = (function () {
     	};
     }
 
-    // (336:8) {#each rowTotals as total}
+    // (335:8) {#each rowTotals as total}
     function create_each_block_1(ctx) {
     	var current;
 
@@ -51294,7 +51279,7 @@ var app = (function () {
     	};
     }
 
-    // (347:2) {#if colTotals && !!colTotals.length}
+    // (346:2) {#if colTotals && !!colTotals.length}
     function create_if_block(ctx) {
     	var div, t0, t1, current;
 
@@ -51341,7 +51326,7 @@ var app = (function () {
     			t1 = space();
     			block1.$$.fragment.c();
     			attr(div, "class", "flex-row justify-center svelte-16omsoe");
-    			add_location(div, file$8, 347, 4, 7985);
+    			add_location(div, file$8, 346, 4, 7938);
     		},
 
     		m: function mount(target, anchor) {
@@ -51425,7 +51410,7 @@ var app = (function () {
     	};
     }
 
-    // (355:8) <Block           color={color}           state={1}         >
+    // (354:8) <Block           color={color}           state={1}         >
     function create_default_slot(ctx) {
     	var t_value = ctx.total, t;
 
@@ -51452,7 +51437,7 @@ var app = (function () {
     	};
     }
 
-    // (354:6) {#each colTotals as total}
+    // (353:6) {#each colTotals as total}
     function create_each_block(ctx) {
     	var current;
 
@@ -51546,13 +51531,13 @@ var app = (function () {
     			t10 = space();
     			if (if_block7) if_block7.c();
     			attr(h1, "class", "svelte-16omsoe");
-    			add_location(h1, file$8, 251, 2, 5526);
+    			add_location(h1, file$8, 250, 2, 5479);
     			attr(div0, "class", "flex-row justify-center svelte-16omsoe");
-    			add_location(div0, file$8, 274, 2, 6150);
+    			add_location(div0, file$8, 273, 2, 6103);
     			attr(div1, "class", "flex-row justify-center svelte-16omsoe");
-    			add_location(div1, file$8, 296, 2, 6621);
+    			add_location(div1, file$8, 295, 2, 6574);
     			attr(div2, "class", "main svelte-16omsoe");
-    			add_location(div2, file$8, 241, 0, 5230);
+    			add_location(div2, file$8, 240, 0, 5183);
     		},
 
     		l: function claim(nodes) {
@@ -51846,15 +51831,14 @@ var app = (function () {
 
       const mouseEnter = (row, col) => {
         if (
-          board[row][col] < -1
-          || board[row][col] === buttonDownValue
+          board[row][col] === -2
+          || buttonDown === null
+          || buttonDownValue === null
         ) {
           return false;
         }
 
-        if (buttonDown !== null && buttonDownValue !== null) {
-          board[row][col] = buttonDownValue; $$invalidate('board', board), $$invalidate('boards', boards), $$invalidate('levelIndex', levelIndex);
-        }
+        board[row][col] = buttonDownValue; $$invalidate('board', board), $$invalidate('boards', boards), $$invalidate('levelIndex', levelIndex);
       };
 
       const mouseUp = (row, col) => {
