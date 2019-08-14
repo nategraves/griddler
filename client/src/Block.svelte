@@ -84,8 +84,8 @@
     }
   }}
   on:mouseover={() => {
-    if (onMouseEnter) {
-      onMouseEnter(row, col);
+    if (onMouseOver) {
+      onMouseOver(row, col);
     }
   }}
   on:mouseleave={() => {

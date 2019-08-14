@@ -34,8 +34,8 @@
   $: colors = level ? level.colors : '';
   $: solution = level ? level.solution : '';
   $: board = boards ? boards[levelIndex] : null;
-  $: width = solution[0].length;
-  $: height = solution.length;
+  $: width = solution ? solution[0].length : 0;
+  $: height = solution ? solution.length : 0;
   $: color = colors ? colors[layerIndex] : null;
   $: [rowTotals, colTotals] = (!!colors && !!solution)
     ? generateTotals(colors, solution)[layerIndex]
@@ -88,12 +88,12 @@
 
   const mouseDown = (e, row, col) => {
     e.preventDefault();
+    buttonDown = e.button;
 
     if (board[row][col] === DISABLED) {
+      console.log('Cant click on DISABLED block')
       return false;
     }
-
-    buttonDown = e.button;
 
     switch(buttonDown) {
       case 0:
@@ -105,10 +105,10 @@
         break;
       case 2:
         buttonDownValue = DISABLED;
+        console.log(buttonDownValue);
         break;
     }
     board[row][col] = buttonDownValue;
-    console.log(board[row][col]);
   }
 
   const mouseOver = (row, col) => {
@@ -121,6 +121,7 @@
     ) {
       return false;
     }
+
 
     board[row][col] = buttonDownValue;
   }
@@ -149,8 +150,8 @@
       board[row][col] = buttonDownValue;
     }
 
-    buttonDown = null;
-    buttonDownValue = null;
+    //buttonDown = null;
+    //buttonDownValue = null;
     compareBoard();
   }
 
@@ -358,6 +359,7 @@
                 col={colIndex}
                 onMouseDown={mouseDown}
                 onMouseEnter={mouseEnter}
+                onMouseOver={mouseOver}
                 onMouseUp={mouseUp}
                 onRightClick={toggleDisabled}
                 color={colors[item]}

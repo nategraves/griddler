@@ -41597,7 +41597,6 @@ var app = (function () {
         }
         for (var i = 0; i < targetSize - colorCount; i += 1) {
             colors = colors.concat([colors[lodash.random(colorCount - 1)]]);
-            console.log(colors);
         }
         return colors;
     };
@@ -42960,8 +42959,8 @@ var app = (function () {
     	  }
 
     	function mouseover_handler() {
-    	    if (onMouseEnter) {
-    	      onMouseEnter(row, col);
+    	    if (onMouseOver) {
+    	      onMouseOver(row, col);
     	    }
     	  }
 
@@ -50136,7 +50135,7 @@ var app = (function () {
     	return child_ctx;
     }
 
-    // (280:0) {#if colors}
+    // (281:0) {#if colors}
     function create_if_block_7(ctx) {
     	var switch_instance_anchor, current;
 
@@ -50223,7 +50222,7 @@ var app = (function () {
     	};
     }
 
-    // (288:2) {#if levels && !!levels.length}
+    // (289:2) {#if levels && !!levels.length}
     function create_if_block_6(ctx) {
     	var div;
 
@@ -50244,7 +50243,7 @@ var app = (function () {
     			}
     			attr(div, "class", "flex-row justify-center svelte-9g46vb");
     			set_style(div, "margin", "1rem 0");
-    			add_location(div, file$8, 288, 4, 6283);
+    			add_location(div, file$8, 289, 4, 6371);
     		},
 
     		m: function mount(target, anchor) {
@@ -50288,7 +50287,7 @@ var app = (function () {
     	};
     }
 
-    // (290:6) {#each levels as level, index}
+    // (291:6) {#each levels as level, index}
     function create_each_block_7(ctx) {
     	var div, t0, t1, dispose;
 
@@ -50302,7 +50301,7 @@ var app = (function () {
     			t0 = text(ctx.index);
     			t1 = space();
     			attr(div, "class", "level-select svelte-9g46vb");
-    			add_location(div, file$8, 290, 8, 6389);
+    			add_location(div, file$8, 291, 8, 6477);
     			dispose = listen(div, "click", click_handler);
     		},
 
@@ -50326,7 +50325,7 @@ var app = (function () {
     	};
     }
 
-    // (298:2) {#if colors && !!colors.length}
+    // (299:2) {#if colors && !!colors.length}
     function create_if_block_5(ctx) {
     	var div, current;
 
@@ -50350,7 +50349,7 @@ var app = (function () {
     				each_blocks[i].c();
     			}
     			attr(div, "class", "flex-row justify-center margin-bottom svelte-9g46vb");
-    			add_location(div, file$8, 298, 4, 6591);
+    			add_location(div, file$8, 299, 4, 6679);
     		},
 
     		m: function mount(target, anchor) {
@@ -50411,7 +50410,7 @@ var app = (function () {
     	};
     }
 
-    // (301:8) <Block           state={1}           color={color}           onClick={() => { setLayerIndex(index); }}           styles="border-radius: 4px; margin: 0 4px;"         >
+    // (302:8) <Block           state={1}           color={color}           onClick={() => { setLayerIndex(index); }}           styles="border-radius: 4px; margin: 0 4px;"         >
     function create_default_slot_4(ctx) {
     	var t0_value = ctx.color, t0, t1;
 
@@ -50441,7 +50440,7 @@ var app = (function () {
     	};
     }
 
-    // (300:6) {#each colors as color, index}
+    // (301:6) {#each colors as color, index}
     function create_each_block_6(ctx) {
     	var current;
 
@@ -50498,7 +50497,7 @@ var app = (function () {
     	};
     }
 
-    // (313:4) {#if colTotals && !!colTotals.length}
+    // (314:4) {#if colTotals && !!colTotals.length}
     function create_if_block_4(ctx) {
     	var t0, t1, current;
 
@@ -50629,7 +50628,7 @@ var app = (function () {
     	};
     }
 
-    // (320:8) <Block           color={color}           state={1}         >
+    // (321:8) <Block           color={color}           state={1}         >
     function create_default_slot_3(ctx) {
     	var t_value = ctx.total, t;
 
@@ -50656,7 +50655,7 @@ var app = (function () {
     	};
     }
 
-    // (319:6) {#each colTotals as total}
+    // (320:6) {#each colTotals as total}
     function create_each_block_5(ctx) {
     	var current;
 
@@ -50705,7 +50704,7 @@ var app = (function () {
     	};
     }
 
-    // (335:4) {#if rowTotals && !!rowTotals.length}
+    // (336:4) {#if rowTotals && !!rowTotals.length}
     function create_if_block_3(ctx) {
     	var div, current;
 
@@ -50729,7 +50728,7 @@ var app = (function () {
     				each_blocks[i].c();
     			}
     			attr(div, "class", "flex-col svelte-9g46vb");
-    			add_location(div, file$8, 335, 6, 7482);
+    			add_location(div, file$8, 336, 6, 7570);
     		},
 
     		m: function mount(target, anchor) {
@@ -50790,7 +50789,7 @@ var app = (function () {
     	};
     }
 
-    // (338:10) <Block             color={color}             state={1}           >
+    // (339:10) <Block             color={color}             state={1}           >
     function create_default_slot_2(ctx) {
     	var t0_value = ctx.total, t0, t1;
 
@@ -50820,7 +50819,7 @@ var app = (function () {
     	};
     }
 
-    // (337:8) {#each rowTotals as total}
+    // (338:8) {#each rowTotals as total}
     function create_each_block_4(ctx) {
     	var current;
 
@@ -50869,7 +50868,7 @@ var app = (function () {
     	};
     }
 
-    // (347:4) {#if board}
+    // (348:4) {#if board}
     function create_if_block_2(ctx) {
     	var div, section, current;
 
@@ -50896,9 +50895,9 @@ var app = (function () {
     			attr(section, "class", "board svelte-9g46vb");
     			set_style(section, "grid-template-columns", "repeat(" + ctx.board[0].length + ", 1fr)");
     			set_style(section, "grid-template-rows", "repeat(" + ctx.board.length + ", 1fr)");
-    			add_location(section, file$8, 348, 8, 7748);
+    			add_location(section, file$8, 349, 8, 7836);
     			attr(div, "class", "flex-row svelte-9g46vb");
-    			add_location(div, file$8, 347, 6, 7717);
+    			add_location(div, file$8, 348, 6, 7805);
     		},
 
     		m: function mount(target, anchor) {
@@ -50913,7 +50912,7 @@ var app = (function () {
     		},
 
     		p: function update(changed, ctx) {
-    			if (changed.board || changed.mouseDown || changed.mouseEnter || changed.mouseUp || changed.toggleDisabled || changed.colors || changed.buttonDown) {
+    			if (changed.board || changed.mouseDown || changed.mouseEnter || changed.mouseOver || changed.mouseUp || changed.toggleDisabled || changed.colors || changed.buttonDown) {
     				each_value_2 = ctx.board;
 
     				for (var i = 0; i < each_value_2.length; i += 1) {
@@ -50965,7 +50964,7 @@ var app = (function () {
     	};
     }
 
-    // (354:12) {#each row as item, colIndex}
+    // (355:12) {#each row as item, colIndex}
     function create_each_block_3(ctx) {
     	var current;
 
@@ -50976,6 +50975,7 @@ var app = (function () {
     		col: ctx.colIndex,
     		onMouseDown: ctx.mouseDown,
     		onMouseEnter: ctx.mouseEnter,
+    		onMouseOver: ctx.mouseOver,
     		onMouseUp: ctx.mouseUp,
     		onRightClick: ctx.toggleDisabled,
     		color: ctx.colors[ctx.item],
@@ -50999,6 +50999,7 @@ var app = (function () {
     			if (changed.board) block_changes.state = ctx.item;
     			if (changed.mouseDown) block_changes.onMouseDown = ctx.mouseDown;
     			if (changed.mouseEnter) block_changes.onMouseEnter = ctx.mouseEnter;
+    			if (changed.mouseOver) block_changes.onMouseOver = ctx.mouseOver;
     			if (changed.mouseUp) block_changes.onMouseUp = ctx.mouseUp;
     			if (changed.toggleDisabled) block_changes.onRightClick = ctx.toggleDisabled;
     			if (changed.colors || changed.board) block_changes.color = ctx.colors[ctx.item];
@@ -51024,7 +51025,7 @@ var app = (function () {
     	};
     }
 
-    // (353:10) {#each board as row, rowIndex}
+    // (354:10) {#each board as row, rowIndex}
     function create_each_block_2(ctx) {
     	var each_1_anchor, current;
 
@@ -51059,7 +51060,7 @@ var app = (function () {
     		},
 
     		p: function update(changed, ctx) {
-    			if (changed.board || changed.mouseDown || changed.mouseEnter || changed.mouseUp || changed.toggleDisabled || changed.colors || changed.buttonDown) {
+    			if (changed.board || changed.mouseDown || changed.mouseEnter || changed.mouseOver || changed.mouseUp || changed.toggleDisabled || changed.colors || changed.buttonDown) {
     				each_value_3 = ctx.row;
 
     				for (var i = 0; i < each_value_3.length; i += 1) {
@@ -51106,7 +51107,7 @@ var app = (function () {
     	};
     }
 
-    // (371:4) {#if rowTotals && !!rowTotals.length}
+    // (373:4) {#if rowTotals && !!rowTotals.length}
     function create_if_block_1(ctx) {
     	var div, current;
 
@@ -51130,7 +51131,7 @@ var app = (function () {
     				each_blocks[i].c();
     			}
     			attr(div, "class", "flex-col svelte-9g46vb");
-    			add_location(div, file$8, 371, 6, 8494);
+    			add_location(div, file$8, 373, 6, 8622);
     		},
 
     		m: function mount(target, anchor) {
@@ -51191,7 +51192,7 @@ var app = (function () {
     	};
     }
 
-    // (374:10) <Block             color={color}             state={1}           >
+    // (376:10) <Block             color={color}             state={1}           >
     function create_default_slot_1(ctx) {
     	var t0_value = ctx.total, t0, t1;
 
@@ -51221,7 +51222,7 @@ var app = (function () {
     	};
     }
 
-    // (373:8) {#each rowTotals as total}
+    // (375:8) {#each rowTotals as total}
     function create_each_block_1(ctx) {
     	var current;
 
@@ -51270,7 +51271,7 @@ var app = (function () {
     	};
     }
 
-    // (384:2) {#if colTotals && !!colTotals.length}
+    // (386:2) {#if colTotals && !!colTotals.length}
     function create_if_block(ctx) {
     	var div, t0, t1, current;
 
@@ -51317,7 +51318,7 @@ var app = (function () {
     			t1 = space();
     			block1.$$.fragment.c();
     			attr(div, "class", "flex-row justify-center svelte-9g46vb");
-    			add_location(div, file$8, 384, 4, 8760);
+    			add_location(div, file$8, 386, 4, 8888);
     		},
 
     		m: function mount(target, anchor) {
@@ -51401,7 +51402,7 @@ var app = (function () {
     	};
     }
 
-    // (392:8) <Block           color={color}           state={1}         >
+    // (394:8) <Block           color={color}           state={1}         >
     function create_default_slot(ctx) {
     	var t_value = ctx.total, t;
 
@@ -51428,7 +51429,7 @@ var app = (function () {
     	};
     }
 
-    // (391:6) {#each colTotals as total}
+    // (393:6) {#each colTotals as total}
     function create_each_block(ctx) {
     	var current;
 
@@ -51527,20 +51528,20 @@ var app = (function () {
     			div2 = element("div");
     			t12 = text(" Clear");
     			attr(h1, "class", "svelte-9g46vb");
-    			add_location(h1, file$8, 296, 2, 6522);
+    			add_location(h1, file$8, 297, 2, 6610);
     			attr(div0, "class", "flex-row justify-center svelte-9g46vb");
-    			add_location(div0, file$8, 311, 2, 6925);
+    			add_location(div0, file$8, 312, 2, 7013);
     			attr(div1, "class", "flex-row justify-center svelte-9g46vb");
-    			add_location(div1, file$8, 333, 2, 7396);
+    			add_location(div1, file$8, 334, 2, 7484);
     			attr(div2, "class", "close icon svelte-9g46vb");
-    			add_location(div2, file$8, 407, 6, 9299);
+    			add_location(div2, file$8, 409, 6, 9427);
     			attr(div3, "onclick", div3_onclick_value = ctx.func_1);
     			attr(div3, "class", "close-button svelte-9g46vb");
-    			add_location(div3, file$8, 406, 4, 9237);
+    			add_location(div3, file$8, 408, 4, 9365);
     			attr(div4, "class", "flex-row justify-center svelte-9g46vb");
-    			add_location(div4, file$8, 405, 2, 9195);
+    			add_location(div4, file$8, 407, 2, 9323);
     			attr(div5, "class", "main svelte-9g46vb");
-    			add_location(div5, file$8, 286, 0, 6226);
+    			add_location(div5, file$8, 287, 0, 6314);
     		},
 
     		l: function claim(nodes) {
@@ -51819,12 +51820,12 @@ var app = (function () {
 
       const mouseDown = (e, row, col) => {
         e.preventDefault();
+        $$invalidate('buttonDown', buttonDown = e.button);
 
         if (board[row][col] === DISABLED) {
+          console.log('Cant click on DISABLED block');
           return false;
         }
-
-        $$invalidate('buttonDown', buttonDown = e.button);
 
         switch(buttonDown) {
           case 0:
@@ -51836,10 +51837,25 @@ var app = (function () {
             break;
           case 2:
             buttonDownValue = DISABLED;
+            console.log(buttonDownValue);
             break;
         }
         board[row][col] = buttonDownValue; $$invalidate('board', board), $$invalidate('boards', boards), $$invalidate('levelIndex', levelIndex);
-        console.log(board[row][col]);
+      };
+
+      const mouseOver = (row, col) => {
+        if (
+          board[row][col] === DISABLED
+          || buttonDown === null
+          || buttonDown === undefined
+          || buttonDownValue === null
+          || buttonDownValue === undefined
+        ) {
+          return false;
+        }
+
+
+        board[row][col] = buttonDownValue; $$invalidate('board', board), $$invalidate('boards', boards), $$invalidate('levelIndex', levelIndex);
       };
 
       const mouseEnter = (row, col) => {
@@ -51866,8 +51882,8 @@ var app = (function () {
           board[row][col] = buttonDownValue; $$invalidate('board', board), $$invalidate('boards', boards), $$invalidate('levelIndex', levelIndex);
         }
 
-        $$invalidate('buttonDown', buttonDown = null);
-        buttonDownValue = null;
+        //buttonDown = null;
+        //buttonDownValue = null;
         compareBoard();
       };
 
@@ -51895,8 +51911,8 @@ var app = (function () {
     		if ($$dirty.level) { $$invalidate('colors', colors = level ? level.colors : ''); }
     		if ($$dirty.level) { $$invalidate('solution', solution = level ? level.solution : ''); }
     		if ($$dirty.boards || $$dirty.levelIndex) { $$invalidate('board', board = boards ? boards[levelIndex] : null); }
-    		if ($$dirty.solution) { width = solution[0].length; }
-    		if ($$dirty.solution) { height = solution.length; }
+    		if ($$dirty.solution) { width = solution ? solution[0].length : 0; }
+    		if ($$dirty.solution) { height = solution ? solution.length : 0; }
     		if ($$dirty.colors || $$dirty.layerIndex) { $$invalidate('color', color = colors ? colors[layerIndex] : null); }
     		if ($$dirty.colors || $$dirty.solution || $$dirty.layerIndex) { [rowTotals, colTotals] = (!!colors && !!solution)
             ? generateTotals(colors, solution)[layerIndex]
@@ -51914,6 +51930,7 @@ var app = (function () {
     		setLayerIndex,
     		toggleDisabled,
     		mouseDown,
+    		mouseOver,
     		mouseEnter,
     		mouseUp,
     		title,

@@ -96,12 +96,11 @@ const fillColors = (colors: string[], targetSize: number) => {
   if (colorCount >= targetSize) {
     colors = [...colors.slice(targetSize - 1)];
   }
-  
+
   for (let i = 0; i < targetSize - colorCount; i += 1) {
     colors = [...colors, colors[_.random(colorCount - 1)]];
-    console.log(colors);
   }
-  
+
   return colors;
 }
 
