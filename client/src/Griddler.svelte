@@ -20,14 +20,11 @@
 
   const bgs = [Aare, Clarence, Inn, Kander, Mataura, Linth, Hinterrhein];
 
-  export let props = {};
-
   let levels;
   let boards;
   let level;
-  let buttonDown;
-  let buttonDownValue;
-  let secondaryDown;
+  let buttonDown = null;
+  let buttonDownValue = null;
 
   let levelIndex = 0;
   let layerIndex = 0;
@@ -37,25 +34,26 @@
   $: colors = level ? level.colors : '';
   $: solution = level ? level.solution : '';
   $: board = boards ? boards[levelIndex] : null;
+  $: width = solution[0].length;
+  $: height = solution.length;
   $: color = colors ? colors[layerIndex] : null;
   $: [rowTotals, colTotals] = (!!colors && !!solution)
     ? generateTotals(colors, solution)[layerIndex]
     : [[], []]
   ;
 
+  const DISABLED = -2;
+  const OPEN = -1;
+
   const resetBoard = () => {
-    const width = solution[0].length;
-    const height = solution.length;
-    const _board = Array(width).fill().map(() => Array(height).fill(-1));
+    const _board = Array(width).fill().map(() => Array(height).fill(OPEN));
     return _board;
   }
 
   const clearBoard = () => {
     boards[levelIndex] = [
-      ...Array(solution[0].length).fill().map(
-        () => Array(solution.length).fill(-1)
-      )
-    ]
+      ...Array(width).fill().map(() => Array(height).fill(OPEN))
+    ];
   }
 
   const changeLevel = (d) => {
@@ -66,9 +64,8 @@
   }
 
   const compareBoard = () => {
-    console.log('Comparing board...')
     const tmpBoard = [
-      ...board.map(row => row.map(col => col === -2 ? -1 : col))
+      ...board.map(row => row.map(col => col === DISABLED ? OPEN : col))
     ];
     same = deepEqual(matrix(solution), matrix(board));
 
@@ -84,13 +81,15 @@
   const setLayerIndex = index => { layerIndex = index; };
 
   const toggleDisabled = (row, col) => (
-    board[row][col] = board[row][col] === -2
-      ? -1
-      : -2
+    board[row][col] = board[row][col] === DISABLED
+      ? OPEN
+      : DISABLED
   );
 
   const mouseDown = (e, row, col) => {
-    if (board[row][col] < -1) {
+    e.preventDefault();
+
+    if (board[row][col] === DISABLED) {
       return false;
     }
 
@@ -98,20 +97,41 @@
 
     switch(buttonDown) {
       case 0:
-        buttonDownValue = board[row][col] === -1 ? layerIndex : -1;
+        if (board[row][col] === OPEN) {
+          buttonDownValue = layerIndex;
+        } else {
+          buttonDownValue = OPEN;
+        }
         break;
       case 2:
-        buttonDownValue = -2;
+        buttonDownValue = DISABLED;
         break;
     }
-    board[row][col] = buttonDownValue
+    board[row][col] = buttonDownValue;
+    console.log(board[row][col]);
+  }
+
+  const mouseOver = (row, col) => {
+    if (
+      board[row][col] === DISABLED
+      || buttonDown === null
+      || buttonDown === undefined
+      || buttonDownValue === null
+      || buttonDownValue === undefined
+    ) {
+      return false;
+    }
+
+    board[row][col] = buttonDownValue;
   }
 
   const mouseEnter = (row, col) => {
     if (
-      board[row][col] === -2
+      board[row][col] === DISABLED
       || buttonDown === null
+      || buttonDown === undefined
       || buttonDownValue === null
+      || buttonDownValue === undefined
     ) {
       return false;
     }
@@ -120,19 +140,30 @@
   }
 
   const mouseUp = (row, col) => {
+    if (
+      buttonDown !== null
+      && buttonDown !== undefined
+      && buttonDownValue !== null
+      && buttonDownValue !== undefined
+    ) {
+      board[row][col] = buttonDownValue;
+    }
+
     buttonDown = null;
     buttonDownValue = null;
     compareBoard();
   }
 
   const toggleEnabled = (row, col) => {
-    if (board[row][col] < -1) {
+    if (board[row][col] === DISABLED) {
       return false;
     }
 
-    board[row][col] = board[row][col] === -1
-      ? layerIndex
-      : -1;
+    if (board[row][col] === layerIndex) {
+      board[row][col] === OPEN
+    } else {
+      board[row][col] = layerIndex;
+    }
 
     compareBoard();
   };
@@ -140,7 +171,7 @@
   onMount(async () => {
     const resp = await client.query({ query: Levels });
     levels = resp.data.levels;
-    boards = levels.map(l => l.solution.map(r => r.map(c => -1)));
+    boards = levels.map(l => l.solution.map(r => r.map(c => OPEN)));
     level = levels[levelIndex];
   });
 </script>
@@ -201,13 +232,28 @@
     margin-right: 0;
   }
 
+  .close-button {
+    align-items: center;
+    border-radius: 4px;
+    color: #666;
+    cursor: pointer;
+    display: flex;
+    font-size: 20px;
+    height: 42px;
+    justify-content: center;
+    letter-spacing: 1.25px;
+    margin: 1rem 4px 0;
+    position: relative;
+    text-transform: uppercase;
+    width: 200px;
+  }
+
   .close.icon {
-    color: #000;
-    position: absolute;
-    margin-top: 0;
-    margin-left: 0;
+    color: #333;
+    margin-right: 0.75rem; 
     width: 21px;
     height: 21px;
+    position: relative;
   }
 
   .close.icon:before {
@@ -261,14 +307,6 @@
           {color}
         </Block>
       {/each}
-      <Block
-        state={1}
-        color={'#ddd'}
-        onClick={() => clearBoard()}
-        styles="border-radius: 4px; margin: 0 4px; position: relative;"
-      >
-        <div class="close icon" />
-      </Block>
     </div>
   {/if}
   <div class="flex-row justify-center">
@@ -365,4 +403,9 @@
       />
     </div>
   {/if}
-</div>
+  <div class="flex-row justify-center">
+    <div onClick={() => clearBoard()} class="close-button">
+      <div class="close icon" /> Clear
+    </div>
+  </div>
+ </div>

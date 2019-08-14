@@ -2,6 +2,7 @@ import svelte from 'rollup-plugin-svelte';
 import resolve from 'rollup-plugin-node-resolve';
 import commonjs from 'rollup-plugin-commonjs';
 import json from 'rollup-plugin-json';
+import svg from 'rollup-plugin-svg';
 import livereload from 'rollup-plugin-livereload';
 import css from 'rollup-plugin-css-only'
 import typescript from 'rollup-plugin-typescript';
@@ -42,6 +43,7 @@ export default {
 		}),
 		commonjs(),
 		json({ namedExports: true }),
+		svg(),
 
 		// Watch the `public` directory and refresh the
 		// browser on changes when not in production

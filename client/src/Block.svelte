@@ -16,30 +16,35 @@
   export let styles;
   export let buttonDown;
 
+  const debug = false;
   const white = '#eee';
   const black = '#111';
   const red = '#d22';
   let hover = false;
 
   $: disabled = state === -2;
-  $: bg = state === -1 ? white : color;
+  $: bg = state > -1 ? color : white;
   $: textColor = tinycolor(bg).isLight() ? black : white;
-  $: _styles = `background: ${bg}; color: ${textColor}; transition: all ${transitionTime}s ease-in-out;${!!styles ? styles : ''}`;
+  $: _styles = `
+    background-color: ${bg};
+    color: ${textColor};
+    transition: all ${transitionTime}s ease-in-out;
+    ${!!styles ? styles : ''}
+  `;
 </script>
 
 <style>
   div {
     align-items: center;
-    background-color: #fff;
     border: 1px solid rgba(0, 0, 0, 0.4);
     box-sizing: border-box;
     cursor: pointer;
     display: flex;
     font-size: 14px;
-    justify-content: center;
     height: 48px;
-    width: 48px;
+    justify-content: center;
     position: relative;
+    width: 48px;
   }
 
   div.disabled {
@@ -96,5 +101,11 @@
     }
   }}
 >
+  {#if debug}
+    <div style="position: absolute; top: 0; left: 0; font-size: 8px; height: 12px; width: 12px; display: flex: justifiy-content: center; align-content: center;">
+      {state}
+    </div>
+  {/if}
   <slot />
 </div>
+

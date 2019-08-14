@@ -40,6 +40,11 @@ const generateTotals = (
           total.push(inGroup)
         }
       }
+
+      if (!total.length) {
+        total = [0];
+      }
+
       row.push(total);
     }
 
@@ -74,6 +79,10 @@ const generateTotals = (
           total.push(inGroup);
         }
       }
+      if (!total.length) {
+        total = [0];
+      }
+
       col.push(total);
     }
     layerTotals.push([ row, col ]);
