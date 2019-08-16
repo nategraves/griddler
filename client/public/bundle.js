@@ -41522,8 +41522,8 @@ var app = (function () {
     var generateTotals = function (colors, solution) {
         var layerTotals = [];
         var _loop_1 = function (i) {
-            var row = [];
             var maxRow = 0;
+            var row = [];
             for (var rowIndex = 0; rowIndex < solution.length; rowIndex += 1) {
                 var total = [];
                 var inGroup = 0;
@@ -41613,7 +41613,6 @@ var app = (function () {
         }
         return colors;
     };
-    //# sourceMappingURL=utils.js.map
 
     const client = new DefaultClient({
       uri: 'http://localhost:4040/graphql'
@@ -50128,7 +50127,7 @@ var app = (function () {
     	return child_ctx;
     }
 
-    // (257:0) {#if colors}
+    // (258:0) {#if colors}
     function create_if_block_7(ctx) {
     	var switch_instance_anchor, current;
 
@@ -50215,7 +50214,7 @@ var app = (function () {
     	};
     }
 
-    // (265:2) {#if levels && !!levels.length}
+    // (266:2) {#if levels && !!levels.length}
     function create_if_block_6(ctx) {
     	var div;
 
@@ -50236,7 +50235,7 @@ var app = (function () {
     			}
     			attr(div, "class", "flex-row justify-center svelte-9fdwes");
     			set_style(div, "margin", "1rem 0");
-    			add_location(div, file$8, 265, 4, 6053);
+    			add_location(div, file$8, 266, 4, 6111);
     		},
 
     		m: function mount(target, anchor) {
@@ -50280,7 +50279,7 @@ var app = (function () {
     	};
     }
 
-    // (267:6) {#each levels as level, index}
+    // (268:6) {#each levels as level, index}
     function create_each_block_11(ctx) {
     	var div, t0, t1, dispose;
 
@@ -50299,7 +50298,7 @@ var app = (function () {
     			set_style(div, "padding", "" + size / 4 + "px");
     			set_style(div, "height", "" + size + "px");
     			set_style(div, "width", "" + size + "px");
-    			add_location(div, file$8, 267, 8, 6159);
+    			add_location(div, file$8, 268, 8, 6217);
     			dispose = listen(div, "click", click_handler);
     		},
 
@@ -50330,7 +50329,7 @@ var app = (function () {
     	};
     }
 
-    // (279:2) {#if colors && !!colors.length}
+    // (280:2) {#if colors && !!colors.length}
     function create_if_block_5(ctx) {
     	var div, current;
 
@@ -50354,7 +50353,7 @@ var app = (function () {
     				each_blocks[i].c();
     			}
     			attr(div, "class", "flex-row justify-center margin-bottom svelte-9fdwes");
-    			add_location(div, file$8, 279, 4, 6544);
+    			add_location(div, file$8, 280, 4, 6602);
     		},
 
     		m: function mount(target, anchor) {
@@ -50415,7 +50414,7 @@ var app = (function () {
     	};
     }
 
-    // (282:8) <Block           enabledState={1}           color={color}           onClick={() => { setLayerIndex(index); }}           size={size}         >
+    // (283:8) <Block           enabledState={1}           color={color}           onClick={() => { setLayerIndex(index); }}           size={size}         >
     function create_default_slot_4(ctx) {
     	var t0_value = ctx.color, t0, t1;
 
@@ -50445,7 +50444,7 @@ var app = (function () {
     	};
     }
 
-    // (281:6) {#each colors as color, index}
+    // (282:6) {#each colors as color, index}
     function create_each_block_10(ctx) {
     	var current;
 
@@ -50503,7 +50502,7 @@ var app = (function () {
     	};
     }
 
-    // (293:2) {#if left && !!left.length}
+    // (294:2) {#if left && !!left.length}
     function create_if_block_4(ctx) {
     	var div, current;
 
@@ -50527,7 +50526,7 @@ var app = (function () {
     				each_blocks[i].c();
     			}
     			attr(div, "class", "flex-row justify-center svelte-9fdwes");
-    			add_location(div, file$8, 293, 4, 6885);
+    			add_location(div, file$8, 294, 4, 6943);
     		},
 
     		m: function mount(target, anchor) {
@@ -50588,7 +50587,7 @@ var app = (function () {
     	};
     }
 
-    // (298:12) <Block               color={color}               enabledState={1}               size={size}             >
+    // (299:12) <Block               color={color}               enabledState={1}               size={size}             >
     function create_default_slot_3(ctx) {
     	var t_value = ctx.total, t;
 
@@ -50615,7 +50614,7 @@ var app = (function () {
     	};
     }
 
-    // (297:10) {#each totals as total}
+    // (298:10) {#each totals as total}
     function create_each_block_9(ctx) {
     	var current;
 
@@ -50666,7 +50665,7 @@ var app = (function () {
     	};
     }
 
-    // (295:6) {#each top as totals}
+    // (296:6) {#each top as totals}
     function create_each_block_8(ctx) {
     	var div, t, current;
 
@@ -50692,7 +50691,7 @@ var app = (function () {
 
     			t = space();
     			attr(div, "class", "flex-col svelte-9fdwes");
-    			add_location(div, file$8, 295, 8, 6959);
+    			add_location(div, file$8, 296, 8, 7017);
     		},
 
     		m: function mount(target, anchor) {
@@ -50754,7 +50753,7 @@ var app = (function () {
     	};
     }
 
-    // (311:4) {#if left && !!left.length}
+    // (312:4) {#if left && !!left.length}
     function create_if_block_3(ctx) {
     	var div, current;
 
@@ -50778,7 +50777,7 @@ var app = (function () {
     				each_blocks[i].c();
     			}
     			attr(div, "class", "flex-col svelte-9fdwes");
-    			add_location(div, file$8, 311, 6, 7321);
+    			add_location(div, file$8, 312, 6, 7379);
     		},
 
     		m: function mount(target, anchor) {
@@ -50839,7 +50838,7 @@ var app = (function () {
     	};
     }
 
-    // (316:14) <Block                 color={color}                 enabledState={1}                 size={size}               >
+    // (317:14) <Block                 color={color}                 enabledState={1}                 size={size}               >
     function create_default_slot_2(ctx) {
     	var t_value = ctx.total, t;
 
@@ -50866,7 +50865,7 @@ var app = (function () {
     	};
     }
 
-    // (315:12) {#each totals as total}
+    // (316:12) {#each totals as total}
     function create_each_block_7(ctx) {
     	var current;
 
@@ -50917,7 +50916,7 @@ var app = (function () {
     	};
     }
 
-    // (313:8) {#each left as totals}
+    // (314:8) {#each left as totals}
     function create_each_block_6(ctx) {
     	var div, t, current;
 
@@ -50943,7 +50942,7 @@ var app = (function () {
 
     			t = space();
     			attr(div, "class", "flex-row svelte-9fdwes");
-    			add_location(div, file$8, 313, 10, 7385);
+    			add_location(div, file$8, 314, 10, 7443);
     		},
 
     		m: function mount(target, anchor) {
@@ -51005,7 +51004,7 @@ var app = (function () {
     	};
     }
 
-    // (328:4) {#if disabledBoard}
+    // (329:4) {#if disabledBoard}
     function create_if_block_2(ctx) {
     	var div, section, current;
 
@@ -51032,9 +51031,9 @@ var app = (function () {
     			attr(section, "class", "board svelte-9fdwes");
     			set_style(section, "grid-template-columns", "repeat(" + ctx.disabledBoard[0].length + ", 1fr)");
     			set_style(section, "grid-template-rows", "repeat(" + ctx.disabledBoard.length + ", 1fr)");
-    			add_location(section, file$8, 329, 8, 7756);
+    			add_location(section, file$8, 330, 8, 7814);
     			attr(div, "class", "flex-row svelte-9fdwes");
-    			add_location(div, file$8, 328, 6, 7725);
+    			add_location(div, file$8, 329, 6, 7783);
     		},
 
     		m: function mount(target, anchor) {
@@ -51101,7 +51100,7 @@ var app = (function () {
     	};
     }
 
-    // (335:12) {#each row as item, colIndex}
+    // (336:12) {#each row as item, colIndex}
     function create_each_block_5(ctx) {
     	var current;
 
@@ -51168,7 +51167,7 @@ var app = (function () {
     	};
     }
 
-    // (334:10) {#each disabledBoard as row, rowIndex}
+    // (335:10) {#each disabledBoard as row, rowIndex}
     function create_each_block_4(ctx) {
     	var each_1_anchor, current;
 
@@ -51250,7 +51249,7 @@ var app = (function () {
     	};
     }
 
-    // (356:4) {#if right && !!right.length}
+    // (357:4) {#if right && !!right.length}
     function create_if_block_1(ctx) {
     	var div, current;
 
@@ -51274,7 +51273,7 @@ var app = (function () {
     				each_blocks[i].c();
     			}
     			attr(div, "class", "flex-col svelte-9fdwes");
-    			add_location(div, file$8, 356, 6, 8731);
+    			add_location(div, file$8, 357, 6, 8789);
     		},
 
     		m: function mount(target, anchor) {
@@ -51335,7 +51334,7 @@ var app = (function () {
     	};
     }
 
-    // (361:14) <Block                 color={color}                 enabledState={1}                 size={size}               >
+    // (362:14) <Block                 color={color}                 enabledState={1}                 size={size}               >
     function create_default_slot_1(ctx) {
     	var t_value = ctx.total, t;
 
@@ -51362,7 +51361,7 @@ var app = (function () {
     	};
     }
 
-    // (360:12) {#each totals as total}
+    // (361:12) {#each totals as total}
     function create_each_block_3(ctx) {
     	var current;
 
@@ -51413,7 +51412,7 @@ var app = (function () {
     	};
     }
 
-    // (358:8) {#each right as totals}
+    // (359:8) {#each right as totals}
     function create_each_block_2(ctx) {
     	var div, t, current;
 
@@ -51439,7 +51438,7 @@ var app = (function () {
 
     			t = space();
     			attr(div, "class", "flex-row svelte-9fdwes");
-    			add_location(div, file$8, 358, 10, 8796);
+    			add_location(div, file$8, 359, 10, 8854);
     		},
 
     		m: function mount(target, anchor) {
@@ -51501,7 +51500,7 @@ var app = (function () {
     	};
     }
 
-    // (374:2) {#if bottom && !!bottom.length}
+    // (375:2) {#if bottom && !!bottom.length}
     function create_if_block(ctx) {
     	var div, current;
 
@@ -51525,7 +51524,7 @@ var app = (function () {
     				each_blocks[i].c();
     			}
     			attr(div, "class", "flex-row justify-center svelte-9fdwes");
-    			add_location(div, file$8, 374, 4, 9153);
+    			add_location(div, file$8, 375, 4, 9211);
     		},
 
     		m: function mount(target, anchor) {
@@ -51586,7 +51585,7 @@ var app = (function () {
     	};
     }
 
-    // (379:12) <Block               color={color}               enabledState={1}               size={size}             >
+    // (380:12) <Block               color={color}               enabledState={1}               size={size}             >
     function create_default_slot(ctx) {
     	var t_value = ctx.total, t;
 
@@ -51613,7 +51612,7 @@ var app = (function () {
     	};
     }
 
-    // (378:10) {#each totals as total}
+    // (379:10) {#each totals as total}
     function create_each_block_1(ctx) {
     	var current;
 
@@ -51664,7 +51663,7 @@ var app = (function () {
     	};
     }
 
-    // (376:6) {#each bottom as totals}
+    // (377:6) {#each bottom as totals}
     function create_each_block(ctx) {
     	var div, t, current;
 
@@ -51691,7 +51690,7 @@ var app = (function () {
     			t = space();
     			attr(div, "class", "flex-col svelte-9fdwes");
     			set_style(div, "justify-content", "flex-start");
-    			add_location(div, file$8, 376, 8, 9230);
+    			add_location(div, file$8, 377, 8, 9288);
     		},
 
     		m: function mount(target, anchor) {
@@ -51807,17 +51806,17 @@ var app = (function () {
     			div1 = element("div");
     			t17 = text(" Clear");
     			attr(h1, "class", "svelte-9fdwes");
-    			add_location(h1, file$8, 277, 2, 6455);
+    			add_location(h1, file$8, 278, 2, 6513);
     			attr(div0, "class", "flex-row justify-center svelte-9fdwes");
-    			add_location(div0, file$8, 309, 2, 7245);
+    			add_location(div0, file$8, 310, 2, 7303);
     			attr(div1, "class", "close icon svelte-9fdwes");
-    			add_location(div1, file$8, 392, 6, 9651);
+    			add_location(div1, file$8, 393, 6, 9709);
     			attr(div2, "class", "close-button svelte-9fdwes");
-    			add_location(div2, file$8, 391, 4, 9595);
+    			add_location(div2, file$8, 392, 4, 9653);
     			attr(div3, "class", "flex-row justify-center svelte-9fdwes");
-    			add_location(div3, file$8, 390, 2, 9553);
+    			add_location(div3, file$8, 391, 2, 9611);
     			attr(div4, "class", "main svelte-9fdwes");
-    			add_location(div4, file$8, 263, 0, 5996);
+    			add_location(div4, file$8, 264, 0, 6054);
     			dispose = listen(div2, "click", ctx.clearBoards);
     		},
 

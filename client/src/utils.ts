@@ -9,8 +9,8 @@ const generateTotals = (
   const layerTotals: LayerTotals = [];
 
   for (let i = 0; i < colors.length; i += 1) {
-    let row: number[] = [];
     let maxRow = 0;
+    let row: number[] = [];
 
     for (let rowIndex = 0; rowIndex < solution.length; rowIndex += 1) {
       let total: number[] = [];

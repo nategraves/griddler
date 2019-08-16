@@ -37,6 +37,7 @@
   $: solution = level ? level.solution : '';
   $: enabledBoard = enabledBoards ? enabledBoards[layerIndex] : null;
   $: disabledBoard = disabledBoards ? disabledBoards[layerIndex] : null;
+  //$: totalEnabled = enabledBoards ? enabledBoards.map()
   $: width = solution ? solution[0].length : 0;
   $: height = solution ? solution.length : 0;
   $: color = colors ? colors[layerIndex] : null;
