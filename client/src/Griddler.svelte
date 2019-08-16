@@ -21,10 +21,12 @@
   const bgs = [Aare, Clarence, Inn, Kander, Mataura, Linth, Hinterrhein];
 
   let levels;
-  let boards;
+  let enabledBoards;
+  let disabledBoards;
   let level;
   let buttonDown = null;
   let buttonDownValue = null;
+  let size = 32;
 
   let levelIndex = 0;
   let layerIndex = 0;
@@ -33,41 +35,54 @@
   $: title = level ? level.title : '';
   $: colors = level ? level.colors : '';
   $: solution = level ? level.solution : '';
-  $: board = boards ? boards[levelIndex] : null;
+  $: enabledBoard = enabledBoards ? enabledBoards[layerIndex] : null;
+  $: disabledBoard = disabledBoards ? disabledBoards[layerIndex] : null;
   $: width = solution ? solution[0].length : 0;
   $: height = solution ? solution.length : 0;
   $: color = colors ? colors[layerIndex] : null;
-  $: [rowTotals, colTotals] = (!!colors && !!solution)
+  $: [top, left, bottom, right] = (!!colors && !!solution)
     ? generateTotals(colors, solution)[layerIndex]
-    : [[], []]
-  ;
+    : [[], [], [], []];
 
   const DISABLED = -2;
   const OPEN = -1;
 
-  const resetBoard = () => {
+  onMount(async () => {
+    const resp = await client.query({ query: Levels });
+    levels = resp.data.levels;
+    enabledBoards = levels.map(l => l.solution.map(r => r.map(c => OPEN)));
+    disabledBoards = levels.map(l => l.solution.map(r => r.map(c => OPEN)));
+    level = levels[levelIndex];
+  });
+
+  const getCleanBoard = () => {
     const _board = Array(width).fill().map(() => Array(height).fill(OPEN));
     return _board;
   }
 
-  const clearBoard = () => {
-    boards[levelIndex] = [
-      ...Array(width).fill().map(() => Array(height).fill(OPEN))
-    ];
+  const clearBoards = () => {
+    disabledBoards[levelIndex] = getCleanBoard();
+    enabledBoards[levelIndex] = getCleanBoard();
+  }
+
+  const clearDisabledBoard = () => {
+    disabledBoards[levelIndex] = getCleanBoard();
+  }
+
+  const clearEnabledBoard = () => {
+    enabledBoards[levelIndex] = getCleanBoard();
   }
 
   const changeLevel = (d) => {
     same = false;
     levelIndex += d;
     layerIndex = 0;
-    board = resetBoard(solution);
+    enabledBoard = getCleanBoard(solution);
+    disabledBoard = getCleanBoard(solution);
   }
 
   const compareBoard = () => {
-    const tmpBoard = [
-      ...board.map(row => row.map(col => col === DISABLED ? OPEN : col))
-    ];
-    same = deepEqual(matrix(solution), matrix(board));
+    same = deepEqual(matrix(solution), matrix(enabledBoard));
 
     if (same && levelIndex < levels.length) {
       setLevelIndex(levelIndex + 1);
@@ -78,103 +93,69 @@
     levelIndex = index;
     level = levels[levelIndex];
   };
-  const setLayerIndex = index => { layerIndex = index; };
 
-  const toggleDisabled = (row, col) => (
-    board[row][col] = board[row][col] === DISABLED
-      ? OPEN
-      : DISABLED
-  );
+  const setLayerIndex = index => {
+    layerIndex = index;
+  };
 
   const mouseDown = (e, row, col) => {
-    e.preventDefault();
     buttonDown = e.button;
 
-    if (board[row][col] === DISABLED) {
-      console.log('Cant click on DISABLED block')
-      return false;
+    if (buttonDown === 0){
+      if (disabledBoard[row][col] === layerIndex) {
+        return;
+      }
+
+      buttonDownValue = enabledBoard[row][col] === OPEN
+        ? layerIndex
+        : OPEN;
     }
 
-    switch(buttonDown) {
-      case 0:
-        if (board[row][col] === OPEN) {
-          buttonDownValue = layerIndex;
-        } else {
-          buttonDownValue = OPEN;
-        }
-        break;
-      case 2:
-        buttonDownValue = DISABLED;
-        console.log(buttonDownValue);
-        break;
+    if (buttonDown === 2) {
+      buttonDownValue = disabledBoard[row][col] === OPEN
+        ? layerIndex
+        : OPEN;
     }
-    board[row][col] = buttonDownValue;
   }
 
-  const mouseOver = (row, col) => {
+  const mouseMove = (row, col) => {
     if (
-      board[row][col] === DISABLED
-      || buttonDown === null
-      || buttonDown === undefined
+      buttonDown === null
       || buttonDownValue === null
-      || buttonDownValue === undefined
+      || disabledBoard[row][col] === layerIndex
     ) {
       return false;
     }
 
-
-    board[row][col] = buttonDownValue;
-  }
-
-  const mouseEnter = (row, col) => {
-    if (
-      board[row][col] === DISABLED
-      || buttonDown === null
-      || buttonDown === undefined
-      || buttonDownValue === null
-      || buttonDownValue === undefined
-    ) {
-      return false;
+    if (buttonDown === 0) {
+      enabledBoard[row][col] = buttonDownValue;
+    } else if (buttonDown === 2) {
+      disabledBoard[row][col] = buttonDownValue;
     }
-
-    board[row][col] = buttonDownValue;
   }
 
   const mouseUp = (row, col) => {
-    if (
-      buttonDown !== null
-      && buttonDown !== undefined
-      && buttonDownValue !== null
-      && buttonDownValue !== undefined
-    ) {
-      board[row][col] = buttonDownValue;
-    }
-
-    //buttonDown = null;
-    //buttonDownValue = null;
+    buttonDown = null;
+    buttonDownValue = null;
     compareBoard();
   }
 
   const toggleEnabled = (row, col) => {
-    if (board[row][col] === DISABLED) {
+    if (disabledBoard[row][col] === layerIndex) {
       return false;
     }
 
-    if (board[row][col] === layerIndex) {
-      board[row][col] === OPEN
-    } else {
-      board[row][col] = layerIndex;
-    }
-
+    enabledBoard[row][col] = enabledBoard[row][col] === OPEN
+      ? layerIndex
+      : OPEN;
     compareBoard();
   };
 
-  onMount(async () => {
-    const resp = await client.query({ query: Levels });
-    levels = resp.data.levels;
-    boards = levels.map(l => l.solution.map(r => r.map(c => OPEN)));
-    level = levels[levelIndex];
-  });
+  const toggleDisabled = (row, col) => {
+    disabledBoard[row][col] = disabledBoard[row][col] === OPEN
+      ? layerIndex
+      : OPEN;
+  };
 </script>
 
 <style>
@@ -219,14 +200,9 @@
     align-items: center;
     background: #fff;
     border: 1px solid rgba(0, 0, 0, 0.5);
-    border-radius: 4px;
     cursor: pointer;
     display: inline-flex;
-    height: 20px;
     justify-content: center;
-    margin-right: 0.5rem;
-    padding: 0.5rem;
-    width: 20px;
   }
 
   .level-select:last-of-type {
@@ -289,124 +265,131 @@
   {#if levels && !!levels.length}
     <div class="flex-row justify-center" style="margin: 1rem 0">
       {#each levels as level, index}
-        <div class="level-select" on:click={() => setLevelIndex(index)}>
+        <div
+          class="level-select"
+          on:click={() => setLevelIndex(index)}
+          style="border-radius: {size / 4}px; margin-right: {size / 4}px; padding: {size / 4}px; height: {size}px; width: {size}px; "
+        >
           {index}
         </div>
       {/each}
     </div>
   {/if}
-  <h1>{levelIndex}: {title}</h1>
+  <h1>{levelIndex}: {title} ({width}, {height})</h1>
   {#if colors && !!colors.length}
     <div class="flex-row justify-center margin-bottom">
       {#each colors as color, index}
         <Block
-          state={1}
+          enabledState={1}
           color={color}
           onClick={() => { setLayerIndex(index); }}
-          styles="border-radius: 4px; margin: 0 4px;"
+          size={size}
         >
           {color}
         </Block>
       {/each}
     </div>
   {/if}
-  <div class="flex-row justify-center">
-    {#if colTotals && !!colTotals.length}
-      <Block
-        color={color}
-        state={1}
-        styles="border-top-left-radius: 24px;"
-      />
-      {#each colTotals as total}
-        <Block
-          color={color}
-          state={1}
-        >
-          {total}
-        </Block>
+  {#if left && !!left.length}
+    <div class="flex-row justify-center">
+      {#each top as totals}
+        <div class="flex-col">
+          {#each totals as total}
+            <Block
+              color={color}
+              enabledState={1}
+              size={size}
+            >
+              {total}
+            </Block>
+          {/each}
+        </div>
       {/each}
-      <Block
-        color={color}
-        state={1}
-        styles="border-top-right-radius: 24px;"
-      />
-    {/if}
-  </div>
+    </div>
+  {/if}
   <div class="flex-row justify-center">
-    {#if rowTotals && !!rowTotals.length}
+    {#if left && !!left.length}
       <div class="flex-col">
-        {#each rowTotals as total}
-          <Block
-            color={color}
-            state={1}
-          >
-            {total}
-          </Block>
+        {#each left as totals}
+          <div class="flex-row">
+            {#each totals as total}
+              <Block
+                color={color}
+                enabledState={1}
+                size={size}
+              >
+                {total}
+              </Block>
+            {/each}
+          </div>
         {/each}
       </div>
     {/if}
-    {#if board}
+    {#if disabledBoard}
       <div class="flex-row">
         <section
           class="board"
-          style="grid-template-columns: repeat({board[0].length}, 1fr); grid-template-rows: repeat({board.length}, 1fr);"
+          style="grid-template-columns: repeat({disabledBoard[0].length}, 1fr); grid-template-rows: repeat({disabledBoard.length}, 1fr);"
         >
-          {#each board as row, rowIndex}
+          {#each disabledBoard as row, rowIndex}
             {#each row as item, colIndex}
               <Block
-                state={item}
+                enabledState={enabledBoard[rowIndex][colIndex]}
+                disabledState={disabledBoard[rowIndex][colIndex]}
                 row={rowIndex}
                 col={colIndex}
+                layerIndex={layerIndex}
                 onMouseDown={mouseDown}
-                onMouseEnter={mouseEnter}
-                onMouseOver={mouseOver}
+                onMouseMove={mouseMove}
                 onMouseUp={mouseUp}
+                onClick={toggleEnabled}
                 onRightClick={toggleDisabled}
-                color={colors[item]}
                 buttonDown={buttonDown}
+                size={size}
+                color={colors[layerIndex]}
               />
             {/each}
           {/each}
         </section>
       </div>
     {/if}
-    {#if rowTotals && !!rowTotals.length}
+    {#if right && !!right.length}
       <div class="flex-col">
-        {#each rowTotals as total}
-          <Block
-            color={color}
-            state={1}
-          >
-            {total}
-          </Block>
+        {#each right as totals}
+          <div class="flex-row">
+            {#each totals as total}
+              <Block
+                color={color}
+                enabledState={1}
+                size={size}
+              >
+                {total}
+              </Block>
+            {/each}
+          </div>
         {/each}
       </div>
     {/if}
   </div>
-  {#if colTotals && !!colTotals.length}
+  {#if bottom && !!bottom.length}
     <div class="flex-row justify-center">
-      <Block
-        color={color}
-        state={1}
-        styles="border-bottom-left-radius: 24px;"
-      />
-      {#each colTotals as total}
-        <Block
-          color={color}
-          state={1}
-        >
-          {total}
-        </Block>
+      {#each bottom as totals}
+        <div class="flex-col" style="justify-content: flex-start;">
+          {#each totals as total}
+            <Block
+              color={color}
+              enabledState={1}
+              size={size}
+            >
+              {total}
+            </Block>
+          {/each}
+        </div>
       {/each}
-      <Block
-        color={color}
-        state={1}
-        styles="border-bottom-right-radius: 24px;"
-      />
     </div>
   {/if}
   <div class="flex-row justify-center">
-    <div onClick={() => clearBoard()} class="close-button">
+    <div on:click={clearBoards} class="close-button">
       <div class="close icon" /> Clear
     </div>
   </div>

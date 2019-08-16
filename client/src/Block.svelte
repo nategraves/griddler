@@ -1,35 +1,47 @@
 <script>
   import tinycolor from 'tinycolor2';
+  import { afterUpdate } from 'svelte';
 
-  export let row;
-  export let col;
-  export let state = -1;
-  export let color;
-  export let onClick;
-  export let onMouseEnter;
-  export let onMouseOver;
-  export let onMouseLeave;
-  export let onMouseDown;
-  export let onMouseUp;
-  export let onRightClick;
-  export let transitionTime = 0.2;
-  export let styles;
-  export let buttonDown;
-
-  const debug = false;
+  const OPEN = -1;
   const white = '#eee';
   const black = '#111';
-  const red = '#d22';
-  let hover = false;
 
-  $: disabled = state === -2;
-  $: bg = state > -1 ? color : white;
+  export let row = null;
+  export let col = null;
+  export let layerIndex = null;
+  export let enabledState = OPEN;
+  export let disabledState = OPEN;
+  export let color = null;
+  export let onMouseDown;
+  export let onMouseMove;
+  export let onMouseUp;
+  export let onClick;
+  export let onRightClick;
+  export let transitionTime = 0.2;
+  export let size = 48;
+
+  afterUpdate(() => {
+    if (row === 0 && col === 0) {
+      console.log(disabledState, enabledState);
+    }
+  })
+
+  $: disabled = disabledState === layerIndex;
+  $: bg = enabledState === OPEN && disabledState === OPEN
+    ? white
+    : color;
   $: textColor = tinycolor(bg).isLight() ? black : white;
-  $: _styles = `
-    background-color: ${bg};
+  $: bgImage = disabled 
+    ? `repeating-linear-gradient(45deg,transparent,transparent 3px,${bg} 3px,${bg} 6px)`
+    : 'none'
+  $: style = `
+    background-color: ${disabled ? white : bg};
+    background-image: ${bgImage};
     color: ${textColor};
+    font-size: ${size / 3}px;
+    height: ${size}px;
     transition: all ${transitionTime}s ease-in-out;
-    ${!!styles ? styles : ''}
+    width: ${size}px;
   `;
 </script>
 
@@ -40,72 +52,49 @@
     box-sizing: border-box;
     cursor: pointer;
     display: flex;
-    font-size: 14px;
-    height: 48px;
     justify-content: center;
     position: relative;
-    width: 48px;
-  }
-
-  div.disabled {
-    background-color: #eee;
-    background-image: repeating-linear-gradient(
-      45deg,
-      transparent,
-      transparent 3px,
-      rgba(0, 0, 0, 0.15) 3px,
-      rgba(0, 0, 0, 0.25) 6px
-    );
   }
 </style>
 
 <div
-  class:disabled
-  style="{_styles}"
-  on:click={() => {
+  {style}
+  on:click={(e) => {
+    e.preventDefault();
+
     if (onClick) {
       onClick(row, col);
     }
   }}
+  on:contextmenu={(e) => {
+    e.preventDefault();
+
+    if (onRightClick) {
+      onRightClick(row, col);
+    }
+  }}
   on:mousedown={(e) => {
+    e.preventDefault();
+
     if (onMouseDown) {
       onMouseDown(e, row, col);
     }
   }}
-  on:mouseup={() => {
+  on:mousemove={(e) => {
+    e.preventDefault();
+
+    if (onMouseMove) {
+      onMouseMove(row, col);
+    }
+  }}
+  on:mouseup={(e) => {
+    e.preventDefault();
+
     if (onMouseUp) {
       onMouseUp(row, col);
     }
   }}
-  on:mouseenter={() => {
-    hover = true;
-    if (onMouseEnter) {
-      onMouseEnter(row, col);
-    }
-  }}
-  on:mouseover={() => {
-    if (onMouseOver) {
-      onMouseOver(row, col);
-    }
-  }}
-  on:mouseleave={() => {
-    hover = false;
-    if (onMouseLeave) {
-      onMouseLeave(row, col);
-    }
-  }}
-  on:contextmenu={(e) => {
-    if (onRightClick) {
-      e.preventDefault();
-      onRightClick(row, col);
-    }
-  }}
 >
-  {#if debug}
-    <div style="position: absolute; top: 0; left: 0; font-size: 8px; height: 12px; width: 12px; display: flex: justifiy-content: center; align-content: center;">
-      {state}
-    </div>
-  {/if}
   <slot />
 </div>
 

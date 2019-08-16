@@ -1,17 +1,19 @@
 import _ from 'lodash';
 
-type LayerTotal = [number[], number[]];
+type LayerTotal = [any, any, any, any];
 type LayerTotals = LayerTotal[];
 
 const generateTotals = (
   colors: string[], solution: number[][]
 ): LayerTotals => {
-  const layerTotals = [];
+  const layerTotals: LayerTotals = [];
 
   for (let i = 0; i < colors.length; i += 1) {
-    let row = [];
+    let row: number[] = [];
+    let maxRow = 0;
+
     for (let rowIndex = 0; rowIndex < solution.length; rowIndex += 1) {
-      let total = [];
+      let total: number[] = [];
       let inGroup = 0;
 
       for (let colIndex = 0; colIndex < solution[rowIndex].length; colIndex += 1) {
@@ -32,23 +34,25 @@ const generateTotals = (
           }
         }
 
-        if (
-          colIndex === solution[rowIndex].length - 1
-          && current
-          && inGroup
-        ) {
+        if (colIndex === solution[rowIndex].length - 1 && inGroup) {
           total.push(inGroup)
         }
       }
 
       if (!total.length) {
-        total = [0];
+        total.push(0);
+      }
+
+      if (total.length > maxRow) {
+        maxRow = total.length;
       }
 
       row.push(total);
     }
 
     let col = [];
+    let maxCol = 0;
+
     for (let colIndex = 0; colIndex < solution[0].length; colIndex += 1) {
       let total = [];
       let inGroup = 0;
@@ -71,24 +75,31 @@ const generateTotals = (
           }
         }
 
-        if (
-          rowIndex === solution.length - 1
-          && current
-          && inGroup
-        ) {
+        if (rowIndex === solution.length - 1 && inGroup) {
           total.push(inGroup);
         }
       }
+
       if (!total.length) {
-        total = [0];
+        total.push(0);
+      }
+
+      if (total.length > maxCol) {
+        maxCol = total.length;
       }
 
       col.push(total);
     }
-    layerTotals.push([ row, col ]);
+
+    const top = col.map(c => [...Array(maxCol - c.length).fill(''), ...c]);
+    const left = row.map(r => [...Array(maxRow - r.length).fill(''), ...r]);
+    const bottom = col.map(c => [...c, ...Array(maxCol - c.length).fill('')]);
+    const right = row.map(r => [...r, ...Array(maxRow - r.length).fill('')]);
+
+    layerTotals.push([top, left, bottom, right]);
   }
 
-  return layerTotals;
+  return _.uniq(layerTotals);
 }
 
 const fillColors = (colors: string[], targetSize: number) => {

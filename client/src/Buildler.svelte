@@ -19,9 +19,7 @@
   $: solution = resetSolution(width, height);
 
   const resetSolution = (width, height) => {
-    const _solution = Array(width).fill().map(() => Array(height).fill(-1))
-    console.log(_solution);
-    return _solution;;
+    return Array(width).fill().map(() => Array(height).fill(-1))
   }
 
   const reset = (row, col) => {
