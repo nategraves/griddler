@@ -8,6 +8,8 @@ const generateTotals = (
 ): LayerTotals => {
   const layerTotals: LayerTotals = [];
 
+  const max = 0;
+
   for (let i = 0; i < colors.length; i += 1) {
     let maxRow = 0;
     let row: number[] = [];
@@ -39,12 +41,17 @@ const generateTotals = (
         }
       }
 
-      if (!total.length) {
+      const count = total.length;
+
+      if (!count) {
         total.push(0);
       }
 
-      if (total.length > maxRow) {
+      if (count.length > maxRow) {
         maxRow = total.length;
+      }
+      if (count > max) {
+        max = total.length;
       }
 
       row.push(total);
