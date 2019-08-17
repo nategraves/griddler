@@ -41521,9 +41521,10 @@ var app = (function () {
 
     var generateTotals = function (colors, solution) {
         var layerTotals = [];
+        var max = 0;
         var _loop_1 = function (i) {
-            var maxRow = 0;
             var row = [];
+            var maxRow = 0;
             for (var rowIndex = 0; rowIndex < solution.length; rowIndex += 1) {
                 var total = [];
                 var inGroup = 0;
@@ -41549,11 +41550,15 @@ var app = (function () {
                         total.push(inGroup);
                     }
                 }
-                if (!total.length) {
+                var count = total.length;
+                if (!count) {
                     total.push(0);
                 }
-                if (total.length > maxRow) {
-                    maxRow = total.length;
+                if (count > maxRow) {
+                    maxRow = count;
+                }
+                if (count > max) {
+                    max = count;
                 }
                 row.push(total);
             }
@@ -41584,11 +41589,15 @@ var app = (function () {
                         total.push(inGroup);
                     }
                 }
-                if (!total.length) {
+                var count = total.length;
+                if (!count) {
                     total.push(0);
                 }
-                if (total.length > maxCol) {
-                    maxCol = total.length;
+                if (count > maxCol) {
+                    maxCol = count;
+                }
+                if (count > max) {
+                    max = count;
                 }
                 col.push(total);
             }
@@ -41601,6 +41610,14 @@ var app = (function () {
         for (var i = 0; i < colors.length; i += 1) {
             _loop_1(i);
         }
+        layerTotals = layerTotals.map(function (layer) {
+            var top = layer[0], left = layer[1], bottom = layer[2], right = layer[3];
+            top = top.map(function (c) { return Array(max - c.length).fill('').concat(c); });
+            left = left.map(function (r) { return Array(max - r.length).fill('').concat(r); });
+            bottom = bottom.map(function (c) { return c.concat(Array(max - c.length).fill('')); });
+            right = right.map(function (r) { return r.concat(Array(max - r.length).fill('')); });
+            return [top, left, bottom, right];
+        });
         return lodash.uniq(layerTotals);
     };
     var fillColors = function (colors, targetSize) {

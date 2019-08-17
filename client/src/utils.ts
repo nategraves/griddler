@@ -6,13 +6,13 @@ type LayerTotals = LayerTotal[];
 const generateTotals = (
   colors: string[], solution: number[][]
 ): LayerTotals => {
-  const layerTotals: LayerTotals = [];
+  let layerTotals: LayerTotals = [];
 
   const max = 0;
 
   for (let i = 0; i < colors.length; i += 1) {
-    let maxRow = 0;
     let row: number[] = [];
+    let maxRow = 0;
 
     for (let rowIndex = 0; rowIndex < solution.length; rowIndex += 1) {
       let total: number[] = [];
@@ -20,7 +20,7 @@ const generateTotals = (
 
       for (let colIndex = 0; colIndex < solution[rowIndex].length; colIndex += 1) {
         let current = solution[rowIndex][colIndex];
-        
+
         if (!!inGroup) {
           if (current === i) {
             inGroup += 1
@@ -47,11 +47,11 @@ const generateTotals = (
         total.push(0);
       }
 
-      if (count.length > maxRow) {
-        maxRow = total.length;
+      if (count > maxRow) {
+        maxRow = count;
       }
       if (count > max) {
-        max = total.length;
+        max = count;
       }
 
       row.push(total);
@@ -87,12 +87,18 @@ const generateTotals = (
         }
       }
 
-      if (!total.length) {
+      const count = total.length;
+
+      if (!count) {
         total.push(0);
       }
 
-      if (total.length > maxCol) {
-        maxCol = total.length;
+      if (count > maxCol) {
+        maxCol = count;
+      }
+
+      if (count > max) {
+        max = count;
       }
 
       col.push(total);
@@ -105,6 +111,17 @@ const generateTotals = (
 
     layerTotals.push([top, left, bottom, right]);
   }
+
+  layerTotals = layerTotals.map(layer => {
+    let [top, left, bottom, right] = layer;
+
+    top = top.map(c => [...Array(max - c.length).fill(''), ...c]);
+    left = left.map(r => [...Array(max - r.length).fill(''), ...r]);
+    bottom = bottom.map(c => [...c, ...Array(max - c.length).fill('')]);
+    right = right.map(r => [...r, ...Array(max - r.length).fill('')]);
+
+    return [top, left, bottom, right];
+  });
 
   return _.uniq(layerTotals);
 }
