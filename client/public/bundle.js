@@ -18031,7 +18031,6 @@ var app = (function () {
             // extra care to replace process.env.NODE_ENV in their production builds,
             // or define an appropriate global.process polyfill.
         }
-    //# sourceMappingURL=invariant.esm.js.map
 
     var fastJsonStableStringify = function (data, opts) {
         if (!opts) opts = {};
@@ -18216,7 +18215,6 @@ var app = (function () {
         bSet.add(b);
         return false;
     }
-    //# sourceMappingURL=equality.esm.js.map
 
     function isStringValue(value) {
         return value.kind === 'StringValue';
@@ -19000,7 +18998,6 @@ var app = (function () {
         }
         return value;
     }
-    //# sourceMappingURL=bundle.esm.js.map
 
     var Observable_1 = createCommonjsModule(function (module, exports) {
 
@@ -19620,7 +19617,6 @@ var app = (function () {
     var zenObservable = Observable_1.Observable;
 
     var Observable = zenObservable;
-    //# sourceMappingURL=bundle.esm.js.map
 
     function validateOperation(operation) {
         var OPERATION_FIELDS = [
@@ -19775,7 +19771,6 @@ var app = (function () {
     function execute(link, operation) {
         return (link.request(createOperation(operation.context, transformOperation(validateOperation(operation)))) || Observable.of());
     }
-    //# sourceMappingURL=bundle.esm.js.map
 
     function symbolObservablePonyfill(root) {
     	var result;
@@ -21909,7 +21904,6 @@ var app = (function () {
         };
         return ApolloClient;
     }());
-    //# sourceMappingURL=bundle.esm.js.map
 
     function queryFromPojo(obj) {
         var op = {
@@ -22077,7 +22071,6 @@ var app = (function () {
         };
         return ApolloCache;
     }());
-    //# sourceMappingURL=bundle.esm.js.map
 
     // This currentContext variable will only be used if the makeSlotClass
     // function is called, which happens only if this is the first copy of the
@@ -22217,7 +22210,6 @@ var app = (function () {
     }();
 
     var bind = Slot.bind, noContext = Slot.noContext;
-    //# sourceMappingURL=context.esm.js.map
 
     function defaultDispose() { }
     var Cache = /** @class */ (function () {
@@ -22696,7 +22688,6 @@ var app = (function () {
         };
         return optimistic;
     }
-    //# sourceMappingURL=bundle.esm.js.map
 
     var testMap = new Map();
     if (testMap.set(1, 2) !== testMap) {
@@ -23665,7 +23656,6 @@ var app = (function () {
         };
         return InMemoryCache;
     }(ApolloCache));
-    //# sourceMappingURL=bundle.esm.js.map
 
     /**
      * Produces the value of a block string from its parsed raw value, similar to
@@ -24180,7 +24170,6 @@ var app = (function () {
             return fallbackURI || '/graphql';
         }
     };
-    //# sourceMappingURL=bundle.esm.js.map
 
     var createHttpLink = function (linkOptions) {
         if (linkOptions === void 0) { linkOptions = {}; }
@@ -24320,7 +24309,6 @@ var app = (function () {
         }
         return HttpLink;
     }(ApolloLink));
-    //# sourceMappingURL=bundle.esm.js.map
 
     function onError(errorHandler) {
         return new ApolloLink(function (operation, forward) {
@@ -24400,7 +24388,6 @@ var app = (function () {
         };
         return ErrorLink;
     }(ApolloLink));
-    //# sourceMappingURL=bundle.esm.js.map
 
     /**
      * The `defineToJSON()` function defines toJSON() and inspect() prototype
@@ -27303,7 +27290,6 @@ var app = (function () {
         }
         return DefaultClient;
     }(ApolloClient));
-    //# sourceMappingURL=bundle.esm.js.map
 
     const DEFAULT_CONFIG = {
       // minimum relative difference between two compared values,
