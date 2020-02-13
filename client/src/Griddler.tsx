@@ -151,6 +151,11 @@ const Griddler: FC<GriddlerProps> = ({ levels }) => {
     display: flex;
   `;
 
+  const Col = styled.div`
+    display: flex;
+    flex-direction: column;
+  `;
+
   const LevelSelect = styled.div`
     align-items: center;
     background: #fff;
@@ -167,6 +172,13 @@ const Griddler: FC<GriddlerProps> = ({ levels }) => {
     &:last-of-type {
       margin-right: 0;
     }
+  `;
+
+  const Board = styled.div`
+    display: grid;
+    grid-gap: 0px;
+    grid-template-columns: repeat(${disabledBoard[0].length}, 1fr);
+    grid-template-rows: repeat(${disabledBoard.length}, 1fr);
   `;
 
   const { colors, title, solution } = level;
@@ -201,18 +213,93 @@ const Griddler: FC<GriddlerProps> = ({ levels }) => {
           ))}
         </Row>
         <Row>
-          {top.map((totals: any[], i: number) =>
-            totals.map((total, j) => (
-              <Block
-                color={color}
-                enabledState={1}
-                size={BLOCK_SIZE}
-                key={`${i}${j}`}
-              >
-                {total}
-              </Block>
-            ))
-          )}
+          {top.map((totals: any[], i: number) => (
+            <Col>
+              {totals.map((total, j) => (
+                <Block
+                  color={color}
+                  enabledState={1}
+                  size={BLOCK_SIZE}
+                  key={`${i}${j}`}
+                >
+                  {total}
+                </Block>
+              ))}
+            </Col>
+          ))}
+        </Row>
+        <Row>
+          <Col>
+            {left.map((totals: any[], i: number) => (
+              <Row>
+                {totals.map((total, j) => (
+                  <Block
+                    color={color}
+                    enabledState={1}
+                    size={BLOCK_SIZE}
+                    key={`${i}${j}`}
+                  >
+                    {total}
+                  </Block>
+                ))}
+              </Row>
+            ))}
+          </Col>
+          <Row>
+            <Board>
+              {disabledBoard.map((row: any[], rowIndex: number) =>
+                row.map((item, colIndex) => (
+                  <Block
+                    enabledState={enabledBoard[rowIndex][colIndex]}
+                    disabledState={disabledBoard[rowIndex][colIndex]}
+                    row={rowIndex}
+                    col={colIndex}
+                    layerIndex={layerIndex}
+                    onMouseDown={mouseDown}
+                    onMouseMove={mouseMove}
+                    onMouseUp={mouseUp}
+                    onClick={toggleEnabled}
+                    onRightClick={toggleDisabled}
+                    buttonDown={buttonDown}
+                    size={BLOCK_SIZE}
+                    color={colors[layerIndex]}
+                  />
+                ))
+              )}
+            </Board>
+          </Row>
+          <Col>
+            {right.map((totals: any[], i: number) => (
+              <Row>
+                {totals.map((total, j) => (
+                  <Block
+                    color={color}
+                    enabledState={1}
+                    size={BLOCK_SIZE}
+                    key={`${i}${j}`}
+                  >
+                    {total}
+                  </Block>
+                ))}
+              </Row>
+            ))}
+          </Col>
+        </Row>
+        <Row>
+          {bottom.map((totals: any[], i: number) => (
+            <Col>
+              {totals.map((total, j) => (
+                <Block
+                  color={color}
+                  enabledState={1}
+                  size={BLOCK_SIZE}
+                  key={`${i}${j}`}
+                >
+                  {total}
+                </Block>
+              ))}
+            </Col>
+          ))}
         </Row>
       </Main>
     </Fragment>
