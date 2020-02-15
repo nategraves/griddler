@@ -8,6 +8,7 @@ const generateTotals = (
   solution: number[][]
 ): LayerTotals => {
   const layerTotals: LayerTotals = [];
+  let max = 0;
 
   for (let i = 0; i < colors.length; i += 1) {
     let maxRow = 0;
@@ -44,12 +45,18 @@ const generateTotals = (
         }
       }
 
-      if (!total.length) {
+      const size = total.length;
+
+      if (!size) {
         total.push(0);
       }
 
-      if (total.length > maxRow) {
-        maxRow = total.length;
+      if (size > maxRow) {
+        maxRow = size;
+      }
+
+      if (size > max) {
+        max = size;
       }
 
       row.push(total);
@@ -85,21 +92,27 @@ const generateTotals = (
         }
       }
 
-      if (!total.length) {
+      const size = total.length;
+
+      if (!size) {
         total.push(0);
       }
 
-      if (total.length > maxCol) {
-        maxCol = total.length;
+      if (size > maxCol) {
+        maxCol = size;
+      }
+
+      if (size > max) {
+        max = size;
       }
 
       col.push(total);
     }
 
-    const top = col.map(c => [...Array(maxCol - c.length).fill(""), ...c]);
-    const left = row.map(r => [...Array(maxRow - r.length).fill(""), ...r]);
-    const bottom = col.map(c => [...c, ...Array(maxCol - c.length).fill("")]);
-    const right = row.map(r => [...r, ...Array(maxRow - r.length).fill("")]);
+    const top = col.map(c => [...Array(max - c.length).fill(""), ...c]);
+    const left = row.map(r => [...Array(max - r.length).fill(""), ...r]);
+    const bottom = col.map(c => [...c, ...Array(max - c.length).fill("")]);
+    const right = row.map(r => [...r, ...Array(max - r.length).fill("")]);
 
     layerTotals.push([top, left, bottom, right]);
   }

@@ -1,6 +1,5 @@
-import React, { FC, useState } from "react";
+import React, { FC } from "react";
 import Color from "color";
-import { url } from "inspector";
 import styled from "styled-components";
 
 const OPEN = -1;
@@ -24,6 +23,14 @@ interface BlockProps {
   transitionTime?: number;
 }
 
+const Container = styled.div`
+  transition: 0.25s all ease-in-out;
+  
+  &:hover {
+    box-shadow: 2px 2px 2px #000000aa: 
+  }
+`;
+
 const Block: FC<BlockProps> = ({
   enabledState = OPEN,
   disabledState = OPEN,
@@ -41,61 +48,47 @@ const Block: FC<BlockProps> = ({
   transitionTime = 0.2,
   children
 }) => {
-  const bg = enabledState === OPEN && disabledState === OPEN ? white : color;
+  const backgroundColor =
+    enabledState === OPEN ? (disabledState === OPEN ? white : color) : color;
   const disabled = disabledState === layerIndex;
-  const backgroundImage = `url(${
+  const backgroundImage = `${
     disabled
       ? `repeating-linear-gradient(
-          45deg,transparent,transparent 3px,${bg} 3px,${bg} 6px
+          45deg,transparent,transparent 3px,${white} 3px,${white} 6px
         )`
       : "none"
-  })`;
-  const textColor = Color(bg).isLight() ? black : white;
-
-  const StyledBlock = styled.div`
-    align-items: center;
-    border: 1px solid rgba(0, 0, 0, 0.4);
-    box-sizing: border-box;
-    cursor: ${disabled ? "default" : "pointer"};
-    display: flex;
-    justify-content: center;
-    position: relative;
-    background-color: ${disabled ? white : bg};
-    background-image: ${backgroundImage};
-    color: ${textColor};
-    font-size: ${size / 3}px;
-    height: ${size}px;
-    transition: all ${transitionTime}s ease-in-out;
-    width: ${size}px;
-  `;
+  }`;
+  const textColor = Color(backgroundColor).isLight() ? black : white;
 
   return (
-    <StyledBlock
-      onClick={e => {
-        e.preventDefault();
-        onClick && onClick(row, col);
+    <Container
+      style={{
+        alignItems: "center",
+        backgroundColor,
+        backgroundImage,
+        border: "1px solid rgba(0, 0, 0, 0.4)",
+        boxSizing: "border-box",
+        color: `${textColor}`,
+        cursor: `${disabled || !onClick ? "default" : "pointer"}`,
+        display: "flex",
+        fontSize: `${size / 3}px`,
+        height: `${size}px`,
+        justifyContent: "center",
+        position: "relative",
+        transition: `all ${transitionTime}s ease-in-out`,
+        width: `${size}px`
       }}
+      onClick={() => onClick && onClick(row, col)}
       onContextMenu={e => {
         e.preventDefault();
         onRightClick && onRightClick(row, col);
       }}
-      onMouseDown={e => {
-        e.preventDefault();
-        onMouseDown && onMouseDown(e, row, col);
-      }}
-      onMouseMove={e => {
-        e.preventDefault();
-
-        onMouseMove && onMouseMove(row, col);
-      }}
-      onMouseUp={e => {
-        e.preventDefault();
-
-        onMouseUp && onMouseUp(row, col);
-      }}
+      onMouseDown={e => onMouseDown && onMouseDown(e, row, col)}
+      onMouseMove={() => onMouseMove && onMouseMove(row, col)}
+      onMouseUp={() => onMouseUp && onMouseUp(row, col)}
     >
       {children}
-    </StyledBlock>
+    </Container>
   );
 };
 

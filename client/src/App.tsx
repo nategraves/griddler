@@ -1,4 +1,5 @@
 import React from "react";
+import { BrowserRouter, Route, Switch } from "react-router-dom";
 import { useQuery } from "@apollo/react-hooks";
 
 import Griddler from "./Griddler";
@@ -17,7 +18,18 @@ const App = () => {
     return <div>{error ? error.message : "Something went wrong"}</div>;
   }
 
-  return <Griddler levels={data.levels} />;
+  return (
+    <BrowserRouter>
+      <Switch>
+        <Route path="/:id">
+          <Griddler levels={data.levels} />
+        </Route>
+        <Route path="/">
+          <Griddler levels={data.levels} />
+        </Route>
+      </Switch>
+    </BrowserRouter>
+  );
 };
 
 export default App;
