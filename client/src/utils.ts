@@ -8,9 +8,9 @@ const generateTotals = (
   solution: number[][]
 ): LayerTotals => {
   const layerTotals: LayerTotals = [];
-  let max = 0;
 
   for (let i = 0; i < colors.length; i += 1) {
+    let max = 0;
     let maxRow = 0;
     let row: number[][] = [];
 

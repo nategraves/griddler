@@ -1,18 +1,17 @@
 import React, { FC, Fragment, useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import { Level } from "./types";
-import { deepEqual, matrix } from "mathjs";
+import { Level, Solution } from "../types";
+import { deepEqual } from "mathjs";
 import styled from "styled-components";
 
-import { generateTotals } from "./utils";
-import Block from "./Block";
+import { generateTotals } from "../utils";
+import { Block, Totals, Row, Col } from "./index";
 
 interface GriddlerProps {
   levels: Level[];
 }
 
 const LEVEL_START = 0;
-const BLOCK_SIZE = 32;
 const CellStatus = {
   OPEN: -1,
   DISABLED: -2
@@ -28,20 +27,6 @@ const Main = styled.div`
   flex-direction: column;
   justify-content: center;
   padding: 2rem;
-`;
-
-const Board = styled.div`
-  display: grid;
-  grid-gap: 0px;
-`;
-
-const Row = styled.div`
-  display: flex;
-`;
-
-const Col = styled.div`
-  display: flex;
-  flex-direction: column;
 `;
 
 const Skew = styled.div`
@@ -80,6 +65,24 @@ const LevelSelect = styled(Link)`
 type SolveableLevel = Level & { solved: boolean };
 
 const Griddler: FC<GriddlerProps> = ({ levels: initialLevels }) => {
+  const openSolutions = () =>
+    levels.map(l => l.solution.map(r => r.map(c => CellStatus.OPEN)));
+
+  const compareBoard = (
+    solution: Solution,
+    enabledBoard: Solution
+  ):
+    | number
+    | math.BigNumber
+    | math.Fraction
+    | math.Complex
+    | math.Unit
+    | number[]
+    | number[][]
+    | math.Matrix => {
+    return deepEqual(solution, enabledBoard);
+  };
+
   const [levels, setLevels] = useState<SolveableLevel[]>(
     initialLevels.map(level => ({ ...level, solved: false }))
   );
@@ -87,16 +90,10 @@ const Griddler: FC<GriddlerProps> = ({ levels: initialLevels }) => {
   const levelId = id ? parseInt(id, 10) : LEVEL_START;
   const [levelIndex, setLevelIndex] = useState(levelId);
   const [level, setLevel] = useState(levels[levelIndex]);
-  const [enabledBoards, setEnabledBoards] = useState(
-    levels.map(l => l.solution.map(r => r.map(c => CellStatus.OPEN)))
-  );
-  const [disabledBoards, setDisabledBoards] = useState(
-    levels.map(l => l.solution.map(r => r.map(c => CellStatus.OPEN)))
-  );
-  const [enabledBoard, setEnabledBoard] = useState(enabledBoards[LEVEL_START]);
-  const [disabledBoard, setDisabledBoard] = useState(
-    enabledBoards[LEVEL_START]
-  );
+  const [enabledBoards, setEnabledBoards] = useState(openSolutions());
+  const [disabledBoards, setDisabledBoards] = useState(openSolutions());
+  const [enabledBoard, setEnabledBoard] = useState(enabledBoards[levelId]);
+  const [disabledBoard, setDisabledBoard] = useState(disabledBoards[levelId]);
   const [layerIndex, setLayerIndex] = useState(0);
   const [buttonDown, setButtonDown] = useState<number | null>(null);
   const [buttonDownValue, setButtonDownValue] = useState<number | null>(null);
@@ -106,18 +103,19 @@ const Griddler: FC<GriddlerProps> = ({ levels: initialLevels }) => {
     setLevelIndex(levelIndex);
     setLevel(levels[levelIndex]);
     setLayerIndex(0);
-  }, [levelIndex, enabledBoards, disabledBoards, levels, id]);
+  }, [levelIndex, levels, id]);
 
   useEffect(() => {
-    setEnabledBoard(enabledBoards[layerIndex]);
-    setDisabledBoard(disabledBoards[layerIndex]);
-  }, [layerIndex, enabledBoards, disabledBoard]);
+    console.log(`Setting enabled and disabled boards`);
+    setEnabledBoard(enabledBoards[levelIndex]);
+    setDisabledBoard(disabledBoards[levelIndex]);
+  }, [levelIndex, enabledBoards, disabledBoards]);
 
   useEffect(() => {
-    const same = compareBoard();
-    levels[levelIndex].solved = false;
+    const same = compareBoard(level.solution, enabledBoard);
+    levels[levelIndex].solved = !!same;
     setLevels(levels);
-  }, [enabledBoard]);
+  }, [compareBoard, enabledBoard]);
 
   const width = () => level.solution[0].length;
   const height = () => level.solution.length;
@@ -148,44 +146,31 @@ const Griddler: FC<GriddlerProps> = ({ levels: initialLevels }) => {
     enabledBoards[levelIndex] = getCleanBoard();
   };
 
-  const compareBoard = ():
-    | number
-    | math.BigNumber
-    | math.Fraction
-    | math.Complex
-    | math.Unit
-    | number[]
-    | number[][]
-    | math.Matrix => {
-    console.log(level.solution);
-    const same = deepEqual(level.solution, enabledBoard);
-    console.log("Same", same);
-    return same;
-  };
-
   const mouseDown = (e: MouseEvent, row: number, col: number) => {
-    setButtonDown(e.button);
-    console.log(e.button);
-    if (buttonDown === 0) {
+    const { button } = e;
+    setButtonDown(button);
+
+    if (button === 0) {
       if (disabledBoard[row][col] === layerIndex) {
         return;
       }
-      const buttonDownValue =
-        enabledBoard[row][col] === CellStatus.OPEN
+      const buttonValue =
+        enabledBoards[levelIndex][row][col] === CellStatus.OPEN
           ? layerIndex
           : CellStatus.OPEN;
-      setButtonDownValue(buttonDownValue);
-      enabledBoard[row][col] = buttonDownValue;
-      setEnabledBoard(enabledBoard);
-    }
-    if (buttonDown === 2) {
-      const buttonDownValue =
-        disabledBoard[row][col] === CellStatus.OPEN
+      enabledBoards[levelIndex][row][col] = buttonValue;
+      setButtonDownValue(buttonValue);
+      setEnabledBoards(enabledBoards);
+    } else if (button === 2) {
+      const buttonValue =
+        disabledBoards[levelIndex][row][col] === CellStatus.OPEN
           ? layerIndex
           : CellStatus.OPEN;
-      setButtonDownValue(buttonDownValue);
-      disabledBoard[row][col] = buttonDownValue;
-      setDisabledBoard(disabledBoard);
+      disabledBoards[levelIndex][row][col] = buttonValue;
+      setButtonDownValue(buttonValue);
+      setDisabledBoards(disabledBoards);
+    } else {
+      console.error(`Unhandled Button: ${button}`);
     }
   };
 
@@ -193,16 +178,17 @@ const Griddler: FC<GriddlerProps> = ({ levels: initialLevels }) => {
     if (
       buttonDown === null ||
       buttonDownValue === null ||
-      disabledBoard[row][col] === layerIndex
+      disabledBoards[levelIndex][row][col] === layerIndex
     ) {
       return false;
     }
+
     if (buttonDown === 0) {
-      enabledBoard[row][col] = buttonDownValue;
-      setEnabledBoard([...enabledBoard]);
+      enabledBoards[levelIndex][row][col] = buttonDownValue;
+      setEnabledBoards(enabledBoards);
     } else if (buttonDown === 2) {
-      disabledBoard[row][col] = buttonDownValue;
-      setDisabledBoard([...disabledBoard]);
+      disabledBoards[levelIndex][row][col] = buttonDownValue;
+      setDisabledBoards(disabledBoards);
     }
   };
 
@@ -212,21 +198,22 @@ const Griddler: FC<GriddlerProps> = ({ levels: initialLevels }) => {
   };
 
   const toggleEnabled = (row: number, col: number) => {
-    if (disabledBoard[row][col] === layerIndex) {
+    if (disabledBoards[levelIndex][row][col] === layerIndex) {
       return false;
     }
-    enabledBoard[row][col] =
-      enabledBoard[row][col] === CellStatus.OPEN ? layerIndex : CellStatus.OPEN;
-    setEnabledBoard([...enabledBoard]);
-    compareBoard();
+    enabledBoards[levelIndex][row][col] =
+      enabledBoards[levelIndex][row][col] === CellStatus.OPEN
+        ? layerIndex
+        : CellStatus.OPEN;
+    setEnabledBoards(enabledBoards);
   };
 
   const toggleDisabled = (row: number, col: number) => {
-    disabledBoard[row][col] =
-      disabledBoard[row][col] === CellStatus.OPEN
+    disabledBoards[levelIndex][row][col] =
+      disabledBoards[levelIndex][row][col] === CellStatus.OPEN
         ? layerIndex
         : CellStatus.OPEN;
-    setDisabledBoard([...disabledBoard]);
+    setDisabledBoards(disabledBoards);
   };
 
   const { colors, title, solution } = level;
@@ -262,39 +249,9 @@ const Griddler: FC<GriddlerProps> = ({ levels: initialLevels }) => {
           ))}
         </Row>
         <Skew>
+          <Totals totals={top} color={color} />
           <Row>
-            {top.map((totals: any[], i: number) => (
-              <Col key={`top-col-${i}`}>
-                {totals.map((total, j) => (
-                  <Block
-                    color={color}
-                    enabledState={1}
-                    size={BLOCK_SIZE}
-                    key={`top-total-${i}-${j}`}
-                  >
-                    {total}
-                  </Block>
-                ))}
-              </Col>
-            ))}
-          </Row>
-          <Row>
-            <Col>
-              {left.map((totals: any[], i: number) => (
-                <Row key={`left-row-${i}`}>
-                  {totals.map((total, j) => (
-                    <Block
-                      color={color}
-                      enabledState={1}
-                      size={BLOCK_SIZE}
-                      key={`left-total-${i}-${j}`}
-                    >
-                      {total}
-                    </Block>
-                  ))}
-                </Row>
-              ))}
-            </Col>
+            <Totals totals={left} color={color} />
             <Row>
               <Board
                 style={{

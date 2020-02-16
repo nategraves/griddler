@@ -4,12 +4,17 @@ import "./index.css";
 import App from "./App";
 import * as serviceWorker from "./serviceWorker";
 import { ApolloProvider } from "@apollo/react-hooks";
+import { UIProvider } from "./Contexts/UI";
 
 import { client } from "./gql";
 
+const BLOCK_SIZE = 32;
+
 ReactDOM.render(
   <ApolloProvider client={client}>
-    <App />
+    <UIProvider blockSize={BLOCK_SIZE}>
+      <App />
+    </UIProvider>
   </ApolloProvider>,
   document.getElementById("root")
 );
