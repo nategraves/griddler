@@ -6,6 +6,8 @@ const StyledRow = styled.div`
   flex-direction: column;
 `;
 
-const Col: FC<{}> = ({ children }) => <StyledRow>{children}</StyledRow>;
+const Col: FC<{ style?: React.CSSProperties }> = ({ children, style }) => (
+  <StyledRow style={style}>{children}</StyledRow>
+);
 
 export default Col;

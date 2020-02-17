@@ -5,6 +5,8 @@ const StyledRow = styled.div`
   display: flex;
 `;
 
-const Row: FC<{}> = ({ children }) => <StyledRow>{children}</StyledRow>;
+const Row: FC<{ style?: React.CSSProperties }> = ({ children, style }) => (
+  <StyledRow style={style}>{children}</StyledRow>
+);
 
 export default Row;
