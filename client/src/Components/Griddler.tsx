@@ -1,11 +1,11 @@
-import React, { FC } from "react";
-import { Link } from "react-router-dom";
-import styled from "styled-components";
+import React, { FC } from 'react';
+import { Link } from 'react-router-dom';
+import styled from 'styled-components';
 
-import { Block, Board, Totals, Row, Col } from "./index";
-import { Level } from "../types";
-import { LevelsConsumer } from "../Contexts/Levels";
-import { UIConsumer } from "../Contexts/UI";
+import { Block, Board, Totals, Row, Col } from './index';
+import { Level } from '../types';
+import { LevelsConsumer } from '../Contexts/Levels';
+import { UIConsumer } from '../Contexts/UI';
 
 interface GriddlerProps {
   levels: Level[];
@@ -64,7 +64,19 @@ const Griddler: FC<GriddlerProps> = ({ levels }) => {
           return null;
         }
 
-        const {} = levelsProps;
+        const {
+          levelIndex,
+          level,
+          width,
+          height,
+          totals,
+          setLayerIndex,
+          color,
+          enabledBoard,
+          disabledBoard,
+        } = levelsProps;
+        const { title, colors } = level;
+        const { top, right, bottom, left } = totals;
 
         return (
           <UIConsumer>
@@ -89,9 +101,9 @@ const Griddler: FC<GriddlerProps> = ({ levels }) => {
                     ))}
                   </Row>
                   <h1>
-                    {levelIndex + 1}: {title} ({width()}, {height()})
+                    {levelIndex + 1}: {title} ({width}, {height})
                   </h1>
-                  <Row style={{ marginBottom: "1.5rem" }}>
+                  <Row style={{ marginBottom: '1.5rem' }}>
                     {colors.map((color, index) => (
                       <Block
                         enabledState={1}

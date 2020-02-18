@@ -1,22 +1,25 @@
-import React from "react";
-import ReactDOM from "react-dom";
-import "./index.css";
-import App from "./App";
-import * as serviceWorker from "./serviceWorker";
-import { ApolloProvider } from "@apollo/react-hooks";
-import { UIProvider } from "./Contexts/UI";
+import React from 'react';
+import ReactDOM from 'react-dom';
+import './index.css';
+import App from './App';
+import * as serviceWorker from './serviceWorker';
+import { ApolloProvider } from '@apollo/react-hooks';
+import { UIProvider } from './Contexts/UI';
+import { LevelsProvider } from './Contexts/Levels';
 
-import { client } from "./gql";
+import { client } from './gql';
 
 const BLOCK_SIZE = 32;
 
 ReactDOM.render(
   <ApolloProvider client={client}>
     <UIProvider blockSize={BLOCK_SIZE}>
-      <App />
+      <LevelsProvider>
+        <App />
+      </LevelsProvider>
     </UIProvider>
   </ApolloProvider>,
-  document.getElementById("root")
+  document.getElementById('root')
 );
 
 // If you want your app to work offline and load faster, you can change

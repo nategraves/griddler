@@ -1,18 +1,21 @@
-import React, { FC, createContext, useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
-import { deepEqual } from "mathjs";
-import { generateTotals } from "../utils";
+import React, { FC, createContext, useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { deepEqual } from 'mathjs';
+import { generateTotals } from '../utils';
 
-import { Levels } from "../gql";
-import { Level, Solution } from "../types";
-import { client } from "../gql";
-import { ApolloQueryResult } from "apollo-boost";
+import { Levels } from '../gql';
+import { Level, Solution } from '../types';
+import { client } from '../gql';
+import { ApolloQueryResult } from 'apollo-boost';
 
 type SolveableLevel = Level & { solved: boolean };
+type Total = number[][];
+type Totals = { top: Total; right: Total; bottom: Total; left: Total };
 
 interface LevelsValue {
-  level: SolveableteLevel;
-  setLevels: (levels: Level[]) => void;
+  levels: SolveableLevel[];
+  level: SolveableLevel;
+  setLevels: (levels: SolveableLevel[]) => void;
   levelIndex: number;
   setLevelIndex: (index: number) => void;
   layerIndex: number;
@@ -22,16 +25,23 @@ interface LevelsValue {
   color: string;
   width: number;
   height: number;
+  totals: Totals;
+  mouseDown: (e: MouseEvent, row: number, col: number) => void;
+  mouseMove: (row: number, col: number) => false | undefined;
+  mouseUp: (e: MouseEvent) => void;
+  toggleEnabled: (row: number, col: number) => void;
+  toggleDisabled: (row: number, col: number) => void;
+  buttonDown: number | null;
 }
 
 const LevelsContext = createContext<LevelsValue | null>(null);
 const LEVEL_START = 0;
 const CellStatus = {
   OPEN: -1,
-  DISABLED: -2
+  DISABLED: -2,
 };
 
-export const LevelsProvider: FC<{}> = ({ children }) => {
+export const LevelsProvider: FC = ({ children }) => {
   const { id } = useParams();
   const levelId = id ? parseInt(id, 10) : LEVEL_START;
   const compareBoard = (
@@ -56,7 +66,7 @@ export const LevelsProvider: FC<{}> = ({ children }) => {
 
   const [levels, setLevels] = useState<SolveableLevel[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
   const [levelIndex, setLevelIndex] = useState(levelId);
   const [level, setLevel] = useState(levels[levelIndex]);
   const [enabledBoards, setEnabledBoards] = useState(openSolutions());
@@ -68,13 +78,15 @@ export const LevelsProvider: FC<{}> = ({ children }) => {
   const [buttonDownValue, setButtonDownValue] = useState<number | null>(null);
 
   useEffect(() => {
+    console.log('loading');
+
     const load = async () => {
       setLoading(true);
 
       type LevelsRepsonse = { levels: Level[] };
       try {
         const response: ApolloQueryResult<LevelsRepsonse> = await client.query({
-          query: Levels
+          query: Levels,
         });
 
         setLevels(
@@ -88,6 +100,7 @@ export const LevelsProvider: FC<{}> = ({ children }) => {
       }
     };
 
+    console.log('loading');
     load();
   }, []);
 
@@ -105,12 +118,13 @@ export const LevelsProvider: FC<{}> = ({ children }) => {
   }, [levelIndex, enabledBoards, disabledBoards]);
 
   useEffect(() => {
-    const same = compareBoard(level.solution, enabledBoard);
-    levels[levelIndex].solved = !!same;
+    let { solution, solved } = level;
+    const same = compareBoard(solution, enabledBoard);
+    solved = !!same;
     setLevels(levels);
   }, [compareBoard, enabledBoard]);
 
-  const { colors, title, solution } = level;
+  const { colors, solution } = level;
   const color = colors[layerIndex];
   const [top, left, bottom, right] = generateTotals(colors, solution)[
     layerIndex
@@ -224,6 +238,7 @@ export const LevelsProvider: FC<{}> = ({ children }) => {
   }
 
   const value: LevelsValue = {
+    levels,
     level,
     setLevels,
     levelIndex,
@@ -233,7 +248,15 @@ export const LevelsProvider: FC<{}> = ({ children }) => {
     width: width(),
     height: height(),
     enabledBoard,
-    disabledBoard
+    disabledBoard,
+    color,
+    totals: { top, right, bottom, left },
+    mouseDown,
+    mouseMove,
+    mouseUp,
+    buttonDown,
+    toggleDisabled,
+    toggleEnabled,
   };
 
   return (
