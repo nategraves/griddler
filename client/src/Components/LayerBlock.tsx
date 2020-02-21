@@ -1,10 +1,10 @@
-import React, { FC } from "react";
-import Color from "color";
-import styled from "styled-components";
+import React, { FC } from 'react';
+import Color from 'color';
+import styled from 'styled-components';
 
 const OPEN = -1;
-const white = "#eee";
-const black = "#111";
+const white = '#eee';
+const black = '#111';
 
 interface BlockProps {
   enabledState?: number;
@@ -31,7 +31,7 @@ const Container = styled.div`
   }
 `;
 
-const Block: FC<BlockProps> = ({
+const LayerBlock: FC<BlockProps> = ({
   enabledState = OPEN,
   disabledState = OPEN,
   row,
@@ -46,7 +46,7 @@ const Block: FC<BlockProps> = ({
   size,
   color,
   transitionTime = 0.2,
-  children
+  children,
 }) => {
   const backgroundColor =
     enabledState === OPEN ? (disabledState === OPEN ? white : color) : color;
@@ -56,27 +56,27 @@ const Block: FC<BlockProps> = ({
       ? `repeating-linear-gradient(
           45deg,transparent,transparent 3px,${white} 3px,${white} 6px
         )`
-      : "none"
+      : 'none'
   }`;
   const textColor = Color(backgroundColor).isLight() ? black : white;
 
   return (
     <Container
       style={{
-        alignItems: "center",
+        alignItems: 'center',
         backgroundColor,
         backgroundImage,
-        border: "1px solid rgba(0, 0, 0, 0.4)",
-        boxSizing: "border-box",
+        border: '1px solid rgba(0, 0, 0, 0.4)',
+        boxSizing: 'border-box',
         color: `${textColor}`,
-        cursor: `${disabled || !onClick ? "default" : "pointer"}`,
-        display: "flex",
+        cursor: `${disabled || !onClick ? 'default' : 'pointer'}`,
+        display: 'flex',
         fontSize: `${size / 3}px`,
         height: `${size}px`,
-        justifyContent: "center",
-        position: "relative",
+        justifyContent: 'center',
+        position: 'relative',
         transition: `all ${transitionTime}s ease-in-out`,
-        width: `${size}px`
+        width: `${size}px`,
       }}
       onClick={() => onClick && onClick(row, col)}
       onContextMenu={e => {
@@ -92,4 +92,4 @@ const Block: FC<BlockProps> = ({
   );
 };
 
-export default Block;
+export default LayerBlock;

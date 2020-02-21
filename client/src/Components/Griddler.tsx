@@ -1,15 +1,8 @@
-import React, { FC } from 'react';
-import { Link } from 'react-router-dom';
+import React from 'react';
 import styled from 'styled-components';
 
-import { Block, Board, Totals, Row, Col } from './index';
-import { Level } from '../types';
+import { LayerPicker, Board, Totals, Row, LevelPicker } from './index';
 import { LevelsConsumer } from '../Contexts/Levels';
-import { UIConsumer } from '../Contexts/UI';
-
-interface GriddlerProps {
-  levels: Level[];
-}
 
 const Main = styled.div`
   align-items: center;
@@ -20,154 +13,60 @@ const Main = styled.div`
   display: flex;
   flex-direction: column;
   justify-content: center;
+  overflow-y: scroll;
   padding: 2rem;
 `;
 
 const Skew = styled.div`
   align-items: center;
-  box-shadow: -4px 4px 2px #00000055;
   display: flex;
   flex-direction: column;
   justify-content: center;
 `;
 
-const LevelSelect = styled(Link)<{ size: number }>`
-  align-items: center;
-  background: #fff;
-  border: 1px solid rgba(0, 0, 0, 0.5);
-  border-radius: ${({ size }) => size / 4}px;
-  color: #111;
-  cursor: pointer;
-  display: inline-flex;
-  height: ${({ size }) => size}px;
-  justify-content: center;
-  margin-right: ${({ size }) => size / 4}px;
-  padding: ${({ size }) => size / 4}px;
-  transition: all 0.25s ease-in-out;
-  text-decoration: none;
-  width: ${({ size }) => size}px;
+const Griddler = () => (
+  <LevelsConsumer>
+    {levelsProps => {
+      if (!levelsProps) {
+        return null;
+      }
 
-  &:hover {
-    background: #eee;
-  }
+      const {
+        levels,
+        levelIndex,
+        level,
+        width,
+        height,
+        totals,
+        setLayerIndex,
+        color,
+        blockSize,
+      } = levelsProps;
+      const { title, colors } = level;
+      const { top, right, bottom, left } = totals;
 
-  &:last-of-type {
-    margin-right: 0;
-  }
-`;
-
-const Griddler: FC<GriddlerProps> = ({ levels }) => {
-  return (
-    <LevelsConsumer>
-      {levelsProps => {
-        if (!levelsProps) {
-          return null;
-        }
-
-        const {
-          levelIndex,
-          level,
-          width,
-          height,
-          totals,
-          setLayerIndex,
-          color,
-          enabledBoard,
-          disabledBoard,
-        } = levelsProps;
-        const { title, colors } = level;
-        const { top, right, bottom, left } = totals;
-
-        return (
-          <UIConsumer>
-            {uiProps => {
-              if (!uiProps) {
-                return null;
-              }
-
-              const { blockSize } = uiProps;
-
-              return (
-                <Main>
-                  <Row>
-                    {levels.map((level, index) => (
-                      <LevelSelect
-                        size={blockSize}
-                        to={`/${index}`}
-                        key={`level-${index}-${level.title}`}
-                      >
-                        {index + 1}
-                      </LevelSelect>
-                    ))}
-                  </Row>
-                  <h1>
-                    {levelIndex + 1}: {title} ({width}, {height})
-                  </h1>
-                  <Row style={{ marginBottom: '1.5rem' }}>
-                    {colors.map((color, index) => (
-                      <Block
-                        enabledState={1}
-                        color={color}
-                        onClick={() => setLayerIndex(index)}
-                        size={blockSize}
-                        key={`${level.title}-color-${index}`}
-                      >
-                        {color}
-                      </Block>
-                    ))}
-                  </Row>
-                  <Skew>
-                    <Totals totals={top} color={color} />
-                    <Row>
-                      <Totals totals={left} color={color} />
-                      <Row>
-                        <Board
-                          enabledBoard={enabledBoard}
-                          disabledBoard={disabledBoard}
-                        />
-                      </Row>
-                      <Col>
-                        {right.map((totals: any[], i: number) => (
-                          <Row key={`right-row-${i}`}>
-                            {totals.map((total, j) => (
-                              <Block
-                                color={color}
-                                enabledState={1}
-                                size={blockSize}
-                                key={`right-total-${i}-${j}`}
-                              >
-                                {total}
-                              </Block>
-                            ))}
-                          </Row>
-                        ))}
-                      </Col>
-                    </Row>
-                    <Row>
-                      {bottom.map((totals: any[], i: number) => (
-                        <Col key={`bottom-col-${i}`}>
-                          {totals.map((total, j) => (
-                            <Block
-                              color={color}
-                              enabledState={1}
-                              size={blockSize}
-                              key={`bottom-total-${i}-${j}`}
-                            >
-                              {total}
-                            </Block>
-                          ))}
-                        </Col>
-                      ))}
-                    </Row>
-                  </Skew>
-                </Main>
-              );
-            }}
-          </UIConsumer>
-        );
-      }}
-    </LevelsConsumer>
-  );
-};
+      return (
+        <Main>
+          <LevelPicker />
+          <h1>
+            {levelIndex + 1}: {title} ({width}, {height})
+          </h1>
+          <LayerPicker />
+          <Skew style={{ backgroundColor: color }}>
+            <Totals totals={top} color={color} />
+            <Row>
+              <Totals totals={left} color={color} vertical />
+              <Row>
+                <Board />
+              </Row>
+              <Totals totals={right} color={color} vertical />
+            </Row>
+            <Totals totals={bottom} color={color} />
+          </Skew>
+        </Main>
+      );
+    }}
+  </LevelsConsumer>
+);
 
 export default Griddler;

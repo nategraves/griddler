@@ -1,184 +1,113 @@
-import React, { FC, createContext, useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import React, {
+  FC,
+  createContext,
+  useEffect,
+  useState,
+  MouseEvent,
+} from 'react';
 import { deepEqual } from 'mathjs';
 import { generateTotals } from '../utils';
 
-import { Levels } from '../gql';
-import { Level, Solution } from '../types';
-import { client } from '../gql';
-import { ApolloQueryResult } from 'apollo-boost';
-
-type SolveableLevel = Level & { solved: boolean };
-type Total = number[][];
-type Totals = { top: Total; right: Total; bottom: Total; left: Total };
-
-interface LevelsValue {
-  levels: SolveableLevel[];
-  level: SolveableLevel;
-  setLevels: (levels: SolveableLevel[]) => void;
-  levelIndex: number;
-  setLevelIndex: (index: number) => void;
-  layerIndex: number;
-  setLayerIndex: (index: number) => void;
-  enabledBoard: number[][];
-  disabledBoard: number[][];
-  color: string;
-  width: number;
-  height: number;
-  totals: Totals;
-  mouseDown: (e: MouseEvent, row: number, col: number) => void;
-  mouseMove: (row: number, col: number) => false | undefined;
-  mouseUp: (e: MouseEvent) => void;
-  toggleEnabled: (row: number, col: number) => void;
-  toggleDisabled: (row: number, col: number) => void;
-  buttonDown: number | null;
-}
+import { Solution, SolveableLevel } from '../types';
 
 const LevelsContext = createContext<LevelsValue | null>(null);
-const LEVEL_START = 0;
 const CellStatus = {
   OPEN: -1,
   DISABLED: -2,
 };
 
-export const LevelsProvider: FC = ({ children }) => {
-  const { id } = useParams();
-  const levelId = id ? parseInt(id, 10) : LEVEL_START;
+export const LevelsProvider: FC<LevelsProviderProps> = ({
+  levelIndex: initialLevelIndex,
+  levels: initialLevels,
+  blockSize = 32,
+  children,
+}) => {
   const compareBoard = (
     solution: Solution,
     enabledBoard: Solution
-  ):
-    | number
-    | math.BigNumber
-    | math.Fraction
-    | math.Complex
-    | math.Unit
-    | number[]
-    | number[][]
-    | math.Matrix => {
+  ): CompareBoardReturn => {
+    if (!enabledBoard || !solution) {
+      return false;
+    }
+
     return deepEqual(solution, enabledBoard);
   };
 
-  const openSolutions = () =>
-    levels.length > 0
-      ? levels.map(l => l.solution.map(r => r.map(c => CellStatus.OPEN)))
-      : [];
+  const openSolutions = (): Board[] => {
+    const boards =
+      levels.length > 0
+        ? levels.map(l => l.solution.map(r => r.map(c => CellStatus.OPEN)))
+        : [];
+    return boards;
+  };
 
-  const [levels, setLevels] = useState<SolveableLevel[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [levelIndex, setLevelIndex] = useState(levelId);
-  const [level, setLevel] = useState(levels[levelIndex]);
-  const [enabledBoards, setEnabledBoards] = useState(openSolutions());
-  const [disabledBoards, setDisabledBoards] = useState(openSolutions());
-  const [enabledBoard, setEnabledBoard] = useState(enabledBoards[levelId]);
-  const [disabledBoard, setDisabledBoard] = useState(disabledBoards[levelId]);
+  const [levels, setLevels] = useState<SolveableLevel[]>(initialLevels);
+  const [levelIndex, setLevelIndex] = useState(initialLevelIndex);
+  const [enabledBoards, setEnabledBoards] = useState<Board[]>([]);
+  const [disabledBoards, setDisabledBoards] = useState<Board[]>([]);
+  const [enabledBoard, setEnabledBoard] = useState<Board>([]);
+  const [disabledBoard, setDisabledBoard] = useState<Board>([]);
   const [layerIndex, setLayerIndex] = useState(0);
   const [buttonDown, setButtonDown] = useState<number | null>(null);
   const [buttonDownValue, setButtonDownValue] = useState<number | null>(null);
 
   useEffect(() => {
-    console.log('loading');
-
-    const load = async () => {
-      setLoading(true);
-
-      type LevelsRepsonse = { levels: Level[] };
-      try {
-        const response: ApolloQueryResult<LevelsRepsonse> = await client.query({
-          query: Levels,
-        });
-
-        setLevels(
-          response.data.levels.map(level => ({ ...level, solved: false }))
-        );
-      } catch (e) {
-        setError(e.message);
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    console.log('loading');
-    load();
+    setEnabledBoard(enabledBoards[levelIndex]);
+    setDisabledBoard(disabledBoards[levelIndex]);
+    setLayerIndex(0);
   }, []);
 
   useEffect(() => {
-    const levelIndex = id ? parseInt(id, 10) : LEVEL_START;
-    setLevelIndex(levelIndex);
-    setLevel(levels[levelIndex]);
-    setLayerIndex(0);
-  }, [levelIndex, levels, id]);
+    setLevelIndex(initialLevelIndex);
 
+    const openBoards = openSolutions();
+    setEnabledBoards([...openBoards]);
+    setDisabledBoards([...openBoards]);
+
+    setEnabledBoard(openBoards[initialLevelIndex]);
+    setDisabledBoard(openBoards[initialLevelIndex]);
+  }, [levels, initialLevelIndex]);
+
+  /*
   useEffect(() => {
-    console.log(`Setting enabled and disabled boards`);
     setEnabledBoard(enabledBoards[levelIndex]);
-    setDisabledBoard(disabledBoards[levelIndex]);
-  }, [levelIndex, enabledBoards, disabledBoards]);
+  }, [enabledBoards]);
 
   useEffect(() => {
-    let { solution, solved } = level;
-    const same = compareBoard(solution, enabledBoard);
-    solved = !!same;
-    setLevels(levels);
-  }, [compareBoard, enabledBoard]);
-
-  const { colors, solution } = level;
-  const color = colors[layerIndex];
-  const [top, left, bottom, right] = generateTotals(colors, solution)[
-    layerIndex
-  ];
-
-  const getCleanBoard = () => {
-    const _board = Array(width()).fill(
-      Array(width()).map(() => Array(height()).fill(CellStatus.OPEN))
-    );
-    return _board;
-  };
-
-  const clearBoards = () => {
-    if (enabledBoards.length > 0) {
-      enabledBoards[levelIndex] = getCleanBoard();
-      setEnabledBoards(enabledBoards);
-    }
-    if (disabledBoards.length > 0) {
-      disabledBoards[levelIndex] = getCleanBoard();
-      setDisabledBoards(disabledBoards);
-    }
-  };
-
-  const clearDisabledBoard = () => {
-    disabledBoards[levelIndex] = getCleanBoard();
-  };
-
-  const clearEnabledBoard = () => {
-    enabledBoards[levelIndex] = getCleanBoard();
-  };
+    setDisabledBoard(disabledBoards[levelIndex]);
+  }, [disabledBoards]);
+  */
 
   const mouseDown = (e: MouseEvent, row: number, col: number) => {
     const { button } = e;
     setButtonDown(button);
 
     if (button === 0) {
-      if (disabledBoard[row][col] === layerIndex) {
-        return;
-      }
       const buttonValue =
         enabledBoards[levelIndex][row][col] === CellStatus.OPEN
           ? layerIndex
           : CellStatus.OPEN;
-      enabledBoards[levelIndex][row][col] = buttonValue;
+
+      console.log('Left down', buttonValue);
       setButtonDownValue(buttonValue);
+      enabledBoards[levelIndex][row][col] = buttonValue;
       setEnabledBoards(enabledBoards);
+      setEnabledBoard(enabledBoards[levelIndex]);
+      return;
     } else if (button === 2) {
       const buttonValue =
         disabledBoards[levelIndex][row][col] === CellStatus.OPEN
           ? layerIndex
           : CellStatus.OPEN;
-      disabledBoards[levelIndex][row][col] = buttonValue;
+
+      console.log('Right down', buttonValue);
       setButtonDownValue(buttonValue);
+      disabledBoards[levelIndex][row][col] = buttonValue;
+      console.log(enabledBoards[levelIndex]);
+      console.log(disabledBoards[levelIndex]);
       setDisabledBoards(disabledBoards);
+      setDisabledBoard(disabledBoards[levelIndex]);
+      return;
     } else {
       console.error(`Unhandled Button: ${button}`);
     }
@@ -195,10 +124,12 @@ export const LevelsProvider: FC = ({ children }) => {
 
     if (buttonDown === 0) {
       enabledBoards[levelIndex][row][col] = buttonDownValue;
-      setEnabledBoards(enabledBoards);
+      setEnabledBoards([...enabledBoards]);
+      setEnabledBoard(enabledBoards[levelIndex]);
     } else if (buttonDown === 2) {
       disabledBoards[levelIndex][row][col] = buttonDownValue;
-      setDisabledBoards(disabledBoards);
+      setDisabledBoards([...disabledBoards]);
+      setDisabledBoard(disabledBoards[levelIndex]);
     }
   };
 
@@ -207,35 +138,61 @@ export const LevelsProvider: FC = ({ children }) => {
     setButtonDownValue(null);
   };
 
+  /*
   const toggleEnabled = (row: number, col: number) => {
-    if (disabledBoards[levelIndex][row][col] === layerIndex) {
-      return false;
+    if (!buttonDownValue) {
+      return;
     }
-    enabledBoards[levelIndex][row][col] =
-      enabledBoards[levelIndex][row][col] === CellStatus.OPEN
-        ? layerIndex
-        : CellStatus.OPEN;
-    setEnabledBoards(enabledBoards);
+
+    if (disabledBoards[levelIndex][row][col] === CellStatus.OPEN) {
+      enabledBoards[levelIndex][row][col] = buttonDownValue;
+      setEnabledBoards([...enabledBoards]);
+      setEnabledBoard(enabledBoards[levelIndex]);
+    } else if (disabledBoards[levelIndex][row][col] === layerIndex) {
+      enabledBoards[levelIndex][row][col] = CellStatus.OPEN;
+      setEnabledBoards([...enabledBoards]);
+      setEnabledBoard(enabledBoards[levelIndex]);
+      return;
+    } else {
+      console.error('Unknown cell value detected when toggling enabled');
+    }
   };
 
   const toggleDisabled = (row: number, col: number) => {
-    disabledBoards[levelIndex][row][col] =
-      disabledBoards[levelIndex][row][col] === CellStatus.OPEN
-        ? layerIndex
-        : CellStatus.OPEN;
-    setDisabledBoards(disabledBoards);
+    if (!buttonDownValue) {
+      return;
+    }
+
+    console.log(
+      `About to affect cell (${row}, ${col}) with current value of ${disabledBoards[levelIndex][row][col]}`
+    );
+    if (disabledBoards[levelIndex][row][col] === CellStatus.OPEN) {
+      disabledBoards[levelIndex][row][col] = layerIndex;
+      setDisabledBoards([...disabledBoards]);
+      setDisabledBoard(disabledBoards[levelIndex]);
+    } else if (disabledBoards[levelIndex][row][col] === layerIndex) {
+      disabledBoards[levelIndex][row][col] = CellStatus.OPEN;
+      setDisabledBoards([...disabledBoards]);
+      setDisabledBoard(disabledBoards[levelIndex]);
+    } else {
+      console.log('nope');
+    }
   };
+  */
 
-  const width = () => level.solution[0].length;
-  const height = () => level.solution.length;
+  const level = levels[levelIndex];
 
-  if (loading) {
-    return <div>Loading</div>;
+  if (!level) {
+    return null;
   }
 
-  if (error) {
-    return <div>{error}</div>;
-  }
+  const width = level.solution[0].length;
+  const height = level.solution.length;
+  const { colors, solution } = level;
+  const color = colors[layerIndex];
+  const [top, left, bottom, right] = generateTotals(colors, solution)[
+    layerIndex
+  ];
 
   const value: LevelsValue = {
     levels,
@@ -245,18 +202,20 @@ export const LevelsProvider: FC = ({ children }) => {
     setLevelIndex,
     layerIndex,
     setLayerIndex,
-    width: width(),
-    height: height(),
+    width,
+    height,
     enabledBoard,
     disabledBoard,
     color,
+    colors,
     totals: { top, right, bottom, left },
     mouseDown,
     mouseMove,
     mouseUp,
     buttonDown,
-    toggleDisabled,
-    toggleEnabled,
+    //toggleDisabled,
+    //toggleEnabled,
+    blockSize,
   };
 
   return (
@@ -267,3 +226,48 @@ export const LevelsProvider: FC = ({ children }) => {
 export const LevelsConsumer = LevelsContext.Consumer;
 
 export default LevelsContext;
+
+type Total = Board;
+type Totals = { top: Total; right: Total; bottom: Total; left: Total };
+interface LevelsValue {
+  levels: SolveableLevel[];
+  level: SolveableLevel;
+  setLevels: (levels: SolveableLevel[]) => void;
+  levelIndex: number;
+  setLevelIndex: (index: number) => void;
+  layerIndex: number;
+  setLayerIndex: (index: number) => void;
+  enabledBoard: Board;
+  disabledBoard: Board;
+  color: string;
+  colors: string[];
+  width: number;
+  height: number;
+  totals: Totals;
+  mouseDown: (e: MouseEvent, row: number, col: number) => void;
+  mouseMove: (row: number, col: number) => false | undefined;
+  mouseUp: (e: MouseEvent) => void;
+  //toggleEnabled: (row: number, col: number) => void;
+  //toggleDisabled: (row: number, col: number) => void;
+  buttonDown: number | null;
+  blockSize: number;
+}
+
+type Board = number[][];
+
+interface LevelsProviderProps {
+  levelIndex: number;
+  levels: SolveableLevel[];
+  blockSize?: number;
+}
+
+type CompareBoardReturn =
+  | number
+  | math.BigNumber
+  | math.Fraction
+  | math.Complex
+  | math.Unit
+  | number[]
+  | Board
+  | math.Matrix
+  | boolean;

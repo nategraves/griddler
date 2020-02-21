@@ -1,7 +1,7 @@
-import React, { FC } from "react";
+import React, { FC } from 'react';
 
-import { UIConsumer } from "../Contexts/UI";
-import { Row, Col, Block } from "./index";
+import { LevelsConsumer } from '../Contexts/Levels';
+import { Row, Col, TotalBlock } from './index';
 
 interface TotalsProps {
   vertical?: boolean;
@@ -11,7 +11,7 @@ interface TotalsProps {
 
 const Totals: FC<TotalsProps> = ({ vertical = false, totals, color }) => {
   return (
-    <UIConsumer>
+    <LevelsConsumer>
       {props => {
         if (!props) {
           return null;
@@ -24,14 +24,14 @@ const Totals: FC<TotalsProps> = ({ vertical = false, totals, color }) => {
             {totals.map((rowTotals: any[], i: number) => (
               <Row key={`left-row-${i}`}>
                 {rowTotals.map((total, j) => (
-                  <Block
+                  <TotalBlock
                     color={color}
                     enabledState={1}
                     size={blockSize}
                     key={`left-total-${i}-${j}`}
                   >
                     {total}
-                  </Block>
+                  </TotalBlock>
                 ))}
               </Row>
             ))}
@@ -41,21 +41,21 @@ const Totals: FC<TotalsProps> = ({ vertical = false, totals, color }) => {
             {totals.map((colTotals: any[], i: number) => (
               <Col key={`top-col-${i}`}>
                 {colTotals.map((total, j) => (
-                  <Block
+                  <TotalBlock
                     color={color}
                     enabledState={1}
                     size={blockSize}
                     key={`top-total-${i}-${j}`}
                   >
                     {total}
-                  </Block>
+                  </TotalBlock>
                 ))}
               </Col>
             ))}
           </Row>
         );
       }}
-    </UIConsumer>
+    </LevelsConsumer>
   );
 };
 

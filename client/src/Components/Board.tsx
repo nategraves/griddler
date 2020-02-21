@@ -1,9 +1,8 @@
-import React, { FC } from "react";
-import styled from "styled-components";
+import React, { FC } from 'react';
+import styled from 'styled-components';
 
-import { UIConsumer } from '../Contexts/UI';
 import { LevelsConsumer } from '../Contexts/Levels';
-import { Block } from "./index";
+import { BoardBlock } from './index';
 
 interface StyledBoardProps {
   rows: number;
@@ -17,58 +16,35 @@ const StyledBoard = styled.div<StyledBoardProps>`
   grid-template-rows: repeat(${({ rows }) => rows}, 1fr);
 `;
 
-interface BoardProps {
-  enabledBoard: number[][];
-  disabledBoard: number[][];
-}
-
-const Board: FC<BoardProps> = ({ enabledBoard, disabledBoard }) => (
-  <UIConsumer>
-    {uiProps => {
-      if (!uiProps) {
+const Board: FC<{}> = () => (
+  <LevelsConsumer>
+    {levelProps => {
+      if (!levelProps) {
+        console.error('No LevelsConsumer props');
         return null;
       }
 
-      const { blockSize } = uiProps;
+      const { levelIndex, enabledBoard } = levelProps;
+
+      if (!enabledBoard || enabledBoard.length === 0) {
+        return null;
+      }
 
       return (
-        <LevelsConsumer>
-          {levelProps => {
-            if (!levelProps) {
-              return null;
-            }
-
-            const { layerIndex, mouseUp, mouseMove, mouseDown, toggleEnabled, toggleDisabled, buttonDown, color } = levelProps;
-
-            return (
-              <StyledBoard rows={enabledBoard.length} cols={enabledBoard[0].length}>
-                {enabledBoard.map((row: any[], rowIndex: number) =>
-                  row.map((_item, colIndex) => (
-                    <Block
-                      enabledState={enabledBoard[rowIndex][colIndex]}
-                      disabledState={disabledBoard[rowIndex][colIndex]}
-                      row={rowIndex}
-                      col={colIndex}
-                      layerIndex={layerIndex}
-                      onMouseDown={mouseDown}
-                      onMouseMove={mouseMove}
-                      onMouseUp={mouseUp}
-                      onClick={toggleEnabled}
-                      onRightClick={toggleDisabled}
-                      buttonDown={buttonDown}
-                      size={blockSize}
-                      color={color}
-                      key={`board-${rowIndex}-${colIndex}`}
-                    />
-                  ))
-                )}
-              </StyledBoard>
-            )
-          }}
-        </LevelsConsumer>
-      )
+        <StyledBoard rows={enabledBoard.length} cols={enabledBoard[0].length}>
+          {enabledBoard.map((row: any[], rowIndex: number) =>
+            row.map((_item, colIndex) => (
+              <BoardBlock
+                row={rowIndex}
+                col={colIndex}
+                key={`board-${levelIndex}-${rowIndex}-${colIndex}`}
+              />
+            ))
+          )}
+        </StyledBoard>
+      );
     }}
-  </UIConsumer>
+  </LevelsConsumer>
 );
 
 export default Board;

@@ -1,23 +1,19 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
-import './index.css';
+import { BrowserRouter } from 'react-router-dom';
+
 import App from './App';
 import * as serviceWorker from './serviceWorker';
 import { ApolloProvider } from '@apollo/react-hooks';
-import { UIProvider } from './Contexts/UI';
-import { LevelsProvider } from './Contexts/Levels';
-
 import { client } from './gql';
 
-const BLOCK_SIZE = 32;
+import './index.css';
 
 ReactDOM.render(
   <ApolloProvider client={client}>
-    <UIProvider blockSize={BLOCK_SIZE}>
-      <LevelsProvider>
-        <App />
-      </LevelsProvider>
-    </UIProvider>
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
   </ApolloProvider>,
   document.getElementById('root')
 );

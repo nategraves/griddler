@@ -7,4 +7,6 @@ type Level = {
   solution: Solution;
 };
 
-export { Level, Solution, Colors };
+type SolveableLevel = Level & { solved: boolean };
+
+export { Level, Solution, Colors, SolveableLevel };
