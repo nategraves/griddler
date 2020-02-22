@@ -11,13 +11,10 @@ import { generateTotals } from '../utils';
 import { Solution, SolveableLevel } from '../types';
 
 const LevelsContext = createContext<LevelsValue | null>(null);
-const CellStatus = {
-  OPEN: -1,
-  DISABLED: -2,
-};
+const OPEN = -1;
 
 export const LevelsProvider: FC<LevelsProviderProps> = ({
-  levelIndex: initialLevelIndex,
+  levelIndex: _levelIndex,
   levels: initialLevels,
   blockSize = 32,
   children,
@@ -34,39 +31,22 @@ export const LevelsProvider: FC<LevelsProviderProps> = ({
   };
 
   const openSolutions = (): Board[] => {
-    const boards =
-      levels.length > 0
-        ? levels.map(l => l.solution.map(r => r.map(c => CellStatus.OPEN)))
-        : [];
-    return boards;
+    return levels.map(l => l.solution.map(r => r.map(c => OPEN)));
   };
 
   const [levels, setLevels] = useState<SolveableLevel[]>(initialLevels);
-  const [levelIndex, setLevelIndex] = useState(initialLevelIndex);
-  const [enabledBoards, setEnabledBoards] = useState<Board[]>([]);
-  const [disabledBoards, setDisabledBoards] = useState<Board[]>([]);
-  const [enabledBoard, setEnabledBoard] = useState<Board>([]);
-  const [disabledBoard, setDisabledBoard] = useState<Board>([]);
+  const [levelIndex, setLevelIndex] = useState(_levelIndex);
+  const [boards, setBoards] = useState<Board[]>([]);
   const [layerIndex, setLayerIndex] = useState(0);
   const [buttonDown, setButtonDown] = useState<number | null>(null);
   const [buttonDownValue, setButtonDownValue] = useState<number | null>(null);
 
   useEffect(() => {
-    setEnabledBoard(enabledBoards[levelIndex]);
-    setDisabledBoard(disabledBoards[levelIndex]);
-    setLayerIndex(0);
-  }, []);
+    setLevelIndex(_levelIndex);
 
-  useEffect(() => {
-    setLevelIndex(initialLevelIndex);
-
-    const openBoards = openSolutions();
-    setEnabledBoards([...openBoards]);
-    setDisabledBoards([...openBoards]);
-
-    setEnabledBoard(openBoards[initialLevelIndex]);
-    setDisabledBoard(openBoards[initialLevelIndex]);
-  }, [levels, initialLevelIndex]);
+    const enabledOpen = [...openSolutions()];
+    setBoards(enabledOpen);
+  }, [levels]);
 
   /*
   useEffect(() => {
@@ -84,29 +64,21 @@ export const LevelsProvider: FC<LevelsProviderProps> = ({
 
     if (button === 0) {
       const buttonValue =
-        enabledBoards[levelIndex][row][col] === CellStatus.OPEN
-          ? layerIndex
-          : CellStatus.OPEN;
+        boards[levelIndex][row][col] === OPEN ? layerIndex : OPEN;
 
       console.log('Left down', buttonValue);
       setButtonDownValue(buttonValue);
-      enabledBoards[levelIndex][row][col] = buttonValue;
-      setEnabledBoards(enabledBoards);
-      setEnabledBoard(enabledBoards[levelIndex]);
+      boards[levelIndex][row][col] = buttonValue;
+      setBoards(boards);
       return;
     } else if (button === 2) {
       const buttonValue =
-        disabledBoards[levelIndex][row][col] === CellStatus.OPEN
-          ? layerIndex
-          : CellStatus.OPEN;
+        boards[levelIndex][row][col] === OPEN ? -layerIndex : OPEN;
 
       console.log('Right down', buttonValue);
       setButtonDownValue(buttonValue);
-      disabledBoards[levelIndex][row][col] = buttonValue;
-      console.log(enabledBoards[levelIndex]);
-      console.log(disabledBoards[levelIndex]);
-      setDisabledBoards(disabledBoards);
-      setDisabledBoard(disabledBoards[levelIndex]);
+      boards[levelIndex][row][col] = buttonValue;
+      setBoards(boards);
       return;
     } else {
       console.error(`Unhandled Button: ${button}`);
@@ -114,21 +86,46 @@ export const LevelsProvider: FC<LevelsProviderProps> = ({
   };
 
   const mouseMove = (row: number, col: number) => {
+    const cellValue = boards[levelIndex][row][col];
+    let newCellValue;
+
     if (
       buttonDown === null ||
       buttonDownValue === null ||
-      disabledBoards[levelIndex][row][col] === layerIndex
+      cellValue === buttonDownValue
     ) {
       return false;
     }
 
+    // Left click
     if (buttonDown === 0) {
-      enabledBoards[levelIndex][row][col] = buttonDownValue;
-      setEnabledBoards([...enabledBoards]);
-      setEnabledBoard(enabledBoards[levelIndex]);
+      // Return if disabled in this layer
+
+      switch (cellValue) {
+        case 0:
+          newCellValue = buttonDownValue;
+          break;
+        case buttonDownValue:
+          break;
+        case -layerIndex:
+          break;
+        default:
+      }
+      if (cellValue === layerIndex) {
+        return;
+      }
+
+      // If open in this layer OR disabled in another layer, enable
+      if (cellValue === OPEN || Math.abs(cellValue) !== layerIndex) {
+        newCellValue = buttonDownValue;
+      }
+      // If a
+      else if (cellValue === layerIndex) {
+      }
     } else if (buttonDown === 2) {
-      disabledBoards[levelIndex][row][col] = buttonDownValue;
-      setDisabledBoards([...disabledBoards]);
+      if (cellValue === OPEN || cellValue)
+        boards[levelIndex][row][col] = buttonDownValue;
+      setBoards([...boards]);
       setDisabledBoard(disabledBoards[levelIndex]);
     }
   };
