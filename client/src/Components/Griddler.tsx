@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { FC } from 'react';
 import styled from 'styled-components';
 
+import { Props } from './Levels';
+import { generateTotals } from '../utils';
 import { LayerPicker, Board, Totals, Row, LevelPicker } from './index';
-import { LevelsConsumer } from '../Contexts/Levels';
 
 const Main = styled.div`
   align-items: center;
@@ -24,49 +25,59 @@ const Skew = styled.div`
   justify-content: center;
 `;
 
-const Griddler = () => (
-  <LevelsConsumer>
-    {levelsProps => {
-      if (!levelsProps) {
-        return null;
-      }
+const Griddler: FC<Props> = ({
+  levels,
+  levelIndex,
+  setLevelIndex,
+  layerIndex,
+  setLayerIndex,
+  boards,
+  disabledBoards,
+  mouseDown,
+  mouseEnter,
+  mouseUp,
+}) => {
+  const level = levels[levelIndex];
 
-      const {
-        levels,
-        levelIndex,
-        level,
-        width,
-        height,
-        totals,
-        setLayerIndex,
-        color,
-        blockSize,
-      } = levelsProps;
-      const { title, colors } = level;
-      const { top, right, bottom, left } = totals;
+  if (!level) {
+    return null;
+  }
 
-      return (
-        <Main>
-          <LevelPicker />
-          <h1>
-            {levelIndex + 1}: {title} ({width}, {height})
-          </h1>
-          <LayerPicker />
-          <Skew style={{ backgroundColor: color }}>
-            <Totals totals={top} color={color} />
-            <Row>
-              <Totals totals={left} color={color} vertical />
-              <Row>
-                <Board />
-              </Row>
-              <Totals totals={right} color={color} vertical />
-            </Row>
-            <Totals totals={bottom} color={color} />
-          </Skew>
-        </Main>
-      );
-    }}
-  </LevelsConsumer>
-);
+  const { title, colors, solution } = level;
+  const width = level.solution[0].length;
+  const height = level.solution.length;
+  const color = colors[layerIndex];
+  const [top, left, bottom, right] = generateTotals(colors, solution)[
+    layerIndex
+  ];
+
+  const blockSize = 32;
+
+  return (
+    <Main>
+      <LevelPicker />
+      <h1>
+        {levelIndex + 1}: {title} ({width}, {height})
+      </h1>
+      <LayerPicker
+        colors={colors}
+        blockSize={blockSize}
+        level={level}
+        setLayerIndex={setLayerIndex}
+      />
+      <Skew style={{ backgroundColor: color }}>
+        <Totals totals={top} color={color} />
+        <Row>
+          <Totals totals={left} color={color} vertical />
+          <Row>
+            <Board />
+          </Row>
+          <Totals totals={right} color={color} vertical />
+        </Row>
+        <Totals totals={bottom} color={color} />
+      </Skew>
+    </Main>
+  );
+};
 
 export default Griddler;

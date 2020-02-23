@@ -1,39 +1,34 @@
-import React from 'react';
+import React, { FC } from 'react';
 
-import { LevelsConsumer } from '../Contexts/Levels';
 import { Row, LayerBlock } from './index';
 
-const LayerPicker = () => {
+interface Props {
+  colors: string[];
+  blockSize: number;
+  level: any;
+  setLayerIndex: Function;
+}
+
+const LayerPicker: FC<Props> = ({
+  colors,
+  blockSize,
+  level,
+  setLayerIndex,
+}) => {
   return (
-    <LevelsConsumer>
-      {props => {
-        if (!props) {
-          return null;
-        }
-
-        const { colors, blockSize, level, setLayerIndex } = props;
-
-        if (!level) {
-          return null;
-        }
-
-        return (
-          <Row style={{ marginBottom: '1.5rem' }}>
-            {colors.map((color, index) => (
-              <LayerBlock
-                enabledState={1}
-                color={color}
-                onClick={() => setLayerIndex(index)}
-                size={blockSize}
-                key={`${level.title}-color-${index}`}
-              >
-                {color}
-              </LayerBlock>
-            ))}
-          </Row>
-        );
-      }}
-    </LevelsConsumer>
+    <Row style={{ marginBottom: '1.5rem' }}>
+      {colors.map((color: any, index: any) => (
+        <LayerBlock
+          enabledState={1}
+          color={color}
+          onClick={() => setLayerIndex(index)}
+          size={blockSize}
+          key={`${level.title}-color-${index}`}
+        >
+          {color}
+        </LayerBlock>
+      ))}
+    </Row>
   );
 };
 

@@ -1,8 +1,6 @@
 import React, { FC } from 'react';
 import styled from 'styled-components';
 
-import { LevelsConsumer } from '../Contexts/Levels';
-
 const OPEN = -1;
 const white = '#eee';
 const black = '#111';
@@ -27,61 +25,52 @@ const Container = styled.div`
   }
 `;
 
-const BoardBlock: FC<BlockProps> = ({
+const BoardBlock: FC<BlockProps & any> = ({
+  enabledBoard,
+  disabledBoard,
+  color,
+  blockSize,
+  mouseDown,
+  mouseMove,
+  mouseUp,
+  //toggleEnabled,
+  //toggleDisabled,
+  layerIndex,
+
   row,
   col,
   transitionTime = 0.2,
   children,
-}) => (
-  <LevelsConsumer>
-    {props => {
-      if (!props) {
-        return null;
-      }
+}) => {
+  const enabledState = enabledBoard[row][col];
+  const disabledState = disabledBoard[row][col];
+  const open = enabledState === OPEN && disabledState !== layerIndex;
+  const disabled = enabledState !== OPEN || disabledState === layerIndex;
+  const backgroundColor = open ? white : disabled ? color : white;
+  const backgroundImage = disabled
+    ? `repeating-linear-gradient(
+        45deg,transparent,transparent 3px,${backgroundColor} 3px,${backgroundColor} 6px
+      )`
+    : 'none';
 
-      const {
-        enabledBoard,
-        disabledBoard,
-        color,
-        blockSize,
-        mouseDown,
-        mouseMove,
-        mouseUp,
-        //toggleEnabled,
-        //toggleDisabled,
-        layerIndex,
-      } = props;
-      const enabledState = enabledBoard[row][col];
-      const disabledState = disabledBoard[row][col];
-      const open = enabledState === OPEN && disabledState !== layerIndex;
-      const disabled = enabledState !== OPEN || disabledState === layerIndex;
-      const backgroundColor = open ? white : disabled ? color : white;
-      const backgroundImage = disabled
-        ? `repeating-linear-gradient(
-            45deg,transparent,transparent 3px,${backgroundColor} 3px,${backgroundColor} 6px
-          )`
-        : 'none';
-
-      return (
-        <Container
-          style={{
-            backgroundColor,
-            backgroundImage,
-            cursor: 'pointer',
-            height: `${blockSize}px`,
-            transition: `all ${transitionTime}s ease-in-out`,
-            width: `${blockSize}px`,
-          }}
-          onContextMenu={e => e.preventDefault()}
-          onMouseDown={e => mouseDown(e, row, col)}
-          onMouseMove={() => mouseMove(row, col)}
-          onMouseUp={mouseUp}
-        >
-          {children}
-        </Container>
-      );
-    }}
-  </LevelsConsumer>
-);
+  return (
+    <Container
+      style={{
+        backgroundColor,
+        backgroundImage,
+        cursor: 'pointer',
+        height: `${blockSize}px`,
+        transition: `all ${transitionTime}s ease-in-out`,
+        width: `${blockSize}px`,
+      }}
+      onContextMenu={e => e.preventDefault()}
+      onMouseDown={e => mouseDown(e, row, col)}
+      onMouseMove={() => mouseMove(row, col)}
+      onMouseUp={mouseUp}
+    >
+      {children}
+    </Container>
+  );
+};
 
 export default BoardBlock;

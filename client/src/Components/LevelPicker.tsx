@@ -1,8 +1,7 @@
-import React from 'react';
+import React, { FC } from 'react';
 import styled from 'styled-components';
 
 import { Row } from './index';
-import { LevelsConsumer } from '../Contexts/Levels';
 
 const LevelSelect = styled.div<{ size: number; isActive?: boolean }>`
   align-items: center;
@@ -29,31 +28,26 @@ const LevelSelect = styled.div<{ size: number; isActive?: boolean }>`
   }
 `;
 
-const LevelPicker = () => (
-  <LevelsConsumer>
-    {props => {
-      if (!props) {
-        return null;
-      }
-
-      const { levels, blockSize, levelIndex, setLevelIndex } = props;
-
-      return (
-        <Row>
-          {levels.map((level, index) => (
-            <LevelSelect
-              size={blockSize}
-              onClick={() => setLevelIndex(index)}
-              key={`level-${index}-${level.title}`}
-              isActive={levelIndex === index}
-            >
-              {index + 1}
-            </LevelSelect>
-          ))}
-        </Row>
-      );
-    }}
-  </LevelsConsumer>
-);
+const LevelPicker: FC<any> = ({
+  levels,
+  blockSize,
+  levelIndex,
+  setLevelIndex,
+}) => {
+  return (
+    <Row>
+      {levels.map((level: any, index: any) => (
+        <LevelSelect
+          size={blockSize}
+          onClick={() => setLevelIndex(index)}
+          key={`level-${index}-${level.title}`}
+          isActive={levelIndex === index}
+        >
+          {index + 1}
+        </LevelSelect>
+      ))}
+    </Row>
+  );
+};
 
 export default LevelPicker;
