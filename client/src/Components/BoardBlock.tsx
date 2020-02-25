@@ -9,6 +9,14 @@ interface BlockProps {
   row: number;
   col: number;
   transitionTime?: number;
+  enabledBoard: number[][];
+  disabledBoard: number[][];
+  color: string;
+  blockSize: number;
+  mouseDown: Function;
+  mouseEnter: Function;
+  mouseUp: Function;
+  layerIndex: number;
 }
 
 const Container = styled.div`
@@ -25,23 +33,24 @@ const Container = styled.div`
   }
 `;
 
-const BoardBlock: FC<BlockProps & any> = ({
+const BoardBlock: FC<BlockProps> = ({
+  row,
+  col,
+  transitionTime = 0.2,
+  children,
   enabledBoard,
   disabledBoard,
   color,
   blockSize,
   mouseDown,
-  mouseMove,
+  mouseEnter,
   mouseUp,
-  //toggleEnabled,
-  //toggleDisabled,
   layerIndex,
-
-  row,
-  col,
-  transitionTime = 0.2,
-  children,
 }) => {
+  if (enabledBoard.length === 0) {
+    return null;
+  }
+
   const enabledState = enabledBoard[row][col];
   const disabledState = disabledBoard[row][col];
   const open = enabledState === OPEN && disabledState !== layerIndex;
@@ -65,8 +74,8 @@ const BoardBlock: FC<BlockProps & any> = ({
       }}
       onContextMenu={e => e.preventDefault()}
       onMouseDown={e => mouseDown(e, row, col)}
-      onMouseMove={() => mouseMove(row, col)}
-      onMouseUp={mouseUp}
+      onMouseEnter={() => mouseEnter(row, col)}
+      onMouseUp={() => mouseUp()}
     >
       {children}
     </Container>

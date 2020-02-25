@@ -37,6 +37,10 @@ const Griddler: FC<Props> = ({
   mouseEnter,
   mouseUp,
 }) => {
+  if (!levels) {
+    return null;
+  }
+
   const level = levels[levelIndex];
 
   if (!level) {
@@ -70,7 +74,11 @@ const Griddler: FC<Props> = ({
         <Row>
           <Totals totals={left} color={color} vertical />
           <Row>
-            <Board />
+            <Board
+              boards={boards}
+              disabledBoards={disabledBoards}
+              levelIndex={levelIndex}
+            />
           </Row>
           <Totals totals={right} color={color} vertical />
         </Row>

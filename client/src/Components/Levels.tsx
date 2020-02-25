@@ -2,7 +2,7 @@ import React, { FC, useEffect, useState, MouseEvent } from 'react';
 import { Switch, Route, useParams } from 'react-router-dom';
 import { deepEqual } from 'mathjs';
 import { ApolloQueryResult } from 'apollo-boost';
-import { Levels as LevelsQuery, client } from './gql';
+import { Levels as LevelsQuery, client } from '../gql';
 
 import { Level, Solution, SolveableLevel } from '../types';
 import Griddler from './Griddler';
@@ -21,15 +21,15 @@ export const Levels: FC<{}> = () => {
     return deepEqual(solution, enabledBoard);
   };
 
-  const openBoard = (): Board[] => {
-    return levels.map(l => l.solution.map(r => r.map(c => OPEN)));
+  const openBoard = (boardLevels: Level[]): Board[] => {
+    return boardLevels.map(l => l.solution.map(r => r.map(c => OPEN)));
   };
 
   const { id } = useParams();
   const [levels, setLevels] = useState<SolveableLevel[]>([]);
   const [levelIndex, setLevelIndex] = useState(0);
-  const [boards, setBoards] = useState([...openBoard()]);
-  const [disabledBoards, setDisabledBoards] = useState([...openBoard()]);
+  const [boards, setBoards] = useState<Board[]>([]);
+  const [disabledBoards, setDisabledBoards] = useState<Board[]>([]);
   const [layerIndex, setLayerIndex] = useState(0);
   const [buttonDownValue, setButtonDownValue] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
@@ -45,9 +45,15 @@ export const Levels: FC<{}> = () => {
           query: LevelsQuery,
         });
 
-        setLevels(
-          response.data.levels.map(level => ({ ...level, solved: false }))
-        );
+        const _levels = response.data.levels.map(level => ({
+          ...level,
+          solved: false,
+        }));
+        setLevels(_levels);
+        const open = openBoard(_levels);
+        console.log(open);
+        setBoards([...open]);
+        setDisabledBoards([...open]);
       } catch (e) {
         setError(e.message);
         console.error(e);
@@ -66,7 +72,6 @@ export const Levels: FC<{}> = () => {
   if (error) {
     return <div>{error}</div>;
   }
-  useEffect(() => {}, []);
 
   const performBlockLogic = (button: number, row: number, col: number) => {
     let enabledValue = boards[levelIndex][row][col];
@@ -132,7 +137,7 @@ export default Levels;
 type Total = Board;
 type Totals = { top: Total; right: Total; bottom: Total; left: Total };
 
-export type Props {
+export type Props = {
   levels: SolveableLevel[];
   levelIndex: number;
   setLevelIndex: (index: number) => void;
@@ -143,7 +148,7 @@ export type Props {
   mouseDown: (e: MouseEvent, row: number, col: number) => void;
   mouseEnter: (row: number, col: number) => void;
   mouseUp: (e: MouseEvent) => void;
-}
+};
 
 type Board = number[][];
 

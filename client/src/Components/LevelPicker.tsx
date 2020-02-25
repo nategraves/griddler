@@ -34,6 +34,10 @@ const LevelPicker: FC<any> = ({
   levelIndex,
   setLevelIndex,
 }) => {
+  if (!levels) {
+    return null;
+  }
+
   return (
     <Row>
       {levels.map((level: any, index: any) => (

@@ -17,8 +17,17 @@ const StyledBoard = styled.div<StyledBoardProps>`
   grid-template-rows: repeat(${({ rows }) => rows}, 1fr);
 `;
 
-const Board: FC<any> = ({ levelIndex, boards, disabledBoards }) => {
+const Board: FC<{
+  layerIndex: number;
+  levelIndex: number;
+  boards: number[][][];
+  disabledBoards: number[][][];
+  colors: string[];
+}> = ({ levelIndex, boards, disabledBoards }) => {
   const enabledBoard = boards[levelIndex];
+  const disabledBoard = disabledBoards[levelIndex];
+  const color = colors[layerIndex];
+  console.log(enabledBoard);
 
   if (!enabledBoard || enabledBoard.length === 0) {
     return null;
@@ -31,6 +40,9 @@ const Board: FC<any> = ({ levelIndex, boards, disabledBoards }) => {
           <BoardBlock
             row={rowIndex}
             col={colIndex}
+            enabledBoard={enabledBoard}
+            disabledBoard={disabledBoard}
+            color={color}
             key={`board-${levelIndex}-${rowIndex}-${colIndex}`}
           />
         ))
