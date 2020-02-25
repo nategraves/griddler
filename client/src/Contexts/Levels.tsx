@@ -86,6 +86,7 @@ export const LevelsProvider: FC<LevelsProviderProps> = ({
     } else {
       console.error(`Unhandled Button: ${button}`);
     }
+
     setButtonDownValue(newValue);
   };
 

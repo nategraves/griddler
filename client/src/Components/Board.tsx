@@ -24,7 +24,7 @@ const Board: FC<{}> = () => (
         return null;
       }
 
-      const { levelIndex, boards } = levelProps;
+      const { levelIndex, boards, disabledBoards } = levelProps;
 
       if (!boards || boards.length === 0) {
         return null;

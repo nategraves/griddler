@@ -1,4 +1,5 @@
 import React, { FC, useContext } from 'react';
+import { filter } from 'lodash';
 import styled from 'styled-components';
 
 import LevelsContext from '../Contexts/Levels';
@@ -60,23 +61,19 @@ const BoardBlock: FC<BlockProps> = ({
     return null;
   }
 
-  const enabledState = boards[levelIndex][row][col];
-  const disabledCells = disabledBoards[levelIndex].filter(
-    b => !!b && b[row][col] >= 0
-  );
-  debugger;
+  const cellValue = boards[levelIndex][row][col];
+  const disabledCellValue = disabledBoards[levelIndex][layerIndex][row][col];
 
-  //.filter(v => v !== null);
+  const isEnabled = cellValue === layerIndex;
+  const isDisabled =
+    cellValue !== OPEN || (disabledCellValue >= 0 && !isEnabled);
 
-  const disabledState = disabledCells.length > 0;
-  const open = enabledState === OPEN && !disabledState;
-  const disabled = enabledState !== OPEN || disabledState;
-  const backgroundColor = open ? white : disabled ? color : '#CCCCCCCC';
-  const backgroundImage = disabled
-    ? `repeating-linear-gradient(
-        45deg,transparent,transparent 3px,${backgroundColor} 3px,${backgroundColor} 6px
-      )`
-    : 'none';
+  const backgroundColor = isEnabled || isDisabled ? color : white;
+  const backgroundImage = isEnabled
+    ? 'none'
+    : `repeating-linear-gradient(
+        45deg,${white},${white} 3px,${backgroundColor} 3px,${backgroundColor} 6px
+      )`;
 
   return (
     <Container
