@@ -1,3 +1,5 @@
+type Board = number[][];
+type DisabledBoard = number[][][];
 type Solution = number[][];
 type Colors = string[];
 
@@ -9,4 +11,4 @@ type Level = {
 
 type SolveableLevel = Level & { solved: boolean };
 
-export { Level, Solution, Colors, SolveableLevel };
+export { Board, DisabledBoard, Level, Solution, Colors, SolveableLevel };

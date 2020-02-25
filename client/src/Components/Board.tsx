@@ -24,15 +24,17 @@ const Board: FC<{}> = () => (
         return null;
       }
 
-      const { levelIndex, enabledBoard } = levelProps;
+      const { levelIndex, boards } = levelProps;
 
-      if (!enabledBoard || enabledBoard.length === 0) {
+      if (!boards || boards.length === 0) {
         return null;
       }
 
+      const board = boards[levelIndex];
+
       return (
-        <StyledBoard rows={enabledBoard.length} cols={enabledBoard[0].length}>
-          {enabledBoard.map((row: any[], rowIndex: number) =>
+        <StyledBoard rows={board.length} cols={board[0].length}>
+          {board.map((row: any[], rowIndex: number) =>
             row.map((_item, colIndex) => (
               <BoardBlock
                 row={rowIndex}

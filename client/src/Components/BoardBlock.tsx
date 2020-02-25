@@ -1,7 +1,7 @@
-import React, { FC } from 'react';
+import React, { FC, useContext } from 'react';
 import styled from 'styled-components';
 
-import { LevelsConsumer } from '../Contexts/Levels';
+import LevelsContext from '../Contexts/Levels';
 
 const OPEN = -1;
 const white = '#eee';
@@ -32,56 +32,70 @@ const BoardBlock: FC<BlockProps> = ({
   col,
   transitionTime = 0.2,
   children,
-}) => (
-  <LevelsConsumer>
-    {props => {
-      if (!props) {
-        return null;
-      }
+}) => {
+  const context = useContext(LevelsContext);
 
-      const {
-        enabledBoard,
-        disabledBoard,
-        color,
-        blockSize,
-        mouseDown,
-        mouseMove,
-        mouseUp,
-        //toggleEnabled,
-        //toggleDisabled,
-        layerIndex,
-      } = props;
-      const enabledState = enabledBoard[row][col];
-      const disabledState = disabledBoard[row][col];
-      const open = enabledState === OPEN && disabledState !== layerIndex;
-      const disabled = enabledState !== OPEN || disabledState === layerIndex;
-      const backgroundColor = open ? white : disabled ? color : white;
-      const backgroundImage = disabled
-        ? `repeating-linear-gradient(
-            45deg,transparent,transparent 3px,${backgroundColor} 3px,${backgroundColor} 6px
-          )`
-        : 'none';
+  if (!context) {
+    return null;
+  }
 
-      return (
-        <Container
-          style={{
-            backgroundColor,
-            backgroundImage,
-            cursor: 'pointer',
-            height: `${blockSize}px`,
-            transition: `all ${transitionTime}s ease-in-out`,
-            width: `${blockSize}px`,
-          }}
-          onContextMenu={e => e.preventDefault()}
-          onMouseDown={e => mouseDown(e, row, col)}
-          onMouseMove={() => mouseMove(row, col)}
-          onMouseUp={mouseUp}
-        >
-          {children}
-        </Container>
-      );
-    }}
-  </LevelsConsumer>
-);
+  const {
+    boards,
+    disabledBoards,
+    color,
+    blockSize,
+    mouseDown,
+    mouseEnter,
+    mouseUp,
+    layerIndex,
+    levelIndex,
+  } = context;
+
+  if (
+    !boards ||
+    boards.length === 0 ||
+    !disabledBoards ||
+    disabledBoards.length === 0
+  ) {
+    return null;
+  }
+
+  const enabledState = boards[levelIndex][row][col];
+  const disabledCells = disabledBoards[levelIndex].filter(
+    b => !!b && b[row][col] >= 0
+  );
+  debugger;
+
+  //.filter(v => v !== null);
+
+  const disabledState = disabledCells.length > 0;
+  const open = enabledState === OPEN && !disabledState;
+  const disabled = enabledState !== OPEN || disabledState;
+  const backgroundColor = open ? white : disabled ? color : '#CCCCCCCC';
+  const backgroundImage = disabled
+    ? `repeating-linear-gradient(
+        45deg,transparent,transparent 3px,${backgroundColor} 3px,${backgroundColor} 6px
+      )`
+    : 'none';
+
+  return (
+    <Container
+      style={{
+        backgroundColor,
+        backgroundImage,
+        cursor: 'pointer',
+        height: `${blockSize}px`,
+        transition: `all ${transitionTime}s ease-in-out`,
+        width: `${blockSize}px`,
+      }}
+      onContextMenu={e => e.preventDefault()}
+      onMouseDown={e => mouseDown(e, row, col)}
+      onMouseEnter={() => mouseEnter(row, col)}
+      onMouseUp={mouseUp}
+    >
+      {children}
+    </Container>
+  );
+};
 
 export default BoardBlock;

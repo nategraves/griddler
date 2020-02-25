@@ -6,12 +6,14 @@ import React, {
   MouseEvent,
 } from 'react';
 import { deepEqual } from 'mathjs';
-import { generateTotals } from '../utils';
 
-import { Solution, SolveableLevel } from '../types';
+import { generateTotals } from '../utils';
+import { DisabledBoard, Level, Solution, SolveableLevel } from '../types';
 
 const LevelsContext = createContext<LevelsValue | null>(null);
 const OPEN = -1;
+const LEFT_BTN = 0;
+const RIGHT_BTN = 2;
 
 export const LevelsProvider: FC<LevelsProviderProps> = ({
   levelIndex: _levelIndex,
@@ -21,161 +23,83 @@ export const LevelsProvider: FC<LevelsProviderProps> = ({
 }) => {
   const compareBoard = (
     solution: Solution,
-    enabledBoard: Solution
+    board: Solution
   ): CompareBoardReturn => {
-    if (!enabledBoard || !solution) {
+    if (!board || !solution) {
       return false;
     }
 
-    return deepEqual(solution, enabledBoard);
+    return deepEqual(solution, board);
   };
 
-  const openSolutions = (): Board[] => {
-    return levels.map(l => l.solution.map(r => r.map(c => OPEN)));
+  const openBoard = (boardLevels: Level[]): Board[] => {
+    return boardLevels.map(l => l.solution.map(r => r.map(c => OPEN)));
+  };
+
+  const openDisabledBoard = (boardLevels: Level[]): DisabledBoard[] => {
+    return boardLevels.map(l => {
+      const layers = [];
+      for (let i = 0; i < l.colors.length; i += 1) {
+        layers.push(l.solution.map(r => r.map(c => OPEN)));
+      }
+
+      return layers;
+    });
   };
 
   const [levels, setLevels] = useState<SolveableLevel[]>(initialLevels);
   const [levelIndex, setLevelIndex] = useState(_levelIndex);
   const [boards, setBoards] = useState<Board[]>([]);
+  const [disabledBoards, setDisabledBoards] = useState<DisabledBoard[]>([]);
   const [layerIndex, setLayerIndex] = useState(0);
-  const [buttonDown, setButtonDown] = useState<number | null>(null);
   const [buttonDownValue, setButtonDownValue] = useState<number | null>(null);
 
   useEffect(() => {
+    if (!levels.length) {
+      return;
+    }
+
     setLevelIndex(_levelIndex);
 
-    const enabledOpen = [...openSolutions()];
-    setBoards(enabledOpen);
-  }, [levels]);
+    const _boards = openBoard(levels);
+    setBoards(_boards);
+    const _disabledBoards = openDisabledBoard(levels);
+    setDisabledBoards(_disabledBoards);
+  }, []);
 
-  /*
-  useEffect(() => {
-    setEnabledBoard(enabledBoards[levelIndex]);
-  }, [enabledBoards]);
+  const performBlockLogic = (button: number, row: number, col: number) => {
+    let enabledValue = boards[levelIndex][row][col];
+    let disabledValue = disabledBoards[levelIndex][layerIndex][row][col];
+    let newValue = null;
 
-  useEffect(() => {
-    setDisabledBoard(disabledBoards[levelIndex]);
-  }, [disabledBoards]);
-  */
-
-  const mouseDown = (e: MouseEvent, row: number, col: number) => {
-    const { button } = e;
-    setButtonDown(button);
-
-    if (button === 0) {
-      const buttonValue =
-        boards[levelIndex][row][col] === OPEN ? layerIndex : OPEN;
-
-      console.log('Left down', buttonValue);
-      setButtonDownValue(buttonValue);
-      boards[levelIndex][row][col] = buttonValue;
+    if (button === LEFT_BTN) {
+      if (disabledValue >= 0) {
+        return;
+      }
+      newValue = enabledValue === OPEN ? layerIndex : OPEN;
+      boards[levelIndex][row][col] = newValue;
       setBoards(boards);
-      return;
-    } else if (button === 2) {
-      const buttonValue =
-        boards[levelIndex][row][col] === OPEN ? -layerIndex : OPEN;
-
-      console.log('Right down', buttonValue);
-      setButtonDownValue(buttonValue);
-      boards[levelIndex][row][col] = buttonValue;
-      setBoards(boards);
-      return;
+    } else if (button === RIGHT_BTN) {
+      newValue = disabledValue === OPEN ? layerIndex : OPEN;
+      disabledBoards[levelIndex][layerIndex][row][col] = newValue;
+      setDisabledBoards(disabledBoards);
     } else {
       console.error(`Unhandled Button: ${button}`);
     }
+    setButtonDownValue(newValue);
   };
 
-  const mouseMove = (row: number, col: number) => {
-    const cellValue = boards[levelIndex][row][col];
-    let newCellValue;
+  const mouseDown = ({ button }: MouseEvent, row: number, col: number) => {
+    performBlockLogic(button, row, col);
+  };
 
-    if (
-      buttonDown === null ||
-      buttonDownValue === null ||
-      cellValue === buttonDownValue
-    ) {
-      return false;
-    }
-
-    // Left click
-    if (buttonDown === 0) {
-      // Return if disabled in this layer
-
-      switch (cellValue) {
-        case 0:
-          newCellValue = buttonDownValue;
-          break;
-        case buttonDownValue:
-          break;
-        case -layerIndex:
-          break;
-        default:
-      }
-      if (cellValue === layerIndex) {
-        return;
-      }
-
-      // If open in this layer OR disabled in another layer, enable
-      if (cellValue === OPEN || Math.abs(cellValue) !== layerIndex) {
-        newCellValue = buttonDownValue;
-      }
-      // If a
-      else if (cellValue === layerIndex) {
-      }
-    } else if (buttonDown === 2) {
-      if (cellValue === OPEN || cellValue)
-        boards[levelIndex][row][col] = buttonDownValue;
-      setBoards([...boards]);
-      setDisabledBoard(disabledBoards[levelIndex]);
+  const mouseEnter = (row: number, col: number) => {
+    if (buttonDownValue !== null) {
+      performBlockLogic(buttonDownValue, row, col);
     }
   };
 
-  const mouseUp = () => {
-    setButtonDown(null);
-    setButtonDownValue(null);
-  };
-
-  /*
-  const toggleEnabled = (row: number, col: number) => {
-    if (!buttonDownValue) {
-      return;
-    }
-
-    if (disabledBoards[levelIndex][row][col] === CellStatus.OPEN) {
-      enabledBoards[levelIndex][row][col] = buttonDownValue;
-      setEnabledBoards([...enabledBoards]);
-      setEnabledBoard(enabledBoards[levelIndex]);
-    } else if (disabledBoards[levelIndex][row][col] === layerIndex) {
-      enabledBoards[levelIndex][row][col] = CellStatus.OPEN;
-      setEnabledBoards([...enabledBoards]);
-      setEnabledBoard(enabledBoards[levelIndex]);
-      return;
-    } else {
-      console.error('Unknown cell value detected when toggling enabled');
-    }
-  };
-
-  const toggleDisabled = (row: number, col: number) => {
-    if (!buttonDownValue) {
-      return;
-    }
-
-    console.log(
-      `About to affect cell (${row}, ${col}) with current value of ${disabledBoards[levelIndex][row][col]}`
-    );
-    if (disabledBoards[levelIndex][row][col] === CellStatus.OPEN) {
-      disabledBoards[levelIndex][row][col] = layerIndex;
-      setDisabledBoards([...disabledBoards]);
-      setDisabledBoard(disabledBoards[levelIndex]);
-    } else if (disabledBoards[levelIndex][row][col] === layerIndex) {
-      disabledBoards[levelIndex][row][col] = CellStatus.OPEN;
-      setDisabledBoards([...disabledBoards]);
-      setDisabledBoard(disabledBoards[levelIndex]);
-    } else {
-      console.log('nope');
-    }
-  };
-  */
+  const mouseUp = () => setButtonDownValue(null);
 
   const level = levels[levelIndex];
 
@@ -201,17 +125,14 @@ export const LevelsProvider: FC<LevelsProviderProps> = ({
     setLayerIndex,
     width,
     height,
-    enabledBoard,
-    disabledBoard,
+    boards,
+    disabledBoards,
     color,
     colors,
     totals: { top, right, bottom, left },
     mouseDown,
-    mouseMove,
+    mouseEnter,
     mouseUp,
-    buttonDown,
-    //toggleDisabled,
-    //toggleEnabled,
     blockSize,
   };
 
@@ -234,19 +155,16 @@ interface LevelsValue {
   setLevelIndex: (index: number) => void;
   layerIndex: number;
   setLayerIndex: (index: number) => void;
-  enabledBoard: Board;
-  disabledBoard: Board;
+  boards: Board[];
+  disabledBoards: DisabledBoard[];
   color: string;
   colors: string[];
   width: number;
   height: number;
   totals: Totals;
   mouseDown: (e: MouseEvent, row: number, col: number) => void;
-  mouseMove: (row: number, col: number) => false | undefined;
+  mouseEnter: (row: number, col: number) => void;
   mouseUp: (e: MouseEvent) => void;
-  //toggleEnabled: (row: number, col: number) => void;
-  //toggleDisabled: (row: number, col: number) => void;
-  buttonDown: number | null;
   blockSize: number;
 }
 
