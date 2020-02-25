@@ -68,19 +68,23 @@ export const LevelsProvider: FC<LevelsProviderProps> = ({
   }, []);
 
   const performBlockLogic = (button: number, row: number, col: number) => {
-    let enabledValue = boards[levelIndex][row][col];
-    let disabledValue = disabledBoards[levelIndex][layerIndex][row][col];
+    const cellValue = boards[levelIndex][row][col];
+    const disabledCellValue = disabledBoards[levelIndex][layerIndex][row][col];
+
+    const isEnabled = cellValue === layerIndex;
+    const isDisabled = disabledCellValue >= 0 || (cellValue >= 0 && !isEnabled);
+
     let newValue = null;
 
     if (button === LEFT_BTN) {
-      if (disabledValue >= 0) {
+      if (isDisabled) {
         return;
       }
-      newValue = enabledValue === OPEN ? layerIndex : OPEN;
+      newValue = isEnabled ? OPEN : layerIndex;
       boards[levelIndex][row][col] = newValue;
       setBoards(boards);
     } else if (button === RIGHT_BTN) {
-      newValue = disabledValue === OPEN ? layerIndex : OPEN;
+      newValue = disabledCellValue === OPEN ? layerIndex : OPEN;
       disabledBoards[levelIndex][layerIndex][row][col] = newValue;
       setDisabledBoards(disabledBoards);
     } else {
